@@ -1,10 +1,12 @@
 import EmbeddingCronJob from "./embeddingCron.js";
+import GmailSyncCronJob from "./gmailSyncCron.js";
 import { logger } from "../../utils/logger.js";
 
 export default class CronManager {
   constructor() {
     this.jobs = {
       embedding: new EmbeddingCronJob(),
+      gmailSync: new GmailSyncCronJob(),
     };
   }
 
@@ -14,10 +16,11 @@ export default class CronManager {
       if (process.env.ENABLE_EMBEDDING_CRON !== "false") {
         this.jobs.embedding.start();
       }
+      if (process.env.ENABLE_GMAIL_SYNC_CRON !== "false") {
+        this.jobs.gmailSync.start();
+      }
     } catch (error) {
-      logger.error("Error starting cron jobs", {
-        error: error.message,
-      });
+      logger.error("Error starting cron jobs", error);
       throw error;
     }
   }
@@ -35,6 +38,7 @@ export default class CronManager {
   getAllStatus() {
     return {
       embedding: this.jobs.embedding.getStatus(),
+      gmailSync: this.jobs.gmailSync.getStatus(),
     };
   }
 
