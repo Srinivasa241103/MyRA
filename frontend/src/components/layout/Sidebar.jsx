@@ -1,21 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { sidebarStyles } from "../../styles/sidebar.styles";
 import { useAuthStore } from "../../store/authStore";
+import { useChatStore } from "../../store/chatStore";
 import { authApi } from "../../api/auth";
 
 function Sidebar({ onNavigate, currentPage }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { user, isAuthenticated, logout } = useAuthStore();
+  const { conversations, conversationsLoading, conversationsError, loadConversations, loadConversation, conversationId, resetChat } = useChatStore();
   const profileMenuRef = useRef(null);
 
-  const placeholderHistory = [
-    { id: 1, title: "How to learn React" },
-    { id: 2, title: "JavaScript best practices" },
-    { id: 3, title: "Building a REST API" },
-    { id: 4, title: "CSS Grid vs Flexbox" },
-    { id: 5, title: "Database design tips" },
-  ];
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadConversations();
+    }
+  }, [isAuthenticated]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -131,7 +131,7 @@ function Sidebar({ onNavigate, currentPage }) {
         <div className={sidebarStyles.newChatSection}>
           <button
             className={sidebarStyles.newChatButton}
-            onClick={() => onNavigate("chat")}
+            onClick={() => { resetChat(); onNavigate("chat"); }}
             title="New Chat"
           >
             <svg
@@ -159,15 +159,42 @@ function Sidebar({ onNavigate, currentPage }) {
         )}
 
         {isAuthenticated ? (
-          placeholderHistory.length > 0 ? (
-            placeholderHistory.map((chat) => (
+          conversationsLoading ? (
+            isExpanded && (
+              <div className="flex flex-col gap-2 px-2 mt-1">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-8 rounded-lg bg-slate-700/50 animate-pulse" />
+                ))}
+              </div>
+            )
+          ) : conversationsError ? (
+            isExpanded && (
+              <div className="px-3 mt-2">
+                <p className="text-xs text-red-400">Failed to load history</p>
+                <button
+                  onClick={loadConversations}
+                  className="text-xs text-cyan-400 hover:text-cyan-300 mt-1 transition"
+                >
+                  Retry
+                </button>
+              </div>
+            )
+          ) : conversations.length > 0 ? (
+            conversations.map((chat) => (
               <button
-                key={chat.id}
-                className={isExpanded ? sidebarStyles.historyItem : sidebarStyles.historyItemCollapsed}
-                onClick={() => {}}
+                key={chat.conversationId}
+                className={`${isExpanded ? sidebarStyles.historyItem : sidebarStyles.historyItemCollapsed} ${chat.conversationId === conversationId ? "bg-slate-700/80 text-white" : ""}`}
+                onClick={() => {
+                  loadConversation(chat.conversationId);
+                  onNavigate("chat");
+                }}
                 title={chat.title}
               >
-                {isExpanded ? chat.title : <ChatIcon />}
+                {isExpanded ? (
+                  <span className="truncate text-sm">{chat.title}</span>
+                ) : (
+                  <ChatIcon />
+                )}
               </button>
             ))
           ) : (

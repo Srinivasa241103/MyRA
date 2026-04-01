@@ -1,23 +1,35 @@
 import { Pool } from "pg";
 import { logger } from "../utils/logger.js";
 
-export const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-  connectionTimeoutMillis: 5000, // Timeout after 5 seconds if connection can't be established
-  max: 10,
-});
+// Declared as `export let` so all importing modules get a live binding.
+// The Pool is created lazily on first call to getPool(), by which point
+// dotenv has already loaded .env (ES module imports are hoisted before
+// any code runs, so new Pool() at module-eval time would see undefined env vars).
+export let pool;
 
-pool.on("error", (err) => {
-  console.error("Unexpected error on idle client", err);
-  process.exit(-1);
-});
+export function getPool() {
+  if (!pool) {
+    pool = new Pool({
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      password: process.env.DB_PASSWORD,
+      port: process.env.DB_PORT,
+      connectionTimeoutMillis: 5000,
+      max: 10,
+    });
+
+    pool.on("error", (err) => {
+      console.error("Unexpected error on idle client", err);
+      process.exit(-1);
+    });
+  }
+  return pool;
+}
+
 export const connectToDB = async () => {
   try {
-    const client = await pool.connect();
+    const client = await getPool().connect();
     logger.info("[Database connection established successfully.]");
     client.release();
   } catch (error) {
