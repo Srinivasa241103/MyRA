@@ -21,12 +21,12 @@ connectToDB()
       socketServer.initialize(server);
       logger.info("WebSocket server attached to HTTP server");
 
-      // try {
-      //   cronManager.startAll();
-      //   logger.info("Cron jobs initialized successfully");
-      // } catch (error) {
-      //   logger.error("Failed to start cron jobs", { error: error.message });
-      // }
+      try {
+        cronManager.startAll();
+        logger.info("Cron jobs initialized successfully");
+      } catch (error) {
+        logger.error("Failed to start cron jobs", error);
+      }
     });
   })
   .catch((err) => {
