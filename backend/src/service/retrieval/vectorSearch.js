@@ -4,16 +4,25 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 class VectorSearchService {
   constructor() {
-    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    this.embeddingModel = this.genAI.getGenerativeModel({
-      model: process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001",
-    });
+    this._genAI = null;
+    this._embeddingModel = null;
     this.dimensions = parseInt(process.env.EMBEDDING_DIMENSIONS || "1536");
 
     // Simple LRU cache for query embeddings (max 100 entries, 5 min TTL)
     this.embeddingCache = new Map();
     this.cacheMaxSize = 100;
     this.cacheTTL = 5 * 60 * 1000; // 5 minutes
+  }
+
+  get embeddingModel() {
+    if (!this._embeddingModel) {
+      this._genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      this._embeddingModel = this._genAI.getGenerativeModel({
+        model: process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001",
+      });
+      this.dimensions = parseInt(process.env.EMBEDDING_DIMENSIONS || "1536");
+    }
+    return this._embeddingModel;
   }
 
   _getCacheKey(query) {
