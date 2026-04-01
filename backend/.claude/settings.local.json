@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx nodemon:*)",
       "Bash(ls:*)",
-      "Bash(node test-query-processor.js:*)"
+      "Bash(node test-query-processor.js:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('peerDependencies',''\\)\\)\")"
     ]
   }
 }

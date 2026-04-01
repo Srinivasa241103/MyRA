@@ -10,7 +10,7 @@ class GeminiService {
 
     // Try models in order: env var > gemini-1.5-flash > gemini-2.0-flash
     // Note: Model availability depends on API key permissions
-    this.modelName = process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash";
+    this.modelName = process.env.GEMINI_CHAT_MODEL || "gemini-2.0-flash";
 
     this.model = this.genAI.getGenerativeModel({
       model: this.modelName,

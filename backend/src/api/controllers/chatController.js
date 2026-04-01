@@ -1,21 +1,43 @@
-import chatService from "../../service/llm/chatService.js";
+import langchainChatService from "../../service/langchain/chatService.js";
+import { v4 as uuidv4 } from "uuid";
 import { logger } from "../../utils/logger.js";
 
 class ChatController {
   async sendMessage(req, res) {
-    try {
-      const { message, conversationId } = req.body;
+    const { message, conversationId } = req.body;
 
-      if (!message || typeof message !== "string" || !message.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: "Message is required",
-        });
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "Message is required",
+      });
+    }
+
+    try {
+      const result = await langchainChatService.chat(
+        message.trim(),
+        conversationId
+      );
+
+      if (!result.success) {
+        return res.status(500).json(result);
       }
 
-      const result = await chatService.chat(message.trim(), conversationId);
-
-      return res.json(result);
+      return res.json({
+        success: true,
+        queryId: uuidv4(),
+        conversationId: result.conversationId,
+        query: message.trim(),
+        response: result.response,
+        context: {
+          documentsUsed: result.sourceDocuments,
+          totalDocuments: result.sourceDocuments.length,
+          selectedDocuments: result.sourceDocuments.length,
+        },
+        metadata: {
+          duration: result.duration,
+        },
+      });
     } catch (error) {
       logger.error("Chat controller error", { error: error.message });
       return res.status(500).json({
@@ -26,25 +48,59 @@ class ChatController {
   }
 
   async sendMessageStream(req, res) {
+    const { message, conversationId } = req.body;
+
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "Message is required",
+      });
+    }
+
     try {
-      const { message, conversationId } = req.body;
-
-      if (!message || typeof message !== "string" || !message.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: "Message is required",
-        });
-      }
-
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      for await (const chunk of chatService.chatStream(
+      const queryId = uuidv4();
+      let fullResponse = "";
+
+      for await (const chunk of langchainChatService.chatStream(
         message.trim(),
         conversationId
       )) {
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        let normalized;
+
+        switch (chunk.type) {
+          case "context":
+            normalized = {
+              type: "context",
+              queryId,
+              data: {
+                documentsUsed: chunk.data.sources || [],
+                totalDocuments: chunk.data.documentsFound,
+              },
+            };
+            break;
+          case "text":
+            fullResponse += chunk.data;
+            normalized = { type: "text", queryId, data: chunk.data };
+            break;
+          case "done":
+            normalized = {
+              type: "done",
+              queryId,
+              data: {
+                fullResponse,
+                sourceDocuments: chunk.data.sourceDocuments,
+              },
+            };
+            break;
+          default:
+            normalized = { ...chunk, queryId };
+        }
+
+        res.write(`data: ${JSON.stringify(normalized)}\n\n`);
       }
 
       res.write("data: [DONE]\n\n");
@@ -62,22 +118,31 @@ class ChatController {
   }
 
   async getHistory(req, res) {
-    try {
-      const { conversationId } = req.params;
-      const limit = parseInt(req.query.limit) || 10;
+    const { conversationId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
 
-      if (!conversationId) {
-        return res.status(400).json({
-          success: false,
-          error: "Conversation ID is required",
+    if (!conversationId) {
+      return res.status(400).json({
+        success: false,
+        error: "Conversation ID is required",
+      });
+    }
+
+    try {
+      const messages = await langchainChatService.getHistory(conversationId);
+
+      // Map [{role,content},{role,content}...] pairs → [{user_message, assistant_message}]
+      const history = [];
+      for (let i = 0; i < messages.length; i += 2) {
+        history.push({
+          user_message: messages[i]?.content || "",
+          assistant_message: messages[i + 1]?.content || "",
         });
       }
 
-      const history = await chatService.getHistory(conversationId, limit);
-
       return res.json({
         success: true,
-        data: { conversationId, history },
+        data: { conversationId, history: history.slice(0, limit) },
       });
     } catch (error) {
       logger.error("Get history error", { error: error.message });
@@ -90,8 +155,13 @@ class ChatController {
 
   async createConversation(req, res) {
     try {
-      const conversation = chatService.createConversation();
-      return res.json({ success: true, data: conversation });
+      return res.json({
+        success: true,
+        data: {
+          conversationId: uuidv4(),
+          createdAt: new Date().toISOString(),
+        },
+      });
     } catch (error) {
       logger.error("Create conversation error", { error: error.message });
       return res.status(500).json({
