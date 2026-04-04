@@ -1,4 +1,4 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatAnthropic } from "@langchain/anthropic";
 import {
   HumanMessage,
   SystemMessage,
@@ -7,37 +7,29 @@ import {
 import { logger } from "../../utils/logger.js";
 
 /**
- * LangChain wrapper for Gemini Pro LLM
- * Replaces existing GeminiService.js
+ * LangChain wrapper for Claude (Anthropic) LLM
+ * Replaces Gemini for LLM (keeping Gemini for embeddings)
  */
-
 export default class LangChainLLMService {
   constructor() {
-    this._model = null;
-  }
+    this.model = new ChatAnthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      model: process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022",
+      temperature: parseFloat(process.env.CLAUDE_TEMPERATURE || "0.7"),
+      maxTokens: parseInt(process.env.CLAUDE_MAX_TOKENS || "4096"),
+      maxRetries: 2,
+      timeout: 30000,
+      streaming: false,
+    });
 
-  get model() {
-    if (!this._model) {
-      this._model = new ChatGoogleGenerativeAI({
-        apiKey: process.env.GEMINI_API_KEY,
-        model: process.env.GEMINI_CHAT_MODEL || "gemini-2.0-flash",
-        temperature: parseFloat(process.env.GEMINI_TEMPERATURE || "0.7"),
-        maxOutputTokens: parseInt(
-          process.env.GEMINI_MAX_OUTPUT_TOKENS || "2048"
-        ),
-        streaming: false,
-        thinkingConfig: { thinkingBudget: 0 },
-      });
-      logger.info("LangChain LLM Service initialized", {
-        model: process.env.GEMINI_CHAT_MODEL || "gemini-2.0-flash",
-        temperature: parseFloat(process.env.GEMINI_TEMPERATURE || "0.7"),
-      });
-    }
-    return this._model;
+    logger.info("LangChain LLM Service initialized (Claude)", {
+      model: process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022",
+      temperature: parseFloat(process.env.CLAUDE_TEMPERATURE || "0.7"),
+    });
   }
 
   /**
-   * Generate a response using Gemini Pro
+   * Generate a response using Claude
    * @param {string} prompt - User prompt or question
    * @param {Object} options - Generation options
    * @param {string} options.systemPrompt - System instruction
@@ -48,19 +40,17 @@ export default class LangChainLLMService {
     try {
       const startTime = Date.now();
 
-      logger.info("Generating LLM response", {
+      logger.info("Generating LLM response (Claude)", {
         promptLength: prompt.length,
         hasSystemPrompt: !!options.systemPrompt,
         historyLength: options.conversationHistory?.length || 0,
       });
 
       const messages = this._buildMessages(prompt, options);
-
       const response = await this.model.invoke(messages);
-
       const duration = Date.now() - startTime;
 
-      logger.info("LLM response generated", {
+      logger.info("LLM response generated (Claude)", {
         duration: `${duration}ms`,
         responseLength: response.content.length,
       });
@@ -68,15 +58,15 @@ export default class LangChainLLMService {
       return {
         text: response.content,
         duration,
-        model: process.env.GEMINI_CHAT_MODEL || "gemini-2.0-flash",
+        model: process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022",
         tokensUsed: this._estimateTokens(prompt, response.content),
       };
     } catch (error) {
-      logger.error("Error generating LLM response", {
+      logger.error("Error generating LLM response (Claude)", {
         error: error.message,
         promptPreview: prompt.substring(0, 100),
       });
-      throw new Error(`Gemini LLM error: ${error.message}`);
+      throw new Error(`Claude LLM error: ${error.message}`);
     }
   }
 
@@ -88,25 +78,20 @@ export default class LangChainLLMService {
    */
   async *generateStreamingResponse(prompt, options = {}) {
     try {
-      logger.info("Generating streaming response", {
+      logger.info("Generating streaming response (Claude)", {
         promptLength: prompt.length,
       });
 
-      // Build messages
       const messages = this._buildMessages(prompt, options);
 
-      // Create streaming model instance
-      const streamingModel = new ChatGoogleGenerativeAI({
-        apiKey: process.env.GEMINI_API_KEY,
-        model: process.env.GEMINI_CHAT_MODEL || "gemini-2.0-flash",
-        temperature: parseFloat(process.env.GEMINI_TEMPERATURE || "0.7"),
-        maxOutputTokens: parseInt(
-          process.env.GEMINI_MAX_OUTPUT_TOKENS || "2048"
-        ),
+      const streamingModel = new ChatAnthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+        model: process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022",
+        temperature: parseFloat(process.env.CLAUDE_TEMPERATURE || "0.7"),
+        maxTokens: parseInt(process.env.CLAUDE_MAX_TOKENS || "4096"),
         streaming: true,
       });
 
-      // Stream response
       const stream = await streamingModel.stream(messages);
 
       for await (const chunk of stream) {
@@ -115,12 +100,12 @@ export default class LangChainLLMService {
         }
       }
 
-      logger.info("Streaming response completed");
+      logger.info("Streaming response completed (Claude)");
     } catch (error) {
-      logger.error("Error generating streaming response", {
+      logger.error("Error generating streaming response (Claude)", {
         error: error.message,
       });
-      throw new Error(`Gemini streaming error: ${error.message}`);
+      throw new Error(`Claude streaming error: ${error.message}`);
     }
   }
 
@@ -133,7 +118,7 @@ export default class LangChainLLMService {
    */
   async chat(userMessage, conversationHistory = [], systemPrompt = null) {
     try {
-      logger.info("Chat invocation", {
+      logger.info("Chat invocation (Claude)", {
         messageLength: userMessage.length,
         historyLength: conversationHistory.length,
       });
@@ -143,7 +128,6 @@ export default class LangChainLLMService {
         conversationHistory,
       });
 
-      // Build updated history
       const updatedHistory = [
         ...conversationHistory,
         { role: "user", content: userMessage },
@@ -155,25 +139,23 @@ export default class LangChainLLMService {
         conversationHistory: updatedHistory,
       };
     } catch (error) {
-      logger.error("Error in chat", { error: error.message });
+      logger.error("Error in chat (Claude)", { error: error.message });
       throw error;
     }
   }
 
   /**
-   * Build message array for LLM
+   * Build message array for Claude
    * @private
    */
   _buildMessages(prompt, options) {
     const messages = [];
 
-    // Add system message if provided
     if (options.systemPrompt) {
       messages.push(new SystemMessage(options.systemPrompt));
     }
 
-    // Add conversation history
-    if (options.conversationHistory && options.conversationHistory.length > 0) {
+    if (options.conversationHistory?.length > 0) {
       for (const msg of options.conversationHistory) {
         if (msg.role === "user") {
           messages.push(new HumanMessage(msg.content));
@@ -185,7 +167,6 @@ export default class LangChainLLMService {
       }
     }
 
-    // Add current user message
     messages.push(new HumanMessage(prompt));
 
     return messages;
@@ -216,7 +197,9 @@ export default class LangChainLLMService {
       );
       return response.text.length > 0;
     } catch (error) {
-      logger.error("LLM health check failed", { error: error.message });
+      logger.error("LLM health check failed (Claude)", {
+        error: error.message,
+      });
       return false;
     }
   }

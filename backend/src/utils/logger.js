@@ -38,15 +38,29 @@ class Logger {
    * Log error messages
    */
   error(message, error = null, context = {}) {
+    let errorInfo = null;
+
+    if (error instanceof Error) {
+      // Called correctly: logger.error(msg, new Error(...))
+      errorInfo = {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+      };
+    } else if (error !== null && typeof error === "object") {
+      // Called with plain context object: logger.error(msg, { error: ..., ... })
+      // Treat it as extra context and extract error details if present
+      context = { ...error, ...context };
+      const errVal = error.error;
+      if (errVal) {
+        errorInfo = typeof errVal === "string" ? { message: errVal } : errVal;
+      }
+      error = null;
+    }
+
     const logMessage = this._format(LOG_LEVELS.ERROR, message, {
       ...context,
-      error: error
-        ? {
-            message: error.message,
-            stack: error.stack,
-            code: error.code,
-          }
-        : null,
+      ...(errorInfo ? { error: errorInfo } : {}),
     });
     console.error(logMessage);
   }

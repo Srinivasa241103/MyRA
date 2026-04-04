@@ -74,8 +74,8 @@ export const sidebarStyles = {
 
   // Profile Menu Dropdown
   profileMenu: "absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50",
-  
+
   profileMenuItem: "w-full px-4 py-3 flex items-center gap-3 text-left text-white hover:bg-slate-700 transition text-sm",
-  
+
   profileMenuItemDanger: "text-red-400 hover:bg-red-500/10 hover:text-red-300",
 };

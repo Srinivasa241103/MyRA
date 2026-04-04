@@ -1,9 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../store/authStore";
 import { authApi } from "../api/auth";
 import { profileSettingsStyles } from "../styles/profileSettings.styles";
+import socketService from "../service/socketService";
+import useSyncStore from "../store/syncStore";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9000";
+
+const PHASE_LABELS = {
+  starting: "Starting...",
+  fetching: "Fetching emails...",
+  normalizing: "Normalizing data...",
+  storing: "Storing documents...",
+  embedding_start: "Preparing embeddings...",
+  embedding: "Generating embeddings...",
+  complete: "Complete",
+  error: "Failed",
+};
 
 function ProfilePage({ onNavigate }) {
   const { user, logout } = useAuthStore();
@@ -13,13 +26,62 @@ function ProfilePage({ onNavigate }) {
   const [selectedSource, setSelectedSource] = useState("gmail");
   const [syncHistory, setSyncHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const syncIdRef = useRef(null);
+
+  const {
+    isSyncing,
+    syncPhase,
+    syncProgress,
+    syncMessage,
+    syncError,
+    lastSyncResult,
+    setSyncStarted,
+    setSyncProgress,
+    setSyncComplete,
+    setSyncError,
+    resetSync,
+  } = useSyncStore();
 
   const sources = [
     { id: "gmail", name: "Gmail", icon: "📧", enabled: true },
     { id: "calendar", name: "Calendar", icon: "📅", enabled: false },
     { id: "spotify", name: "Spotify", icon: "🎵", enabled: false },
   ];
+
+  // Connect WebSocket and register sync event listeners
+  useEffect(() => {
+    const userId = user?.id || user?.sub || user?.email;
+    if (!userId) return;
+
+    const socket = socketService.connect(userId);
+
+    const handleProgress = (data) => {
+      if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
+      setSyncProgress(data.phase, data.progress ?? 0, data.message);
+    };
+
+    const handleComplete = (data) => {
+      if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
+      setSyncComplete(data.summary || data);
+      fetchSyncHistory();
+    };
+
+    const handleError = (data) => {
+      if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
+      setSyncError(data.error?.message || "Sync failed");
+      fetchSyncHistory();
+    };
+
+    socket.on("sync:gmail:progress", handleProgress);
+    socket.on("sync:gmail:complete", handleComplete);
+    socket.on("sync:gmail:error", handleError);
+
+    return () => {
+      socket.off("sync:gmail:progress", handleProgress);
+      socket.off("sync:gmail:complete", handleComplete);
+      socket.off("sync:gmail:error", handleError);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (activeTab === "accounts") {
@@ -38,26 +100,17 @@ function ProfilePage({ onNavigate }) {
     setIsLoading(true);
     try {
       const userId = user?.id || user?.sub || user?.email;
-
       const response = await fetch(
         `${API_BASE_URL}/sync/history?userId=${userId}`,
         {
           method: "GET",
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         }
       );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      if (data.success) {
-        setSyncHistory(data.data.history);
-      }
+      if (data.success) setSyncHistory(data.data.history);
     } catch (error) {
       console.error("Failed to fetch sync history:", error);
     } finally {
@@ -66,38 +119,27 @@ function ProfilePage({ onNavigate }) {
   };
 
   const handleSyncNow = async () => {
-    setIsSyncing(true);
+    setSyncStarted();
     try {
       const userId = user?.id || user?.sub || user?.email;
+      const response = await fetch(`${API_BASE_URL}/sync/${selectedSource}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, syncType: "incremental" }),
+      });
 
-      const response = await fetch(
-        `${API_BASE_URL}/sync/${selectedSource}`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId,
-            syncType: "incremental",
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
       if (data.success) {
-        setTimeout(fetchSyncHistory, 1000);
+        syncIdRef.current = data.data?.syncId || data.syncId || null;
+      } else {
+        setSyncError(data.message || "Failed to start sync");
       }
     } catch (error) {
       console.error("Failed to start sync:", error);
-      alert("Failed to start sync. Check console for details.");
-    } finally {
-      setIsSyncing(false);
+      setSyncError(error.message || "Failed to start sync");
     }
   };
 
@@ -303,8 +345,94 @@ function ProfilePage({ onNavigate }) {
                   disabled={isSyncing}
                   className={profileSettingsStyles.buttonFull}
                 >
-                  {isSyncing ? "Syncing..." : "Sync Now"}
+                  {isSyncing ? (
+                    <>
+                      <svg
+                        className={profileSettingsStyles.spinner}
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8z"
+                        />
+                      </svg>
+                      Syncing...
+                    </>
+                  ) : (
+                    "Sync Now"
+                  )}
                 </button>
+
+                {/* Live progress panel */}
+                {(isSyncing || syncPhase === "complete" || syncPhase === "error") && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span
+                        className={
+                          syncPhase === "error"
+                            ? "text-red-400"
+                            : syncPhase === "complete"
+                            ? "text-green-400"
+                            : "text-slate-300"
+                        }
+                      >
+                        {PHASE_LABELS[syncPhase] || syncPhase}
+                      </span>
+                      <span className="text-slate-400 text-xs">
+                        {syncPhase !== "error" ? `${syncProgress}%` : ""}
+                      </span>
+                    </div>
+
+                    {syncPhase !== "error" && (
+                      <div className="w-full bg-slate-700 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-500 ${
+                            syncPhase === "complete"
+                              ? "bg-green-500"
+                              : "bg-indigo-500"
+                          }`}
+                          style={{ width: `${syncProgress}%` }}
+                        />
+                      </div>
+                    )}
+
+                    {syncMessage && syncPhase !== "complete" && (
+                      <p className="text-xs text-slate-400">{syncMessage}</p>
+                    )}
+
+                    {syncPhase === "complete" && lastSyncResult && (
+                      <p className="text-xs text-green-400">
+                        {lastSyncResult.documentsAdded ?? lastSyncResult.processed ?? 0} new documents synced
+                      </p>
+                    )}
+
+                    {syncPhase === "error" && syncError && (
+                      <div className={profileSettingsStyles.errorMessage}>
+                        {syncError}
+                      </div>
+                    )}
+
+                    {(syncPhase === "complete" || syncPhase === "error") && (
+                      <button
+                        onClick={resetSync}
+                        className="text-xs text-slate-500 hover:text-slate-300 transition mt-1"
+                      >
+                        Dismiss
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Sync History */}
