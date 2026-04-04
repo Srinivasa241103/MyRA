@@ -1,6 +1,9 @@
 import langchainChatService from "../../service/langchain/chatService.js";
+import ConversationRepository from "../../database/conversationsRepo.js";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../../utils/logger.js";
+
+const conversationRepo = new ConversationRepository();
 
 class ChatController {
   async sendMessage(req, res) {
@@ -149,6 +152,31 @@ class ChatController {
       return res.status(500).json({
         success: false,
         error: "Failed to fetch history",
+      });
+    }
+  }
+
+  async getConversations(req, res) {
+    const limit = parseInt(req.query.limit) || 50;
+    try {
+      const rows = await conversationRepo.getConversations(limit);
+
+      const conversations = rows.map((row) => ({
+        conversationId: row.conversation_id,
+        title: row.title?.substring(0, 60) || "Untitled",
+        startedAt: row.started_at,
+        lastMessageAt: row.last_message_at,
+      }));
+
+      return res.json({
+        success: true,
+        data: { conversations },
+      });
+    } catch (error) {
+      logger.error("Get conversations error", { error: error.message });
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch conversations",
       });
     }
   }

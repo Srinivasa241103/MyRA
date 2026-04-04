@@ -18,7 +18,7 @@ export default class SyncController {
       const {
         userId,
         syncType = "incremental",
-        sinceDate = "2025/11/01",
+        sinceDate = "2025/12/31",
       } = req.body;
       if (!userId) {
         return res.status(400).json({

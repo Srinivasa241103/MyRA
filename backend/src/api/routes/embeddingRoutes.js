@@ -118,7 +118,8 @@ router.get("/diagnose", async (req, res) => {
         service: status.service,
         config: {
           geminiApiKeySet: !!process.env.GEMINI_API_KEY,
-          embeddingModel: process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001",
+          embeddingModel:
+            process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001",
           cronEnabled: process.env.ENABLE_EMBEDDING_CRON !== "false",
         },
       },
@@ -144,7 +145,7 @@ router.post("/mark-pending", async (req, res) => {
       success: true,
       data: {
         marked: count,
-        message: `Marked ${count} documents for embedding`
+        message: `Marked ${count} documents for embedding`,
       },
     });
   } catch (error) {

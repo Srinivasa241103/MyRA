@@ -14,14 +14,7 @@ export class GoogleAuthService {
 
     this.credentialsRepo = new CredentialRepository();
 
-    // AES-256 requires exactly 32 bytes (64 hex characters)
-    const keyHex = process.env.TOKEN_ENCRYPTION_KEY;
-    if (keyHex) {
-      // Take first 64 hex chars (32 bytes) and decode from hex
-      this.encryptionKey = Buffer.from(keyHex.slice(0, 64), "hex");
-    } else {
-      this.encryptionKey = crypto.randomBytes(32);
-    }
+    // Key is read lazily in _getEncryptionKey() to ensure dotenv is loaded first
 
     //OAuth2 Client
     this.oauth2Client = new google.auth.OAuth2(
@@ -187,9 +180,17 @@ export class GoogleAuthService {
    * @param {string} text - Plain text to encrypt
    * @returns {string} Encrypted text (hex encoded)
    */
+  _getEncryptionKey() {
+    const keyHex = process.env.TOKEN_ENCRYPTION_KEY;
+    if (!keyHex) {
+      throw new Error("TOKEN_ENCRYPTION_KEY is not set in environment variables");
+    }
+    return Buffer.from(keyHex.slice(0, 64), "hex");
+  }
+
   encrypt(text) {
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv("aes-256-cbc", this.encryptionKey, iv);
+    const cipher = crypto.createCipheriv("aes-256-cbc", this._getEncryptionKey(), iv);
 
     let encrypted = cipher.update(text, "utf8", "hex");
     encrypted += cipher.final("hex");
@@ -210,7 +211,7 @@ export class GoogleAuthService {
 
     const decipher = crypto.createDecipheriv(
       "aes-256-cbc",
-      this.encryptionKey,
+      this._getEncryptionKey(),
       iv
     );
 
