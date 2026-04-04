@@ -173,7 +173,7 @@ function Sidebar({ onNavigate, currentPage }) {
                 <p className="text-xs text-red-400">Failed to load history</p>
                 <button
                   onClick={loadConversations}
-                  className="text-xs text-cyan-400 hover:text-cyan-300 mt-1 transition"
+                  className="text-xs text-purple-400 hover:text-purple-300 mt-1 transition"
                 >
                   Retry
                 </button>
@@ -183,7 +183,7 @@ function Sidebar({ onNavigate, currentPage }) {
             conversations.map((chat) => (
               <button
                 key={chat.conversationId}
-                className={`${isExpanded ? sidebarStyles.historyItem : sidebarStyles.historyItemCollapsed} ${chat.conversationId === conversationId ? "bg-slate-700/80 text-white" : ""}`}
+                className={`${isExpanded ? sidebarStyles.historyItem : sidebarStyles.historyItemCollapsed} ${chat.conversationId === conversationId ? "bg-[#2A2A35] text-white" : ""}`}
                 onClick={() => {
                   loadConversation(chat.conversationId);
                   onNavigate("chat");
@@ -206,7 +206,7 @@ function Sidebar({ onNavigate, currentPage }) {
               <p className="mb-3">Sign in to save your chat history</p>
               <button
                 onClick={() => onNavigate("login")}
-                className="text-cyan-400 hover:text-cyan-300 transition font-medium"
+                className="text-purple-400 hover:text-purple-300 transition font-medium"
               >
                 Sign in
               </button>

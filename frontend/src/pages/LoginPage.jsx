@@ -21,8 +21,13 @@ function LoginPage({ onNavigate }) {
     <div className={authStyles.page}>
       <div className={authStyles.card}>
         <div className={authStyles.header}>
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+            </svg>
+          </div>
           <h1 className={authStyles.logo}>Myra</h1>
-          <p className={authStyles.subtitle}>Sign in to continue</p>
+          <p className={authStyles.subtitle}>Your personal AI assistant</p>
         </div>
 
         {error && (

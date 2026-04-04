@@ -2,12 +2,10 @@ import { useEffect, useRef } from "react";
 import Message from "./Message";
 import ChatInput from "./ChatInput";
 import TypingIndicator from "./TypingIndicator";
-import { chatStyles } from "../../styles/chat.styles";
 import { useChatStore } from "../../store/chatStore";
 
 function ChatWindow() {
   const { messages, isTyping, sendMessage } = useChatStore();
-
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -24,18 +22,24 @@ function ChatWindow() {
 
   if (messages.length === 0) {
     return (
-      <div className={`${chatStyles.chatWindow} bg-transparent border-transparent shadow-none`}>
-        <div className="flex flex-1 flex-col items-center justify-center px-6">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl font-medium text-white mb-3">
-              What are you working on?
-            </h2>
-            <p className="text-slate-400">
-              I am your personal AI assistant. Ask me anything.
-            </p>
+      <div className="flex flex-col flex-1 min-h-0 bg-[#0D0D12]">
+        <div className="hidden lg:flex items-center justify-between p-6 border-b border-[#2A2A35]">
+          <div>
+            <h2 className="text-white text-xl">Chat</h2>
+            <p className="text-gray-400 text-sm mt-1">Powered by your email and calendar insights</p>
           </div>
-
-          <div className="w-full">
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center px-4">
+          <div className="text-center mb-10">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+              </svg>
+            </div>
+            <h2 className="text-2xl font-medium text-white mb-3">How can I help you today?</h2>
+            <p className="text-gray-400">Ask me about your emails, schedule, or anything else.</p>
+          </div>
+          <div className="w-full max-w-3xl">
             <ChatInput onSend={handleSend} />
           </div>
         </div>
@@ -44,16 +48,29 @@ function ChatWindow() {
   }
 
   return (
-    <div className={chatStyles.chatWindow}>
-      <div className={chatStyles.messages}>
-        {messages.map((msg, idx) => (
-          <Message key={idx} role={msg.role} text={msg.text} isError={msg.isError} context={msg.context} />
-        ))}
-        {isTyping && <TypingIndicator />}
-        <div ref={messagesEndRef} />
+    <div className="flex flex-col flex-1 min-h-0 bg-[#0D0D12]">
+      <div className="hidden lg:flex items-center justify-between p-6 border-b border-[#2A2A35]">
+        <div>
+          <h2 className="text-white text-xl">Chat</h2>
+          <p className="text-gray-400 text-sm mt-1">Powered by your email and calendar insights</p>
+        </div>
       </div>
 
-      <ChatInput onSend={handleSend} />
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6">
+        <div className="max-w-3xl mx-auto space-y-6">
+          {messages.map((msg, idx) => (
+            <Message key={idx} role={msg.role} text={msg.text} isError={msg.isError} context={msg.context} />
+          ))}
+          {isTyping && <TypingIndicator />}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      <div className="border-t border-[#2A2A35] bg-[#0D0D12] px-4 py-4">
+        <div className="max-w-3xl mx-auto">
+          <ChatInput onSend={handleSend} />
+        </div>
+      </div>
     </div>
   );
 }

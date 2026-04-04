@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    background-color: #0D0D12;
+    color: white;
+  }
+}
 
 @layer utilities {
   .animate-fade-in {

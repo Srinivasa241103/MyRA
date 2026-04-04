@@ -1,31 +1,31 @@
 export const chatStyles = {
   page:
-    "h-screen overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white flex justify-center",
+    "h-screen overflow-hidden bg-[#0D0D12] text-white flex justify-center",
 
   pageInner:
     "w-full max-w-5xl px-6 py-6 flex flex-col h-full overflow-hidden",
 
   header:
-    "shrink-0 mb-4 px-6 py-4 text-xl font-semibold rounded-xl border border-indigo-500/30 bg-slate-900/70 backdrop-blur shadow-lg text-center",
+    "shrink-0 mb-4 px-6 py-4 text-xl font-semibold rounded-xl border border-[#2A2A35] bg-[#16161E] text-center",
 
   chatWindow:
-    "flex flex-col flex-1 min-h-0 rounded-2xl border border-indigo-500/20 bg-slate-900/60 shadow-xl overflow-hidden",
+    "flex flex-col flex-1 min-h-0 overflow-hidden",
 
   messages:
-    "flex-1 min-h-0 overflow-y-auto px-6 py-6 flex flex-col gap-4",
+    "flex-1 min-h-0 overflow-y-auto px-4 py-6 flex flex-col gap-6",
 
   inputWrapper:
-    "shrink-0 border-t border-indigo-500/20 px-6 py-4 bg-slate-900/80 backdrop-blur flex items-center gap-3",
+    "shrink-0 border-t border-[#2A2A35] px-4 py-4 bg-[#0D0D12]",
 
   userMessage:
-    "self-end bg-cyan-500/90 text-slate-900 px-4 py-2 rounded-2xl max-w-[70%]",
+    "inline-block bg-[#5B5BD6] text-white px-4 py-3 rounded-2xl max-w-[85%]",
 
   aiMessage:
-    "self-start bg-indigo-600/90 px-4 py-2 rounded-2xl max-w-[70%]",
+    "inline-block bg-[#16161E] text-gray-100 px-4 py-3 rounded-2xl max-w-[85%]",
 
   input:
-    "flex-1 bg-slate-800 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-cyan-400",
+    "w-full bg-transparent text-gray-100 placeholder-gray-500 px-5 py-4 pr-14 resize-none outline-none",
 
   sendButton:
-    "bg-emerald-400 text-slate-900 px-5 py-3 rounded-xl hover:bg-emerald-300 transition font-medium disabled:opacity-40 disabled:cursor-not-allowed",
+    "absolute right-3 bottom-3 p-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-all disabled:bg-[#2A2A35] disabled:text-gray-500 disabled:cursor-not-allowed",
 };

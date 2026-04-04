@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../store/authStore";
 import { authApi } from "../api/auth";
-import { profileSettingsStyles } from "../styles/profileSettings.styles";
 import socketService from "../service/socketService";
 import useSyncStore from "../store/syncStore";
 
@@ -18,14 +17,83 @@ const PHASE_LABELS = {
   error: "Failed",
 };
 
+// ── Icons ──────────────────────────────────────────────
+const SaveIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+    <polyline points="17 21 17 13 7 13 7 21"/>
+    <polyline points="7 3 7 8 15 8"/>
+  </svg>
+);
+
+const MailIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="20" height="16" x="2" y="4" rx="2"/>
+    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+    <line x1="16" x2="16" y1="2" y2="6"/>
+    <line x1="8" x2="8" y1="2" y2="6"/>
+    <line x1="3" x2="21" y1="10" y2="10"/>
+  </svg>
+);
+
+const MusicIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18V5l12-2v13"/>
+    <circle cx="6" cy="18" r="3"/>
+    <circle cx="18" cy="16" r="3"/>
+  </svg>
+);
+
+const DatabaseIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+    <path d="M3 5V19A9 3 0 0 0 21 19V5"/>
+    <path d="M3 12A9 3 0 0 0 21 12"/>
+  </svg>
+);
+
+const SettingsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const BellIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+  </svg>
+);
+
+// ── Toggle Switch ──────────────────────────────────────
+function Toggle({ enabled, onChange }) {
+  return (
+    <button
+      onClick={onChange}
+      className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${enabled ? "bg-purple-600" : "bg-[#2A2A35]"}`}
+    >
+      <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${enabled ? "translate-x-6" : ""}`} />
+    </button>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────
 function ProfilePage({ onNavigate }) {
   const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState("general");
   const [name, setName] = useState(user?.name || "");
-  const [email, setEmail] = useState(user?.email || "");
-  const [selectedSource, setSelectedSource] = useState("gmail");
+  const [emailInput, setEmailInput] = useState(user?.email || "");
+  const [gmailEnabled, setGmailEnabled] = useState(true);
+  const [calendarEnabled, setCalendarEnabled] = useState(false);
+  const [notifications, setNotifications] = useState(true);
   const [syncHistory, setSyncHistory] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const syncIdRef = useRef(null);
 
   const {
@@ -42,13 +110,7 @@ function ProfilePage({ onNavigate }) {
     resetSync,
   } = useSyncStore();
 
-  const sources = [
-    { id: "gmail", name: "Gmail", icon: "📧", enabled: true },
-    { id: "calendar", name: "Calendar", icon: "📅", enabled: false },
-    { id: "spotify", name: "Spotify", icon: "🎵", enabled: false },
-  ];
-
-  // Connect WebSocket and register sync event listeners
+  // WebSocket listeners for live sync progress
   useEffect(() => {
     const userId = user?.id || user?.sub || user?.email;
     if (!userId) return;
@@ -59,13 +121,11 @@ function ProfilePage({ onNavigate }) {
       if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
       setSyncProgress(data.phase, data.progress ?? 0, data.message);
     };
-
     const handleComplete = (data) => {
       if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
       setSyncComplete(data.summary || data);
       fetchSyncHistory();
     };
-
     const handleError = (data) => {
       if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
       setSyncError(data.error?.message || "Sync failed");
@@ -84,37 +144,29 @@ function ProfilePage({ onNavigate }) {
   }, [user]);
 
   useEffect(() => {
-    if (activeTab === "accounts") {
-      fetchSyncHistory();
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
     if (user) {
       setName(user.name || "");
-      setEmail(user.email || "");
+      setEmailInput(user.email || "");
     }
+    fetchSyncHistory();
   }, [user]);
 
   const fetchSyncHistory = async () => {
-    setIsLoading(true);
+    setIsLoadingHistory(true);
     try {
       const userId = user?.id || user?.sub || user?.email;
-      const response = await fetch(
-        `${API_BASE_URL}/sync/history?userId=${userId}`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/sync/history?userId=${userId}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       if (data.success) setSyncHistory(data.data.history);
     } catch (error) {
       console.error("Failed to fetch sync history:", error);
     } finally {
-      setIsLoading(false);
+      setIsLoadingHistory(false);
     }
   };
 
@@ -122,15 +174,13 @@ function ProfilePage({ onNavigate }) {
     setSyncStarted();
     try {
       const userId = user?.id || user?.sub || user?.email;
-      const response = await fetch(`${API_BASE_URL}/sync/${selectedSource}`, {
+      const response = await fetch(`${API_BASE_URL}/sync/gmail`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, syncType: "incremental" }),
       });
-
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
       const data = await response.json();
       if (data.success) {
         syncIdRef.current = data.data?.syncId || data.syncId || null;
@@ -154,19 +204,24 @@ function ProfilePage({ onNavigate }) {
   };
 
   const handleSaveProfile = async () => {
-    console.log("Saving profile:", { name, email });
+    console.log("Saving profile:", { name, email: emailInput });
   };
 
   const formatDate = (dateString) =>
     dateString ? new Date(dateString).toLocaleString() : "N/A";
 
   const getStatusBadge = (status) => {
-    const styles = {
-      success: profileSettingsStyles.statusSuccess,
-      in_progress: profileSettingsStyles.statusInProgress,
-      failed: profileSettingsStyles.statusFailed,
+    const map = {
+      success: "bg-green-500/20 text-green-400 border border-green-500/30",
+      in_progress: "bg-purple-500/20 text-purple-400 border border-purple-500/30",
+      failed: "bg-red-500/20 text-red-400 border border-red-500/30",
     };
-    return styles[status] || styles.failed;
+    return map[status] || map.failed;
+  };
+
+  const getInitials = (name) => {
+    if (!name) return "?";
+    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
   if (!user) {
@@ -175,346 +230,299 @@ function ProfilePage({ onNavigate }) {
   }
 
   return (
-    <div className={profileSettingsStyles.container}>
+    <div className="flex-1 overflow-y-auto bg-[#0D0D12]">
       {/* Header */}
-      <div className={profileSettingsStyles.header}>
-        <div className={profileSettingsStyles.headerContent}>
-          <div className={profileSettingsStyles.headerLeft}>
-            <button
-              onClick={() => onNavigate("chat")}
-              className={profileSettingsStyles.backButton}
-            >
-              ←
-            </button>
-            <h1 className={profileSettingsStyles.headerTitle}>Settings</h1>
+      <div className="border-b border-[#2A2A35] bg-[#16161E]">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-4">
+          <button
+            onClick={() => onNavigate("chat")}
+            className="p-2 hover:bg-[#2A2A35] rounded-lg transition text-gray-400 hover:text-white"
+          >
+            ←
+          </button>
+          <div>
+            <h1 className="text-xl font-semibold">Profile Settings</h1>
+            <p className="text-gray-400 text-sm mt-0.5">Manage your account and data connections</p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 flex gap-8">
-        {/* Sidebar Navigation */}
-        <nav className="w-48 shrink-0">
-          <ul className="space-y-1">
-            {[
-              { id: "general", label: "General" },
-              { id: "accounts", label: "Accounts" },
-            ].map((tab) => (
-              <li key={tab.id}>
-                <button
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition ${
-                    activeTab === tab.id
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
 
-        {/* Main Content */}
-        <div className="flex-1 min-w-0">
-          {/* General Tab */}
-          {activeTab === "general" && (
-            <div className={profileSettingsStyles.section}>
-              <div className={profileSettingsStyles.card}>
-                <h2 className={profileSettingsStyles.cardTitle}>Profile</h2>
-                <div className="flex items-center gap-5 mb-6">
-                  {user.picture ? (
-                    <img
-                      src={user.picture}
-                      alt={user.name}
-                      className="w-16 h-16 rounded-full border-2 border-slate-700"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-xl font-bold border-2 border-slate-700">
-                      {(user.name || user.email || "?")
-                        .charAt(0)
-                        .toUpperCase()}
-                    </div>
-                  )}
+        {/* ── 1. Profile Info ─────────────────────────── */}
+        <div className="bg-[#16161E] border border-[#2A2A35] rounded-xl p-6">
+          <div className="flex items-center gap-4 mb-6">
+            {user.picture ? (
+              <img src={user.picture} alt={user.name} className="w-20 h-20 rounded-full object-cover" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl font-semibold">
+                {getInitials(user.name)}
+              </div>
+            )}
+            <div className="flex-1">
+              <h3 className="text-white text-xl">{user.name || "—"}</h3>
+              <p className="text-gray-400 text-sm">{user.email || "—"}</p>
+              <button className="mt-1 text-purple-400 hover:text-purple-300 text-sm transition-colors">
+                Change profile picture
+              </button>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-400 text-sm mb-2">Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-[#0D0D12] border border-[#2A2A35] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-400 text-sm mb-2">Email</label>
+              <input
+                type="email"
+                value={emailInput}
+                disabled
+                className="w-full bg-[#0D0D12] border border-[#2A2A35] rounded-lg px-4 py-2 text-gray-500 cursor-not-allowed"
+              />
+              <p className="text-xs text-gray-600 mt-1">Managed by your Google account</p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveProfile}
+            className="mt-6 flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition"
+          >
+            <SaveIcon />
+            Save Changes
+          </button>
+        </div>
+
+        {/* ── 2. Data Connections ─────────────────────── */}
+        <div className="bg-[#16161E] border border-[#2A2A35] rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-purple-400"><DatabaseIcon /></span>
+            <h3 className="text-white font-semibold">Data Connections</h3>
+          </div>
+          <p className="text-gray-400 text-sm mb-6">Manage your connected accounts and data sources</p>
+
+          <div className="space-y-3">
+            {/* Gmail row */}
+            <div className="bg-[#0D0D12] rounded-lg border border-[#2A2A35] overflow-hidden">
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400">
+                    <MailIcon />
+                  </div>
                   <div>
-                    <p className="text-lg font-semibold">
-                      {user.name || "—"}
-                    </p>
-                    <p className="text-sm text-slate-400">
-                      {user.email || "—"}
-                    </p>
+                    <p className="text-white font-medium">Email Account</p>
+                    <p className="text-gray-400 text-sm">{user.email || "Not connected"}</p>
                   </div>
                 </div>
-
-                <div className={profileSettingsStyles.formGroup}>
-                  <div>
-                    <label className={profileSettingsStyles.label}>Name</label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className={profileSettingsStyles.input}
-                    />
-                  </div>
-                  <div>
-                    <label className={profileSettingsStyles.label}>Email</label>
-                    <input
-                      type="email"
-                      value={email}
-                      disabled
-                      className={`${profileSettingsStyles.input} opacity-60 cursor-not-allowed`}
-                    />
-                    <p className="text-xs text-slate-500 mt-1">
-                      Email is managed by your Google account
-                    </p>
-                  </div>
-                  <div className="pt-2">
-                    <button
-                      onClick={handleSaveProfile}
-                      className={profileSettingsStyles.buttonPrimary}
-                    >
-                      Save Changes
-                    </button>
-                  </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-sm ${gmailEnabled ? "text-green-400" : "text-gray-500"}`}>
+                    {gmailEnabled ? "Connected" : "Disconnected"}
+                  </span>
+                  <Toggle enabled={gmailEnabled} onChange={() => setGmailEnabled(!gmailEnabled)} />
                 </div>
               </div>
 
-              <div className={profileSettingsStyles.card}>
-                <h2 className={profileSettingsStyles.dangerZoneTitle}>
-                  Danger Zone
-                </h2>
-                <p className={profileSettingsStyles.dangerZoneText}>
-                  Logging out will clear your session. You can log back in
-                  anytime with your Google account.
-                </p>
-                <button
-                  onClick={handleLogout}
-                  className={profileSettingsStyles.buttonDanger}
-                >
-                  Log Out
-                </button>
+              {/* Sync panel — shown when Gmail is enabled */}
+              {gmailEnabled && (
+                <div className="border-t border-[#2A2A35] px-4 py-4 space-y-3">
+                  <button
+                    onClick={handleSyncNow}
+                    disabled={isSyncing}
+                    className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-[#2A2A35] disabled:cursor-not-allowed text-white text-sm rounded-lg transition font-medium flex items-center justify-center gap-2"
+                  >
+                    {isSyncing ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                        </svg>
+                        Syncing emails...
+                      </>
+                    ) : (
+                      "Sync Gmail Now"
+                    )}
+                  </button>
+
+                  {/* Live sync progress */}
+                  {(isSyncing || syncPhase === "complete" || syncPhase === "error") && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className={syncPhase === "error" ? "text-red-400" : syncPhase === "complete" ? "text-green-400" : "text-gray-300"}>
+                          {PHASE_LABELS[syncPhase] || syncPhase}
+                        </span>
+                        {syncPhase !== "error" && (
+                          <span className="text-gray-500 text-xs">{syncProgress}%</span>
+                        )}
+                      </div>
+                      {syncPhase !== "error" && (
+                        <div className="w-full bg-[#2A2A35] rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-500 ${syncPhase === "complete" ? "bg-green-500" : "bg-purple-500"}`}
+                            style={{ width: `${syncProgress}%` }}
+                          />
+                        </div>
+                      )}
+                      {syncMessage && syncPhase !== "complete" && (
+                        <p className="text-xs text-gray-500">{syncMessage}</p>
+                      )}
+                      {syncPhase === "complete" && lastSyncResult && (
+                        <p className="text-xs text-green-400">
+                          {lastSyncResult.documentsAdded ?? lastSyncResult.processed ?? 0} new documents synced
+                        </p>
+                      )}
+                      {syncPhase === "error" && syncError && (
+                        <div className="p-2 bg-red-900/20 border border-red-900/50 rounded text-xs text-red-400">
+                          {syncError}
+                        </div>
+                      )}
+                      {(syncPhase === "complete" || syncPhase === "error") && (
+                        <button onClick={resetSync} className="text-xs text-gray-500 hover:text-gray-300 transition">
+                          Dismiss
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Calendar row */}
+            <div className="flex items-center justify-between p-4 bg-[#0D0D12] rounded-lg border border-[#2A2A35] opacity-60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                  <CalendarIcon />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-white font-medium">Calendar Sync</p>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#2A2A35] text-gray-400">Coming Soon</span>
+                  </div>
+                  <p className="text-gray-400 text-sm">Google Calendar</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">Not synced</span>
+                <Toggle enabled={false} onChange={() => {}} />
               </div>
             </div>
-          )}
 
-          {/* Accounts Tab */}
-          {activeTab === "accounts" && (
-            <div className={profileSettingsStyles.section}>
-              {/* Source Icons Row */}
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                {sources.map((source) => (
-                  <button
-                    key={source.id}
-                    onClick={() => source.enabled && setSelectedSource(source.id)}
-                    className={`relative flex flex-col items-center gap-2 p-5 rounded-xl border transition ${
-                      !source.enabled
-                        ? "border-slate-800 bg-slate-900/30 opacity-50 cursor-not-allowed"
-                        : selectedSource === source.id
-                        ? "border-indigo-500 bg-indigo-500/10"
-                        : "border-slate-700 bg-slate-900/50 hover:border-slate-600 cursor-pointer"
-                    }`}
-                  >
-                    <span className="text-3xl">{source.icon}</span>
-                    <span
-                      className={`text-sm font-medium ${
-                        selectedSource === source.id && source.enabled
-                          ? "text-indigo-400"
-                          : "text-slate-300"
-                      }`}
-                    >
-                      {source.name}
-                    </span>
-                    {!source.enabled && (
-                      <span className="absolute top-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
-                        Coming Soon
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Selected Source Details */}
-              <div className={profileSettingsStyles.card}>
-                <h2 className={profileSettingsStyles.cardTitle}>
-                  {sources.find((s) => s.id === selectedSource)?.icon}{" "}
-                  {sources.find((s) => s.id === selectedSource)?.name} Sync
-                </h2>
-
-                <button
-                  onClick={handleSyncNow}
-                  disabled={isSyncing}
-                  className={profileSettingsStyles.buttonFull}
-                >
-                  {isSyncing ? (
-                    <>
-                      <svg
-                        className={profileSettingsStyles.spinner}
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8v8z"
-                        />
-                      </svg>
-                      Syncing...
-                    </>
-                  ) : (
-                    "Sync Now"
-                  )}
-                </button>
-
-                {/* Live progress panel */}
-                {(isSyncing || syncPhase === "complete" || syncPhase === "error") && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span
-                        className={
-                          syncPhase === "error"
-                            ? "text-red-400"
-                            : syncPhase === "complete"
-                            ? "text-green-400"
-                            : "text-slate-300"
-                        }
-                      >
-                        {PHASE_LABELS[syncPhase] || syncPhase}
-                      </span>
-                      <span className="text-slate-400 text-xs">
-                        {syncPhase !== "error" ? `${syncProgress}%` : ""}
-                      </span>
-                    </div>
-
-                    {syncPhase !== "error" && (
-                      <div className="w-full bg-slate-700 rounded-full h-1.5">
-                        <div
-                          className={`h-1.5 rounded-full transition-all duration-500 ${
-                            syncPhase === "complete"
-                              ? "bg-green-500"
-                              : "bg-indigo-500"
-                          }`}
-                          style={{ width: `${syncProgress}%` }}
-                        />
-                      </div>
-                    )}
-
-                    {syncMessage && syncPhase !== "complete" && (
-                      <p className="text-xs text-slate-400">{syncMessage}</p>
-                    )}
-
-                    {syncPhase === "complete" && lastSyncResult && (
-                      <p className="text-xs text-green-400">
-                        {lastSyncResult.documentsAdded ?? lastSyncResult.processed ?? 0} new documents synced
-                      </p>
-                    )}
-
-                    {syncPhase === "error" && syncError && (
-                      <div className={profileSettingsStyles.errorMessage}>
-                        {syncError}
-                      </div>
-                    )}
-
-                    {(syncPhase === "complete" || syncPhase === "error") && (
-                      <button
-                        onClick={resetSync}
-                        className="text-xs text-slate-500 hover:text-slate-300 transition mt-1"
-                      >
-                        Dismiss
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Sync History */}
-              <div className={profileSettingsStyles.card}>
-                <div className={profileSettingsStyles.historyHeader}>
-                  <h2 className={profileSettingsStyles.cardTitle + " !mb-0"}>
-                    Sync History
-                  </h2>
-                  <button
-                    onClick={fetchSyncHistory}
-                    className={profileSettingsStyles.buttonRefresh}
-                  >
-                    Refresh
-                  </button>
+            {/* Spotify row */}
+            <div className="flex items-center justify-between p-4 bg-[#0D0D12] rounded-lg border border-[#2A2A35] opacity-60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400">
+                  <MusicIcon />
                 </div>
-
-                {isLoading ? (
-                  <p className={profileSettingsStyles.historyLoading}>
-                    Loading history...
-                  </p>
-                ) : syncHistory.length === 0 ? (
-                  <p className={profileSettingsStyles.historyEmpty}>
-                    No sync history yet. Hit "Sync Now" to get started.
-                  </p>
-                ) : (
-                  <div className={profileSettingsStyles.historyList}>
-                    {syncHistory.map((item, index) => (
-                      <div key={index} className={profileSettingsStyles.syncItem}>
-                        <div className={profileSettingsStyles.syncItemHeader}>
-                          <div className={profileSettingsStyles.syncItemLeft}>
-                            <span className={profileSettingsStyles.syncItemIcon}>
-                              {sources.find((s) => s.id === item.source)
-                                ?.icon || "📄"}
-                            </span>
-                            <div className={profileSettingsStyles.syncItemInfo}>
-                              <p className={profileSettingsStyles.syncItemName}>
-                                {item.source}
-                              </p>
-                              <p className={profileSettingsStyles.syncItemDate}>
-                                {formatDate(item.started_at || item.created_at)}
-                              </p>
-                            </div>
-                          </div>
-                          <span
-                            className={`${profileSettingsStyles.statusBadge} ${getStatusBadge(item.status)}`}
-                          >
-                            {item.status}
-                          </span>
-                        </div>
-                        {item.stats && (
-                          <div className={profileSettingsStyles.syncDetails}>
-                            <div>
-                              <p className={profileSettingsStyles.syncDetailLabel}>
-                                Messages
-                              </p>
-                              <p className={profileSettingsStyles.syncDetailValue}>
-                                {item.stats.total_fetched ?? "—"}
-                              </p>
-                            </div>
-                            <div>
-                              <p className={profileSettingsStyles.syncDetailLabel}>
-                                New
-                              </p>
-                              <p className={profileSettingsStyles.syncDetailValue}>
-                                {item.stats.new_documents ?? "—"}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        {item.error_message && (
-                          <p className={profileSettingsStyles.errorMessage}>
-                            {item.error_message}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-white font-medium">Music</p>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#2A2A35] text-gray-400">Coming Soon</span>
                   </div>
-                )}
+                  <p className="text-gray-400 text-sm">Spotify</p>
+                </div>
               </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">Not connected</span>
+                <Toggle enabled={false} onChange={() => {}} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 3. Preferences ──────────────────────────── */}
+        <div className="bg-[#16161E] border border-[#2A2A35] rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-purple-400"><SettingsIcon /></span>
+            <h3 className="text-white font-semibold">Preferences</h3>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-4 bg-[#0D0D12] rounded-lg border border-[#2A2A35]">
+              <div className="flex items-center gap-3">
+                <span className="text-gray-400"><BellIcon /></span>
+                <div>
+                  <p className="text-white font-medium">Notifications</p>
+                  <p className="text-gray-400 text-sm">Receive sync updates and alerts</p>
+                </div>
+              </div>
+              <Toggle enabled={notifications} onChange={() => setNotifications(!notifications)} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── 4. Sync History ─────────────────────────── */}
+        <div className="bg-[#16161E] border border-[#2A2A35] rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-semibold">Sync History</h3>
+            <button onClick={fetchSyncHistory} className="text-sm text-purple-400 hover:text-purple-300 transition">
+              Refresh
+            </button>
+          </div>
+
+          {isLoadingHistory ? (
+            <p className="text-center py-8 text-gray-500">Loading history...</p>
+          ) : syncHistory.length === 0 ? (
+            <p className="text-center py-8 text-gray-500">No sync history yet. Hit "Sync Gmail Now" to get started.</p>
+          ) : (
+            <div className="space-y-3">
+              {syncHistory.map((item, index) => (
+                <div key={index} className="bg-[#0D0D12] rounded-lg p-4 border border-[#2A2A35]">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 text-sm">
+                        {item.source === "gmail" ? "✉" : item.source === "calendar" ? "📅" : "📄"}
+                      </div>
+                      <div>
+                        <p className="font-medium capitalize text-white">{item.source}</p>
+                        <p className="text-xs text-gray-500">{formatDate(item.started_at || item.created_at)}</p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(item.status)}`}>
+                      {item.status}
+                    </span>
+                  </div>
+                  {item.stats && (
+                    <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-[#2A2A35]">
+                      <div>
+                        <p className="text-xs text-gray-500">Messages</p>
+                        <p className="text-sm font-medium">{item.stats.total_fetched ?? "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">New</p>
+                        <p className="text-sm font-medium">{item.stats.new_documents ?? "—"}</p>
+                      </div>
+                    </div>
+                  )}
+                  {item.error_message && (
+                    <p className="mt-3 p-2 bg-red-900/20 border border-red-900/50 rounded text-xs text-red-400">
+                      {item.error_message}
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
+
+        {/* ── 5. Danger Zone ──────────────────────────── */}
+        <div className="bg-[#16161E] border border-red-900/30 rounded-xl p-6">
+          <h3 className="text-red-400 text-lg font-semibold mb-2">Danger Zone</h3>
+          <p className="text-gray-400 text-sm mb-4">Irreversible and destructive actions</p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-900/20 hover:bg-red-900/30 text-red-400 border border-red-900/50 rounded-lg transition"
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

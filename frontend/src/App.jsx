@@ -59,12 +59,20 @@ function App() {
     }
   };
 
-  if (currentPage === "auth-callback" || currentPage === "login" || currentPage === "profile") {
+  if (currentPage === "auth-callback" || currentPage === "login") {
     return renderPage();
   }
 
+  if (currentPage === "profile") {
+    return (
+      <div className="flex h-screen bg-[#0D0D12]">
+        {renderPage()}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="flex h-screen bg-[#0D0D12]">
       <Sidebar onNavigate={handleNavigate} currentPage={currentPage} />
       <div className="flex-1 overflow-hidden">
         {renderPage()}
