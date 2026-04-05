@@ -7,12 +7,12 @@ const authHeaders = () => {
 };
 
 export const chatApi = {
-  sendMessage: async (message, conversationId = null) => {
+  sendMessage: async (message, conversationId = null, confirmationStatus = null, agentActive = false) => {
     const response = await fetch(`${API_BASE_URL}/chat/message`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       credentials: "include",
-      body: JSON.stringify({ message, conversationId }),
+      body: JSON.stringify({ message, conversationId, confirmationStatus, agentActive }),
     });
 
     if (!response.ok) {

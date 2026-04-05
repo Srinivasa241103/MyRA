@@ -24,6 +24,8 @@ export class AuthController {
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
         "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/calendar.readonly",
       ];
 
       const oauth2Client = new google.auth.OAuth2(
@@ -171,7 +173,14 @@ export class AuthController {
       scopes: scopes,
     });
 
-    logger.info(`Stored Gmail credentials for user ${userId}`);
+    await this.credentialRepo.storeOAuthTokens(userId, "google_calendar", {
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
+      expiryDate: expiryDate,
+      scopes: scopes,
+    });
+
+    logger.info(`Stored Gmail and Google Calendar credentials for user ${userId}`);
   }
 
   /**
