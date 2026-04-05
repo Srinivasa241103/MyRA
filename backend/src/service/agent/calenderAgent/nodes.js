@@ -1,13 +1,14 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatAnthropic } from "@langchain/anthropic";
 import {
   getGoogleCalendarClient,
   findFreeSlotsForDay,
 } from "../../sources/GoogleCalendarDataSource.js";
 import { logger } from "../../../utils/logger.js";
 
-const llm = new ChatGoogleGenerativeAI({
-  model: process.env.GEMINI_CHAT_MODEL || "gemini-2.0-flash",
-  apiKey: process.env.GEMINI_API_KEY,
+const llm = new ChatAnthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  model: "claude-haiku-4-5-20251001",
+  maxTokens: 1024,
 });
 
 // Fallback for scripts/cron jobs that don't go through the HTTP layer
