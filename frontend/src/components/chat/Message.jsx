@@ -6,7 +6,16 @@ const SparklesIcon = () => (
   </svg>
 );
 
-function Message({ role, text, isError, context }) {
+const CalendarIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+    <line x1="16" x2="16" y1="2" y2="6"/>
+    <line x1="8" x2="8" y1="2" y2="6"/>
+    <line x1="3" x2="21" y1="10" y2="10"/>
+  </svg>
+);
+
+function Message({ role, text, isError, context, mode }) {
   const isUser = role === "user";
   const { user } = useAuthStore();
 
@@ -56,7 +65,18 @@ function Message({ role, text, isError, context }) {
             {formatTime(new Date())}
           </span>
         </div>
-        {!isUser && context && context.selectedDocuments > 0 && (
+        {/* Agent mode badge */}
+        {!isUser && mode === "agent" && (
+          <div className="flex items-center gap-1.5 mt-2 px-1">
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/20">
+              <CalendarIcon />
+              Calendar Agent
+            </span>
+          </div>
+        )}
+
+        {/* RAG mode: source documents */}
+        {!isUser && mode !== "agent" && context && context.selectedDocuments > 0 && (
           <p className="text-xs text-gray-600 mt-1 px-2">
             Based on {context.selectedDocuments} document{context.selectedDocuments !== 1 ? "s" : ""}
           </p>

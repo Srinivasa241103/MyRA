@@ -4,8 +4,21 @@ import ChatInput from "./ChatInput";
 import TypingIndicator from "./TypingIndicator";
 import { useChatStore } from "../../store/chatStore";
 
+const CheckIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+
+const XIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
 function ChatWindow() {
-  const { messages, isTyping, sendMessage } = useChatStore();
+  const { messages, isTyping, sendMessage, pendingConfirmation, confirmAction } = useChatStore();
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -59,7 +72,7 @@ function ChatWindow() {
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
           {messages.map((msg, idx) => (
-            <Message key={idx} role={msg.role} text={msg.text} isError={msg.isError} context={msg.context} />
+            <Message key={idx} role={msg.role} text={msg.text} isError={msg.isError} context={msg.context} mode={msg.mode} />
           ))}
           {isTyping && <TypingIndicator />}
           <div ref={messagesEndRef} />
@@ -68,7 +81,31 @@ function ChatWindow() {
 
       <div className="border-t border-[#2A2A35] bg-[#0D0D12] px-4 py-4">
         <div className="max-w-3xl mx-auto">
-          <ChatInput onSend={handleSend} />
+          {pendingConfirmation ? (
+            <div className="bg-[#16161E] rounded-2xl border border-purple-500/30 px-5 py-4">
+              <p className="text-sm text-gray-400 text-center mb-3">
+                Shall I go ahead and create this event?
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => confirmAction("confirmed")}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors"
+                >
+                  <CheckIcon />
+                  Yes, create it
+                </button>
+                <button
+                  onClick={() => confirmAction("rejected")}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2A2A35] hover:bg-[#3A3A45] text-gray-300 text-sm font-medium transition-colors"
+                >
+                  <XIcon />
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <ChatInput onSend={handleSend} />
+          )}
         </div>
       </div>
     </div>

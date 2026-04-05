@@ -1,6 +1,8 @@
 import GmailDataSource from "../../service/sources/GmailDataSource.js";
+import GoogleCalendarDataSource from "../../service/sources/GoogleCalendarDataSource.js";
 import { logger } from "../../utils/logger.js";
 import { GmailNormalizer } from "../../service/normalizers/GmailNormalizer.js";
+import { GoogleCalendarNormalizer } from "../../service/normalizers/GoogleCalendarNormalizer.js";
 import { SyncLogRepository } from "../../database/syncLogsRepository.js";
 import { DocumentRepository } from "../../database/documentRepository.js";
 import EmbeddingPipeline from "../../service/embeddings/embeddingPipeline.js";
@@ -219,6 +221,191 @@ export default class SyncController {
 
       // Emit: Sync failed
       socketServer.emitSyncError("gmail", {
+        syncId: syncLogId,
+        message: syncError.message,
+        code: "SYNC_FAILED",
+      });
+    }
+  }
+
+  async syncCalendar(req, res) {
+    try {
+      const {
+        userId,
+        syncType = "incremental",
+        sinceDate = "2026-01-01",
+      } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ success: false, message: "userId is required" });
+      }
+
+      logger.info(`Starting ${syncType} Calendar sync for user ${userId}`);
+
+      const syncLog = await this.syncLogRepo.create("google_calendar");
+      res.json({
+        success: true,
+        data: {
+          syncId: syncLog.id,
+          status: "running",
+          message: "Calendar sync started",
+        },
+      });
+
+      this.performCalendarSync(userId, syncType, syncLog.id, sinceDate).catch(
+        (error) => {
+          logger.error(`Calendar sync failed for user ${userId}: ${error.message}`);
+        }
+      );
+    } catch (error) {
+      logger.error(`Error initiating Calendar sync: ${error.message}`);
+      res.status(500).json({ success: false, message: "Failed to start Calendar sync" });
+    }
+  }
+
+  async performCalendarSync(userId, syncType, syncLogId, sinceDate) {
+    try {
+      socketServer.emitSyncProgress("google_calendar", {
+        syncId: syncLogId,
+        status: "in_progress",
+        phase: "fetching",
+        message: "Fetching events from Google Calendar...",
+        progress: 0,
+      });
+
+      const calendarSource = new GoogleCalendarDataSource(userId);
+      let rawEvents;
+
+      if (syncType === "full") {
+        rawEvents = await calendarSource.fetchAll({
+          timeMin: new Date(sinceDate).toISOString(),
+          maxResults: Infinity,
+        });
+      } else {
+        const lastSync = await this.syncLogRepo.getLastSuccessfulSync("google_calendar");
+        const since =
+          lastSync?.sync_completed_at ||
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        rawEvents = await calendarSource.fetchNew(since);
+      }
+
+      logger.info(`Fetched ${rawEvents.length} Calendar events for user ${userId}`);
+
+      socketServer.emitSyncProgress("google_calendar", {
+        syncId: syncLogId,
+        status: "in_progress",
+        phase: "normalizing",
+        message: `Fetched ${rawEvents.length} events. Processing...`,
+        progress: 25,
+        totalMessages: rawEvents.length,
+      });
+
+      const normalizer = new GoogleCalendarNormalizer();
+      const normalizedDocs = normalizer.normalizeBatch(rawEvents, userId);
+      logger.info(`Normalized ${normalizedDocs.length} Calendar documents for user ${userId}`);
+
+      socketServer.emitSyncProgress("google_calendar", {
+        syncId: syncLogId,
+        status: "in_progress",
+        phase: "storing",
+        message: `Storing ${normalizedDocs.length} documents...`,
+        progress: 50,
+        totalDocuments: normalizedDocs.length,
+      });
+
+      let documentsAdded = 0;
+      let documentsFailed = 0;
+      let documentsSkipped = 0;
+      const totalDocs = normalizedDocs.length;
+
+      for (let i = 0; i < normalizedDocs.length; i++) {
+        const doc = normalizedDocs[i];
+        try {
+          const existing = await this.documentRepo.findByDocumentId(doc.documentId);
+
+          if (existing) {
+            documentsSkipped++;
+            continue;
+          }
+
+          await this.documentRepo.create({
+            document_id: doc.documentId,
+            source: doc.source,
+            type: doc.type,
+            content: doc.content,
+            title: doc.title,
+            timestamp: doc.timestamp,
+            author: doc.author,
+            metadata: doc.metadata,
+          });
+          documentsAdded++;
+        } catch (docError) {
+          logger.error(`Failed to store document ${doc.documentId}: ${docError.message}`);
+          documentsFailed++;
+        }
+
+        if ((i + 1) % 10 === 0 || i === totalDocs - 1) {
+          const progressPercent = 50 + Math.floor(((i + 1) / totalDocs) * 50);
+          socketServer.emitSyncProgress("google_calendar", {
+            syncId: syncLogId,
+            status: "in_progress",
+            phase: "storing",
+            message: `Processed ${i + 1}/${totalDocs} documents...`,
+            progress: progressPercent,
+            documentsAdded,
+            documentsSkipped,
+            documentsFailed,
+          });
+        }
+      }
+
+      await this.syncLogRepo.complete(syncLogId, {
+        status: "success",
+        documentsFetched: rawEvents.length,
+        documentsStored: documentsAdded,
+        lastSyncTimestamp: new Date(),
+      });
+
+      logger.info(
+        `Calendar sync completed for user ${userId}: ${documentsAdded} added, ${documentsSkipped} skipped, ${documentsFailed} failed`
+      );
+
+      socketServer.emitSyncProgress("google_calendar", {
+        syncId: syncLogId,
+        status: "in_progress",
+        phase: "embedding_start",
+        message: "Documents stored. Starting embedding generation...",
+        progress: 60,
+        documentsAdded,
+        documentsSkipped,
+      });
+
+      const embeddingResult =
+        await this.embeddingPipeline.processAllPendingEmbeddings(syncLogId);
+
+      logger.info("Calendar embedding generation completed", {
+        syncId: syncLogId,
+        embeddingsProcessed: embeddingResult.processed,
+      });
+
+      socketServer.emitSyncComplete("google_calendar", {
+        syncId: syncLogId,
+        status: "success",
+        message: "Calendar sync and embeddings completed successfully",
+        summary: {
+          totalFetched: rawEvents.length,
+          documentsAdded,
+          documentsSkipped,
+          documentsFailed,
+          embeddingsGenerated: embeddingResult.processed,
+          embeddingDuration: embeddingResult.duration,
+        },
+      });
+    } catch (syncError) {
+      logger.error(`Calendar sync error for user ${userId}: ${syncError.message}`);
+      await this.syncLogRepo.fail(syncLogId, syncError.message);
+
+      socketServer.emitSyncError("google_calendar", {
         syncId: syncLogId,
         message: syncError.message,
         code: "SYNC_FAILED",

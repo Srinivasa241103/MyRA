@@ -5,14 +5,16 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   isTyping: false,
   conversationId: null,
+  pendingConfirmation: false,
+  agentActive: false,
   error: null,
 
   conversations: [],
   conversationsLoading: false,
   conversationsError: null,
 
-  sendMessage: async (text) => {
-    const { conversationId } = get();
+  sendMessage: async (text, confirmationStatus = null) => {
+    const { conversationId, agentActive } = get();
 
     set((state) => ({
       messages: [...state.messages, { role: "user", text }],
@@ -21,26 +23,26 @@ export const useChatStore = create((set, get) => ({
     }));
 
     try {
-      const result = await chatApi.sendMessage(text, conversationId);
+      const result = await chatApi.sendMessage(text, conversationId, confirmationStatus, agentActive);
 
       if (result.success) {
-        const newConversationId = result.conversationId;
-
         set((state) => ({
           messages: [
             ...state.messages,
             {
               role: "ai",
               text: result.response,
+              mode: result.mode ?? null,
               context: result.context,
               metadata: result.metadata,
             },
           ],
           isTyping: false,
-          conversationId: newConversationId,
+          conversationId: result.conversationId,
+          pendingConfirmation: result.pendingConfirmation ?? false,
+          agentActive: result.agentActive ?? false,
         }));
 
-        // Refresh conversations list so the new one appears in sidebar
         get().loadConversations();
       } else {
         set((state) => ({
@@ -54,6 +56,8 @@ export const useChatStore = create((set, get) => ({
           ],
           isTyping: false,
           error: result.error,
+          pendingConfirmation: false,
+          agentActive: false,
         }));
       }
     } catch (error) {
@@ -68,8 +72,16 @@ export const useChatStore = create((set, get) => ({
         ],
         isTyping: false,
         error: error.message,
+        pendingConfirmation: false,
+        agentActive: false,
       }));
     }
+  },
+
+  confirmAction: async (status) => {
+    // status: "confirmed" | "rejected"
+    const label = status === "confirmed" ? "Yes, create it" : "Cancel";
+    get().sendMessage(label, status);
   },
 
   loadConversations: async () => {
@@ -109,6 +121,8 @@ export const useChatStore = create((set, get) => ({
       messages: [],
       isTyping: false,
       conversationId: null,
+      pendingConfirmation: false,
+      agentActive: false,
       error: null,
     }),
 }));
