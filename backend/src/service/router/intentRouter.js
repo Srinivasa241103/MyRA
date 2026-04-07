@@ -31,7 +31,10 @@ export async function routeIntent(userMessage) {
   });
 
   const response = await llm.invoke([
-    { role: "user", content: `${ROUTER_SYSTEM_PROMPT}\n\nMessage: ${userMessage}` },
+    {
+      role: "user",
+      content: `${ROUTER_SYSTEM_PROMPT}\n\nMessage: ${userMessage}`,
+    },
   ]);
 
   const intent = response.content.trim().toLowerCase();

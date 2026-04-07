@@ -1,4 +1,5 @@
 import langchainChatService from "../../service/langchain/chatService.js";
+import calendarRagService from "../../service/langchain/calendarRagService.js";
 import ConversationRepository from "../../database/conversationsRepo.js";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../../utils/logger.js";
@@ -24,7 +25,9 @@ class ChatController {
     const intent = await routeIntent(message);
     logger.info("Intent routed", { intent, conversationId });
 
-    return { handler: intent === "calendar_agent" ? "agent" : "rag", intent };
+    if (intent === "calendar_agent") return { handler: "agent", intent };
+    if (intent === "calendar_rag") return { handler: "calendar_rag", intent };
+    return { handler: "rag", intent };
   }
 
   async sendMessage(req, res) {
@@ -93,6 +96,29 @@ class ChatController {
           metadata: {},
         });
       }
+
+      if (handler === "calendar_rag") {
+        const result = await calendarRagService.chat(
+          message.trim(),
+          conversationId
+        );
+        if (!result.success) return res.status(500).json(result);
+        return res.json({
+          success: true,
+          queryId: uuidv4(),
+          conversationId: result.conversationId,
+          query: message.trim(),
+          response: result.response,
+          mode: "calendar_rag",
+          context: {
+            documentsUsed: result.sourceDocuments,
+            totalDocuments: result.sourceDocuments.length,
+            selectedDocuments: result.sourceDocuments.length,
+          },
+          metadata: { duration: result.duration },
+        });
+      }
+
       const result = await langchainChatService.chat(
         message.trim(),
         conversationId
@@ -193,12 +219,15 @@ class ChatController {
         return res.end();
       }
 
+      // Choose stream source based on handler
+      const streamSource =
+        handler === "calendar_rag"
+          ? calendarRagService.chatStream(message.trim(), conversationId)
+          : langchainChatService.chatStream(message.trim(), conversationId);
+
       let fullResponse = "";
 
-      for await (const chunk of langchainChatService.chatStream(
-        message.trim(),
-        conversationId
-      )) {
+      for await (const chunk of streamSource) {
         let normalized;
 
         switch (chunk.type) {
