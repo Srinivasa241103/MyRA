@@ -6,9 +6,20 @@ import useSyncStore from "../store/syncStore";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9000";
 
-const PHASE_LABELS = {
+const GMAIL_PHASE_LABELS = {
   starting: "Starting...",
   fetching: "Fetching emails...",
+  normalizing: "Normalizing data...",
+  storing: "Storing documents...",
+  embedding_start: "Preparing embeddings...",
+  embedding: "Generating embeddings...",
+  complete: "Complete",
+  error: "Failed",
+};
+
+const CALENDAR_PHASE_LABELS = {
+  starting: "Starting...",
+  fetching: "Fetching events...",
   normalizing: "Normalizing data...",
   storing: "Storing documents...",
   embedding_start: "Preparing embeddings...",
@@ -72,6 +83,13 @@ const BellIcon = () => (
   </svg>
 );
 
+const SpinnerIcon = () => (
+  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+  </svg>
+);
+
 // ── Toggle Switch ──────────────────────────────────────
 function Toggle({ enabled, onChange }) {
   return (
@@ -84,25 +102,68 @@ function Toggle({ enabled, onChange }) {
   );
 }
 
+// ── Sync Progress Panel ────────────────────────────────
+function SyncProgressPanel({ syncState, phaseLabels, onDismiss }) {
+  const { isSyncing, syncPhase, syncProgress, syncMessage, syncError, lastSyncResult } = syncState;
+  if (!isSyncing && syncPhase !== "complete" && syncPhase !== "error") return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className={syncPhase === "error" ? "text-red-400" : syncPhase === "complete" ? "text-green-400" : "text-gray-300"}>
+          {phaseLabels[syncPhase] || syncPhase}
+        </span>
+        {syncPhase !== "error" && (
+          <span className="text-gray-500 text-xs">{syncProgress}%</span>
+        )}
+      </div>
+      {syncPhase !== "error" && (
+        <div className="w-full bg-[#2A2A35] rounded-full h-1.5">
+          <div
+            className={`h-1.5 rounded-full transition-all duration-500 ${syncPhase === "complete" ? "bg-green-500" : "bg-purple-500"}`}
+            style={{ width: `${syncProgress}%` }}
+          />
+        </div>
+      )}
+      {syncMessage && syncPhase !== "complete" && (
+        <p className="text-xs text-gray-500">{syncMessage}</p>
+      )}
+      {syncPhase === "complete" && lastSyncResult && (
+        <p className="text-xs text-green-400">
+          {lastSyncResult.documentsAdded ?? lastSyncResult.processed ?? 0} new documents synced
+        </p>
+      )}
+      {syncPhase === "error" && syncError && (
+        <div className="p-2 bg-red-900/20 border border-red-900/50 rounded text-xs text-red-400">
+          {syncError}
+        </div>
+      )}
+      {(syncPhase === "complete" || syncPhase === "error") && (
+        <button onClick={onDismiss} className="text-xs text-gray-500 hover:text-gray-300 transition">
+          Dismiss
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────
 function ProfilePage({ onNavigate }) {
   const { user, logout } = useAuthStore();
   const [name, setName] = useState(user?.name || "");
   const [emailInput, setEmailInput] = useState(user?.email || "");
   const [gmailEnabled, setGmailEnabled] = useState(true);
-  const [calendarEnabled, setCalendarEnabled] = useState(false);
+  const [calendarEnabled, setCalendarEnabled] = useState(true);
   const [notifications, setNotifications] = useState(true);
   const [syncHistory, setSyncHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const syncIdRef = useRef(null);
+
+  const gmailSyncIdRef = useRef(null);
+  const calendarSyncIdRef = useRef(null);
 
   const {
-    isSyncing,
-    syncPhase,
-    syncProgress,
-    syncMessage,
-    syncError,
-    lastSyncResult,
+    gmail,
+    calendar,
     setSyncStarted,
     setSyncProgress,
     setSyncComplete,
@@ -110,36 +171,59 @@ function ProfilePage({ onNavigate }) {
     resetSync,
   } = useSyncStore();
 
-  // WebSocket listeners for live sync progress
+  // ── WebSocket listeners ────────────────────────────
   useEffect(() => {
     const userId = user?.id || user?.sub || user?.email;
     if (!userId) return;
 
     const socket = socketService.connect(userId);
 
-    const handleProgress = (data) => {
-      if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
-      setSyncProgress(data.phase, data.progress ?? 0, data.message);
+    // Gmail listeners
+    const onGmailProgress = (data) => {
+      if (gmailSyncIdRef.current && data.syncId !== String(gmailSyncIdRef.current)) return;
+      setSyncProgress("gmail", data.phase, data.progress ?? 0, data.message);
     };
-    const handleComplete = (data) => {
-      if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
-      setSyncComplete(data.summary || data);
+    const onGmailComplete = (data) => {
+      if (gmailSyncIdRef.current && data.syncId !== String(gmailSyncIdRef.current)) return;
+      setSyncComplete("gmail", data.summary || data);
       fetchSyncHistory();
     };
-    const handleError = (data) => {
-      if (syncIdRef.current && data.syncId !== String(syncIdRef.current)) return;
-      setSyncError(data.error?.message || "Sync failed");
+    const onGmailError = (data) => {
+      if (gmailSyncIdRef.current && data.syncId !== String(gmailSyncIdRef.current)) return;
+      setSyncError("gmail", data.error?.message || "Sync failed");
       fetchSyncHistory();
     };
 
-    socket.on("sync:gmail:progress", handleProgress);
-    socket.on("sync:gmail:complete", handleComplete);
-    socket.on("sync:gmail:error", handleError);
+    // Calendar listeners (backend emits with source "google_calendar")
+    const onCalendarProgress = (data) => {
+      if (calendarSyncIdRef.current && data.syncId !== String(calendarSyncIdRef.current)) return;
+      setSyncProgress("calendar", data.phase, data.progress ?? 0, data.message);
+    };
+    const onCalendarComplete = (data) => {
+      if (calendarSyncIdRef.current && data.syncId !== String(calendarSyncIdRef.current)) return;
+      setSyncComplete("calendar", data.summary || data);
+      fetchSyncHistory();
+    };
+    const onCalendarError = (data) => {
+      if (calendarSyncIdRef.current && data.syncId !== String(calendarSyncIdRef.current)) return;
+      setSyncError("calendar", data.error?.message || "Sync failed");
+      fetchSyncHistory();
+    };
+
+    socket.on("sync:gmail:progress", onGmailProgress);
+    socket.on("sync:gmail:complete", onGmailComplete);
+    socket.on("sync:gmail:error", onGmailError);
+    socket.on("sync:google_calendar:progress", onCalendarProgress);
+    socket.on("sync:google_calendar:complete", onCalendarComplete);
+    socket.on("sync:google_calendar:error", onCalendarError);
 
     return () => {
-      socket.off("sync:gmail:progress", handleProgress);
-      socket.off("sync:gmail:complete", handleComplete);
-      socket.off("sync:gmail:error", handleError);
+      socket.off("sync:gmail:progress", onGmailProgress);
+      socket.off("sync:gmail:complete", onGmailComplete);
+      socket.off("sync:gmail:error", onGmailError);
+      socket.off("sync:google_calendar:progress", onCalendarProgress);
+      socket.off("sync:google_calendar:complete", onCalendarComplete);
+      socket.off("sync:google_calendar:error", onCalendarError);
     };
   }, [user]);
 
@@ -170,8 +254,8 @@ function ProfilePage({ onNavigate }) {
     }
   };
 
-  const handleSyncNow = async () => {
-    setSyncStarted();
+  const handleGmailSyncNow = async () => {
+    setSyncStarted("gmail");
     try {
       const userId = user?.id || user?.sub || user?.email;
       const response = await fetch(`${API_BASE_URL}/sync/gmail`, {
@@ -183,13 +267,36 @@ function ProfilePage({ onNavigate }) {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       if (data.success) {
-        syncIdRef.current = data.data?.syncId || data.syncId || null;
+        gmailSyncIdRef.current = data.data?.syncId || data.syncId || null;
       } else {
-        setSyncError(data.message || "Failed to start sync");
+        setSyncError("gmail", data.message || "Failed to start sync");
       }
     } catch (error) {
-      console.error("Failed to start sync:", error);
-      setSyncError(error.message || "Failed to start sync");
+      console.error("Failed to start Gmail sync:", error);
+      setSyncError("gmail", error.message || "Failed to start sync");
+    }
+  };
+
+  const handleCalendarSyncNow = async () => {
+    setSyncStarted("calendar");
+    try {
+      const userId = user?.id || user?.sub || user?.email;
+      const response = await fetch(`${API_BASE_URL}/sync/calendar`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, syncType: "incremental" }),
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      if (data.success) {
+        calendarSyncIdRef.current = data.data?.syncId || data.syncId || null;
+      } else {
+        setSyncError("calendar", data.message || "Failed to start calendar sync");
+      }
+    } catch (error) {
+      console.error("Failed to start Calendar sync:", error);
+      setSyncError("calendar", error.message || "Failed to start calendar sync");
     }
   };
 
@@ -308,7 +415,8 @@ function ProfilePage({ onNavigate }) {
           <p className="text-gray-400 text-sm mb-6">Manage your connected accounts and data sources</p>
 
           <div className="space-y-3">
-            {/* Gmail row */}
+
+            {/* ── Gmail row ── */}
             <div className="bg-[#0D0D12] rounded-lg border border-[#2A2A35] overflow-hidden">
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
@@ -328,91 +436,63 @@ function ProfilePage({ onNavigate }) {
                 </div>
               </div>
 
-              {/* Sync panel — shown when Gmail is enabled */}
               {gmailEnabled && (
                 <div className="border-t border-[#2A2A35] px-4 py-4 space-y-3">
                   <button
-                    onClick={handleSyncNow}
-                    disabled={isSyncing}
+                    onClick={handleGmailSyncNow}
+                    disabled={gmail.isSyncing}
                     className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-[#2A2A35] disabled:cursor-not-allowed text-white text-sm rounded-lg transition font-medium flex items-center justify-center gap-2"
                   >
-                    {isSyncing ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                        </svg>
-                        Syncing emails...
-                      </>
-                    ) : (
-                      "Sync Gmail Now"
-                    )}
+                    {gmail.isSyncing ? <><SpinnerIcon />Syncing emails...</> : "Sync Gmail Now"}
                   </button>
-
-                  {/* Live sync progress */}
-                  {(isSyncing || syncPhase === "complete" || syncPhase === "error") && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className={syncPhase === "error" ? "text-red-400" : syncPhase === "complete" ? "text-green-400" : "text-gray-300"}>
-                          {PHASE_LABELS[syncPhase] || syncPhase}
-                        </span>
-                        {syncPhase !== "error" && (
-                          <span className="text-gray-500 text-xs">{syncProgress}%</span>
-                        )}
-                      </div>
-                      {syncPhase !== "error" && (
-                        <div className="w-full bg-[#2A2A35] rounded-full h-1.5">
-                          <div
-                            className={`h-1.5 rounded-full transition-all duration-500 ${syncPhase === "complete" ? "bg-green-500" : "bg-purple-500"}`}
-                            style={{ width: `${syncProgress}%` }}
-                          />
-                        </div>
-                      )}
-                      {syncMessage && syncPhase !== "complete" && (
-                        <p className="text-xs text-gray-500">{syncMessage}</p>
-                      )}
-                      {syncPhase === "complete" && lastSyncResult && (
-                        <p className="text-xs text-green-400">
-                          {lastSyncResult.documentsAdded ?? lastSyncResult.processed ?? 0} new documents synced
-                        </p>
-                      )}
-                      {syncPhase === "error" && syncError && (
-                        <div className="p-2 bg-red-900/20 border border-red-900/50 rounded text-xs text-red-400">
-                          {syncError}
-                        </div>
-                      )}
-                      {(syncPhase === "complete" || syncPhase === "error") && (
-                        <button onClick={resetSync} className="text-xs text-gray-500 hover:text-gray-300 transition">
-                          Dismiss
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <SyncProgressPanel
+                    syncState={gmail}
+                    phaseLabels={GMAIL_PHASE_LABELS}
+                    onDismiss={() => resetSync("gmail")}
+                  />
                 </div>
               )}
             </div>
 
-            {/* Calendar row */}
-            <div className="flex items-center justify-between p-4 bg-[#0D0D12] rounded-lg border border-[#2A2A35] opacity-60">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
-                  <CalendarIcon />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-white font-medium">Calendar Sync</p>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#2A2A35] text-gray-400">Coming Soon</span>
+            {/* ── Calendar row ── */}
+            <div className="bg-[#0D0D12] rounded-lg border border-[#2A2A35] overflow-hidden">
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                    <CalendarIcon />
                   </div>
-                  <p className="text-gray-400 text-sm">Google Calendar</p>
+                  <div>
+                    <p className="text-white font-medium">Google Calendar</p>
+                    <p className="text-gray-400 text-sm">{user.email || "Not connected"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-sm ${calendarEnabled ? "text-green-400" : "text-gray-500"}`}>
+                    {calendarEnabled ? "Connected" : "Disconnected"}
+                  </span>
+                  <Toggle enabled={calendarEnabled} onChange={() => setCalendarEnabled(!calendarEnabled)} />
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500">Not synced</span>
-                <Toggle enabled={false} onChange={() => {}} />
-              </div>
+
+              {calendarEnabled && (
+                <div className="border-t border-[#2A2A35] px-4 py-4 space-y-3">
+                  <button
+                    onClick={handleCalendarSyncNow}
+                    disabled={calendar.isSyncing}
+                    className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-[#2A2A35] disabled:cursor-not-allowed text-white text-sm rounded-lg transition font-medium flex items-center justify-center gap-2"
+                  >
+                    {calendar.isSyncing ? <><SpinnerIcon />Syncing calendar...</> : "Sync Calendar Now"}
+                  </button>
+                  <SyncProgressPanel
+                    syncState={calendar}
+                    phaseLabels={CALENDAR_PHASE_LABELS}
+                    onDismiss={() => resetSync("calendar")}
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Spotify row */}
+            {/* ── Spotify row (coming soon) ── */}
             <div className="flex items-center justify-between p-4 bg-[#0D0D12] rounded-lg border border-[#2A2A35] opacity-60">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400">
@@ -440,7 +520,6 @@ function ProfilePage({ onNavigate }) {
             <span className="text-purple-400"><SettingsIcon /></span>
             <h3 className="text-white font-semibold">Preferences</h3>
           </div>
-
           <div className="space-y-3">
             <div className="flex items-center justify-between p-4 bg-[#0D0D12] rounded-lg border border-[#2A2A35]">
               <div className="flex items-center gap-3">
@@ -467,7 +546,7 @@ function ProfilePage({ onNavigate }) {
           {isLoadingHistory ? (
             <p className="text-center py-8 text-gray-500">Loading history...</p>
           ) : syncHistory.length === 0 ? (
-            <p className="text-center py-8 text-gray-500">No sync history yet. Hit "Sync Gmail Now" to get started.</p>
+            <p className="text-center py-8 text-gray-500">No sync history yet.</p>
           ) : (
             <div className="space-y-3">
               {syncHistory.map((item, index) => (
@@ -475,10 +554,12 @@ function ProfilePage({ onNavigate }) {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400 text-sm">
-                        {item.source === "gmail" ? "✉" : item.source === "calendar" ? "📅" : "📄"}
+                        {item.source === "gmail" ? "✉" : item.source === "google_calendar" ? "📅" : "📄"}
                       </div>
                       <div>
-                        <p className="font-medium capitalize text-white">{item.source}</p>
+                        <p className="font-medium capitalize text-white">
+                          {item.source === "google_calendar" ? "Google Calendar" : item.source}
+                        </p>
                         <p className="text-xs text-gray-500">{formatDate(item.started_at || item.created_at)}</p>
                       </div>
                     </div>
@@ -489,7 +570,7 @@ function ProfilePage({ onNavigate }) {
                   {item.stats && (
                     <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-[#2A2A35]">
                       <div>
-                        <p className="text-xs text-gray-500">Messages</p>
+                        <p className="text-xs text-gray-500">Fetched</p>
                         <p className="text-sm font-medium">{item.stats.total_fetched ?? "—"}</p>
                       </div>
                       <div>
