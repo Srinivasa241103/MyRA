@@ -1,9 +1,9 @@
 import ChatWindow from "../components/chat/ChatWindow";
 
-function ChatPage() {
+function ChatPage({ onNavigate, onToggleSidebar }) {
   return (
-    <div className="h-full overflow-hidden flex flex-col">
-      <ChatWindow />
+    <div style={{ height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <ChatWindow onNavigate={onNavigate} onToggleSidebar={onToggleSidebar} />
     </div>
   );
 }
