@@ -19,6 +19,11 @@ router.get("/me", (req, res, next) => {
   authController.getCurrentUser(req, res, next);
 });
 
+// Update app-level display name (user_name)
+router.patch("/user/name", (req, res, next) => {
+  authController.updateUserName(req, res, next);
+});
+
 // Logout
 router.post("/logout", (req, res, next) => {
   authController.logout(req, res, next);

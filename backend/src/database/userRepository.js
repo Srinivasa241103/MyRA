@@ -31,6 +31,7 @@ export class UserRepository {
         google_id,
         email,
         name,
+        user_name,
         picture,
         email_verified,
         locale,
@@ -92,6 +93,7 @@ export class UserRepository {
         google_id,
         email,
         name,
+        user_name,
         picture,
         email_verified,
         locale,
@@ -101,13 +103,14 @@ export class UserRepository {
         login_count,
         created_at,
         updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), 1, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 1, NOW(), NOW())
       RETURNING *`;
 
     const values = [
       userData.googleId,
       userData.email,
       userData.name,
+      userData.name,           // user_name defaults to google name on first sign-up
       userData.picture,
       userData.emailVerified,
       userData.locale || "en",
@@ -208,6 +211,31 @@ export class UserRepository {
       RETURNING *`;
 
     const values = [status, id];
+    const { rows } = await pool.query(query, values);
+
+    if (rows.length === 0) {
+      throw new Error(`User with id ${id} not found`);
+    }
+
+    return rows[0];
+  }
+
+  /**
+   * Update user_name (the app-level display name, independent of Google name)
+   * @param {string} id
+   * @param {string} userName
+   * @returns {Promise<Object>}
+   */
+  async updateUserName(id, userName) {
+    const query = `
+      UPDATE users
+      SET
+        user_name = $1,
+        updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, email, name, user_name, picture, preferences, status, updated_at`;
+
+    const values = [userName.trim(), id];
     const { rows } = await pool.query(query, values);
 
     if (rows.length === 0) {

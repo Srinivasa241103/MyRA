@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../store/authStore";
 import { authApi } from "../api/auth";
+import { userApi } from "../api/user";
 import socketService from "../service/socketService";
 import useSyncStore from "../store/syncStore";
 
@@ -87,12 +88,15 @@ function SyncProgressPanel({ syncState, phaseLabels, onDismiss }) {
 
 // ── Main Component ───────────────────────────────────────────────────────────
 function ProfilePage({ onNavigate }) {
-  const { user, logout } = useAuthStore();
-  const [name, setName] = useState(user?.name || "");
+  const { user, logout, setUser } = useAuthStore();
+  // user_name is the app-level name; falls back to google name for existing users
+  const [userName, setUserName] = useState(user?.user_name || user?.name || "");
   const [emailInput] = useState(user?.email || "");
   const [notifications, setNotifications] = useState(true);
   const [syncHistory, setSyncHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [saveState, setSaveState] = useState("idle"); // "idle" | "saving" | "saved" | "error"
+  const [saveError, setSaveError] = useState("");
 
   const gmailSyncIdRef = useRef(null);
   const calendarSyncIdRef = useRef(null);
@@ -156,7 +160,7 @@ function ProfilePage({ onNavigate }) {
 
   useEffect(() => {
     if (user) {
-      setName(user.name || "");
+      setUserName(user.user_name || user.name || "");
     }
     fetchSyncHistory();
   }, [user]);
@@ -232,7 +236,19 @@ function ProfilePage({ onNavigate }) {
   };
 
   const handleSaveProfile = async () => {
-    console.log("Saving profile:", { name, email: emailInput });
+    if (!userName.trim()) return;
+    setSaveState("saving");
+    setSaveError("");
+    try {
+      const result = await userApi.updateUserName(userName.trim());
+      // Merge updated user_name into the auth store so the whole app reflects it
+      setUser({ ...user, user_name: result.data.user.user_name });
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 3000);
+    } catch (err) {
+      setSaveError(err.message || "Failed to save");
+      setSaveState("error");
+    }
   };
 
   const formatDate = (ds) => ds ? new Date(ds).toLocaleString() : "N/A";
@@ -291,8 +307,13 @@ function ProfilePage({ onNavigate }) {
                   : getInitials(user.name)}
               </div>
               <div style={{ flex: 1, minWidth: 160 }}>
-                <h2 className="h2" style={{ marginBottom: 2 }}>{user.name || "—"}</h2>
+                <h2 className="h2" style={{ marginBottom: 2 }}>{user.user_name || user.name || "—"}</h2>
                 <p className="muted" style={{ fontSize: 13 }}>{user.email || "—"}</p>
+                {user.user_name && user.user_name !== user.name && (
+                  <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                    Google name: {user.name}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -301,10 +322,14 @@ function ProfilePage({ onNavigate }) {
                 <div className="myra-label" style={{ marginBottom: 6 }}>Display name</div>
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={userName}
+                  onChange={(e) => { setUserName(e.target.value); setSaveState("idle"); setSaveError(""); }}
                   className="myra-input"
+                  placeholder={user.name}
                 />
+                <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                  Your name on MyRA — separate from your Google name
+                </p>
               </div>
               <div>
                 <div className="myra-label" style={{ marginBottom: 6 }}>Email</div>
@@ -319,10 +344,21 @@ function ProfilePage({ onNavigate }) {
               </div>
             </div>
 
-            <div style={{ marginTop: 16 }}>
-              <button onClick={handleSaveProfile} className="myra-btn primary sm">
-                <SaveIcon /> Save Changes
+            <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
+              <button
+                onClick={handleSaveProfile}
+                className="myra-btn primary sm"
+                disabled={saveState === "saving" || !userName.trim()}
+              >
+                <SaveIcon />
+                {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved!" : "Save Changes"}
               </button>
+              {saveState === "saved" && (
+                <span style={{ fontSize: 12, color: "var(--success)" }}>Display name updated</span>
+              )}
+              {saveState === "error" && (
+                <span style={{ fontSize: 12, color: "var(--danger)" }}>{saveError}</span>
+              )}
             </div>
           </div>
 

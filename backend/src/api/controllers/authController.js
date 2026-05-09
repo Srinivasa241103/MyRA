@@ -257,6 +257,43 @@ export class AuthController {
   }
 
   /**
+   * PATCH /api/auth/user/name
+   * Update the app-level display name (user_name) for the authenticated user.
+   * Does NOT touch the google `name` field.
+   */
+  async updateUserName(req, res, next) {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, error: "No token provided" });
+      }
+
+      const token = authHeader.substring(7);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      const { userName } = req.body;
+      if (!userName || typeof userName !== "string" || !userName.trim()) {
+        return res.status(400).json({ success: false, error: "userName is required" });
+      }
+
+      const updatedUser = await this.userRepo.updateUserName(decoded.userId, userName);
+
+      logger.info(`Updated user_name for user ${decoded.userId}`);
+
+      res.json({
+        success: true,
+        data: { user: updatedUser },
+      });
+    } catch (error) {
+      logger.error(`Failed to update user name: ${error.message}`);
+      if (error.name === "JsonWebTokenError") {
+        return res.status(401).json({ success: false, error: "Invalid token" });
+      }
+      next(error);
+    }
+  }
+
+  /**
    * POST /api/auth/logout
    * Logout user
    */
