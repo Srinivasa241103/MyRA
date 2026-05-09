@@ -1,20 +1,5 @@
 import { useAuthStore } from "../../store/authStore";
 
-const SparklesIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-  </svg>
-);
-
-const CalendarIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
-    <line x1="16" x2="16" y1="2" y2="6"/>
-    <line x1="8" x2="8" y1="2" y2="6"/>
-    <line x1="3" x2="21" y1="10" y2="10"/>
-  </svg>
-);
-
 function Message({ role, text, isError, context, mode }) {
   const isUser = role === "user";
   const { user } = useAuthStore();
@@ -27,62 +12,55 @@ function Message({ role, text, isError, context, mode }) {
   const formatTime = (date) =>
     date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
-  return (
-    <div className={`flex gap-4 animate-fade-in ${isUser ? "flex-row-reverse" : ""}`}>
-      {/* Avatar */}
-      <div className="flex-shrink-0">
-        {isUser ? (
-          user?.picture ? (
-            <img
-              src={user.picture}
-              alt={user.name || "You"}
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-medium">
-              {getInitials(user?.name)}
-            </div>
-          )
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-            <SparklesIcon />
-          </div>
-        )}
-      </div>
-
-      {/* Bubble */}
-      <div className={`flex-1 ${isUser ? "flex justify-end" : ""}`}>
-        <div
-          className={`inline-block max-w-[85%] rounded-2xl px-4 py-3 ${
-            isUser
-              ? `bg-[#5B5BD6] text-white ${isError ? "bg-red-900/30 border border-red-500/40" : ""}`
-              : "bg-[#16161E] text-gray-100"
-          }`}
-          style={{ whiteSpace: "pre-wrap" }}
-        >
+  if (isUser) {
+    return (
+      <div className="myra-fade-in" style={{ alignSelf: "flex-end", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+        <div className="myra-bubble user">
           {text}
-          <span className={`text-xs mt-2 block ${isUser ? "text-purple-200" : "text-gray-500"}`}>
-            {formatTime(new Date())}
-          </span>
         </div>
-        {/* Agent mode badge */}
-        {!isUser && mode === "agent" && (
-          <div className="flex items-center gap-1.5 mt-2 px-1">
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/20">
-              <CalendarIcon />
-              Calendar Agent
+        <span style={{ fontSize: 11, color: "var(--text-soft)", paddingRight: 4 }}>
+          {formatTime(new Date())}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="myra-fade-in" style={{ alignSelf: "flex-start", display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className={"myra-bubble assistant" + (isError ? " error" : "")}>
+        <div>{text}</div>
+
+        {/* Source documents */}
+        {mode !== "agent" && context && context.selectedDocuments > 0 && (
+          <div className="src-row">
+            <span className="myra-source-pill">
+              <span className="dot" />
+              {context.selectedDocuments} document{context.selectedDocuments !== 1 ? "s" : ""}
             </span>
           </div>
         )}
+      </div>
 
-        {/* RAG mode: source documents */}
-        {!isUser && mode !== "agent" && context && context.selectedDocuments > 0 && (
-          <p className="text-xs text-gray-600 mt-1 px-2">
-            Based on {context.selectedDocuments} document{context.selectedDocuments !== 1 ? "s" : ""}
-          </p>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", paddingLeft: 4 }}>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatTime(new Date())}</span>
+
+        {/* Agent mode badge */}
+        {mode === "agent" && (
+          <span className="myra-badge accent" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <CalendarBadgeIcon />
+            Calendar Agent
+          </span>
         )}
       </div>
     </div>
+  );
+}
+
+function CalendarBadgeIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
   );
 }
 

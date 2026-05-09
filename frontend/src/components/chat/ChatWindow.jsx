@@ -1,59 +1,268 @@
-import { useEffect, useRef } from "react";
-import Message from "./Message";
-import ChatInput from "./ChatInput";
+import { useEffect, useRef, useState } from "react";
 import TypingIndicator from "./TypingIndicator";
 import { useChatStore } from "../../store/chatStore";
+import { useAuthStore } from "../../store/authStore";
 
-const CheckIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12"/>
-  </svg>
-);
+// ── ChatWindow — exact MyRA design replica ───────────────────────────────────
 
-const XIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18"/>
-    <line x1="6" y1="6" x2="18" y2="18"/>
-  </svg>
-);
+function ChatWindow({ onNavigate, onToggleSidebar }) {
+  const { messages, isTyping, sendMessage, pendingConfirmation, confirmAction, conversationId } = useChatStore();
+  const { user } = useAuthStore();
+  const [draft, setDraft] = useState("");
+  const scrollRef = useRef(null);
+  const textareaRef = useRef(null);
 
-function ChatWindow() {
-  const { messages, isTyping, sendMessage, pendingConfirmation, confirmAction } = useChatStore();
-  const messagesEndRef = useRef(null);
-
+  // Auto-scroll on new messages
   useEffect(() => {
-    if (messages.length > 0 || isTyping) {
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isTyping]);
 
-  const handleSend = (text) => {
+  const handleSend = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setDraft("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     sendMessage(text);
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleInput = (e) => {
+    const t = e.target;
+    t.style.height = "auto";
+    t.style.height = Math.min(t.scrollHeight, 120) + "px";
+    setDraft(t.value);
+  };
+
+  const getInitials = (name) => {
+    if (!name) return "U";
+    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  };
+
+  const todayLabel = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+  // ── Empty state ────────────────────────────────────────────────────────────
   if (messages.length === 0) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 bg-[#0D0D12]">
-        <div className="hidden lg:flex items-center justify-between p-6 border-b border-[#2A2A35]">
-          <div>
-            <h2 className="text-white text-xl">Chat</h2>
-            <p className="text-gray-400 text-sm mt-1">Powered by your email and calendar insights</p>
+      <div className="myra-chat-main">
+        {/* Topbar */}
+        <div className="myra-chat-topbar">
+          <div className="row gap-3" style={{ alignItems: "center" }}>
+            {onToggleSidebar && (
+              <button className="myra-btn ghost icon sm" onClick={onToggleSidebar} aria-label="Toggle sidebar">
+                <SidebarIcon />
+              </button>
+            )}
+            <button className="myra-btn ghost sm" onClick={() => onNavigate?.("home")} aria-label="Home">
+              <HomeIcon /> Home
+            </button>
+            <div className="col" style={{ gap: 1 }}>
+              <strong style={{ fontSize: 14, color: "var(--text-2)" }}>New chat</strong>
+              <span className="muted" style={{ fontSize: 11 }}>Ask anything about your inbox, calendar, or notes</span>
+            </div>
+          </div>
+          <div className="row gap-2" style={{ alignItems: "center" }}>
+            <button
+              className="myra-avatar sm"
+              onClick={() => onNavigate?.("profile")}
+              aria-label="Profile"
+            >
+              {user?.picture
+                ? <img src={user.picture} alt={user?.name || "Profile"} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+                : getInitials(user?.name)}
+            </button>
           </div>
         </div>
-        <div className="flex flex-1 flex-col items-center justify-center px-4">
-          <div className="text-center mb-10">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-              </svg>
-            </div>
-            <h2 className="text-2xl font-medium text-white mb-3">How can I help you today?</h2>
-            <p className="text-gray-400">Ask me about your emails, schedule, or anything else.</p>
+
+        {/* Empty state body */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
+          <div style={{
+            width: 60, height: 60, borderRadius: "50%",
+            background: "var(--parchment)", border: "2px solid var(--border-strong)",
+            display: "grid", placeItems: "center", marginBottom: 20, color: "var(--accent)",
+          }}>
+            <MyraMarkIcon size={28} />
           </div>
-          <div className="w-full max-w-3xl">
-            <ChatInput onSend={handleSend} />
+          <h2 style={{ fontSize: 22, fontWeight: 600, color: "var(--text-2)", marginBottom: 8, textAlign: "center" }}>
+            How can I help you today?
+          </h2>
+          <p className="muted" style={{ fontSize: 14, textAlign: "center", marginBottom: 32, maxWidth: 420 }}>
+            Ask me about your emails, schedule, or anything else.
+          </p>
+
+          {/* Suggestion chips */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 32, maxWidth: 560 }}>
+            {QUICK_SUGGESTIONS.map((s, i) => (
+              <button
+                key={i}
+                className="myra-source-pill"
+                style={{ height: 32, padding: "0 14px", cursor: "pointer", fontSize: 13, color: "var(--text-2)" }}
+                onClick={() => { setDraft(s); textareaRef.current?.focus(); }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {/* Inline composer */}
+          <div style={{ width: "100%", maxWidth: 680 }}>
+            <Composer
+              draft={draft}
+              setDraft={setDraft}
+              textareaRef={textareaRef}
+              onSend={handleSend}
+              onKeyDown={handleKeyDown}
+              onInput={handleInput}
+              pendingConfirmation={pendingConfirmation}
+              onConfirm={() => confirmAction("confirmed")}
+              onReject={() => confirmAction("rejected")}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Active chat ────────────────────────────────────────────────────────────
+  const firstMsg = messages[0];
+  const chatTitle = firstMsg?.text?.slice(0, 48) + (firstMsg?.text?.length > 48 ? "…" : "") || "Conversation";
+
+  return (
+    <div className="myra-chat-main">
+      {/* Topbar */}
+      <div className="myra-chat-topbar">
+        <div className="row gap-3" style={{ alignItems: "center" }}>
+          {onToggleSidebar && (
+            <button className="myra-btn ghost icon sm" onClick={onToggleSidebar} aria-label="Toggle sidebar">
+              <SidebarIcon />
+            </button>
+          )}
+          <button className="myra-btn ghost sm" onClick={() => onNavigate?.("home")} aria-label="Home">
+            <HomeIcon /> Home
+          </button>
+          <div className="col" style={{ gap: 1 }}>
+            <strong style={{ fontSize: 14, color: "var(--text-2)" }}>{chatTitle}</strong>
+            <span className="muted" style={{ fontSize: 11 }}>
+              {messages.length} message{messages.length !== 1 ? "s" : ""} · today
+            </span>
+          </div>
+        </div>
+        <div className="row gap-2" style={{ alignItems: "center" }}>
+          <button className="myra-btn secondary sm">
+            <EditIcon /> Rename
+          </button>
+          <button className="myra-btn ghost sm icon">
+            <TrashIcon />
+          </button>
+          <button
+            className="myra-avatar sm"
+            onClick={() => onNavigate?.("profile")}
+            aria-label="Profile"
+          >
+            {user?.picture
+              ? <img src={user.picture} alt={user?.name || "Profile"} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+              : getInitials(user?.name)}
+          </button>
+        </div>
+      </div>
+
+      {/* Messages scroll area */}
+      <div className="myra-chat-scroll" ref={scrollRef}>
+        <div className="myra-chat-scroll-inner">
+          {/* Date system bubble */}
+          <div className="myra-bubble system">{todayLabel}</div>
+
+          {messages.map((msg, idx) => (
+            <MessageTurn key={idx} msg={msg} />
+          ))}
+
+          {isTyping && (
+            <div style={{ alignSelf: "flex-start" }}>
+              <TypingIndicator />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Composer */}
+      <Composer
+        draft={draft}
+        setDraft={setDraft}
+        textareaRef={textareaRef}
+        onSend={handleSend}
+        onKeyDown={handleKeyDown}
+        onInput={handleInput}
+        pendingConfirmation={pendingConfirmation}
+        onConfirm={() => confirmAction("confirmed")}
+        onReject={() => confirmAction("rejected")}
+      />
+    </div>
+  );
+}
+
+// ── MessageTurn — renders one user or AI bubble ──────────────────────────────
+
+function MessageTurn({ msg }) {
+  const isUser = msg.role === "user";
+
+  if (isUser) {
+    return (
+      <div className="myra-bubble user myra-fade-in">
+        {msg.text}
+      </div>
+    );
+  }
+
+  return (
+    <div className="myra-bubble assistant myra-fade-in" style={msg.isError ? { borderColor: "rgba(160,48,48,.3)", background: "rgba(160,48,48,.06)" } : {}}>
+      <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
+
+      {/* Source pills */}
+      {msg.mode !== "agent" && msg.context?.selectedDocuments > 0 && (
+        <div className="src-row" style={{ marginTop: 10 }}>
+          <span className="myra-source-pill">
+            <span className="dot" />
+            {msg.context.selectedDocuments} document{msg.context.selectedDocuments !== 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+
+      {/* Agent mode badge */}
+      {msg.mode === "agent" && (
+        <div style={{ marginTop: 8 }}>
+          <span className="myra-badge accent">
+            <CalendarSmIcon /> Calendar Agent
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Composer — the input area at bottom ─────────────────────────────────────
+
+function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject }) {
+  if (pendingConfirmation) {
+    return (
+      <div className="myra-composer">
+        <div className="myra-composer-inner">
+          <div className="myra-confirm-card">
+            <p>Shall I go ahead and create this event?</p>
+            <div className="myra-confirm-actions">
+              <button className="myra-btn primary sm" onClick={onConfirm}>
+                <CheckIcon /> Yes, create it
+              </button>
+              <button className="myra-btn secondary sm" onClick={onReject}>
+                <XIcon /> Cancel
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -61,54 +270,106 @@ function ChatWindow() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-[#0D0D12]">
-      <div className="hidden lg:flex items-center justify-between p-6 border-b border-[#2A2A35]">
-        <div>
-          <h2 className="text-white text-xl">Chat</h2>
-          <p className="text-gray-400 text-sm mt-1">Powered by your email and calendar insights</p>
+    <div className="myra-composer">
+      <div className="myra-composer-inner">
+        {/* Main input box */}
+        <div className="myra-composer-box">
+          <button className="myra-btn ghost icon sm" aria-label="Attach file">
+            <PaperclipIcon />
+          </button>
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onInput={onInput}
+            onKeyDown={onKeyDown}
+            placeholder="Ask MyRA…"
+            rows={1}
+            style={{ minHeight: "24px" }}
+          />
+          <div className="myra-composer-tools">
+            <button className="myra-btn ghost icon sm" aria-label="Voice input">
+              <MicIcon />
+            </button>
+            <button
+              className={"myra-btn icon sm" + (draft.trim() ? " primary" : "")}
+              style={!draft.trim() ? { background: "var(--bg-3)", color: "var(--text-muted)", cursor: "not-allowed" } : {}}
+              onClick={onSend}
+              disabled={!draft.trim()}
+              aria-label="Send"
+            >
+              <SendIcon />
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6">
-        <div className="max-w-3xl mx-auto space-y-6">
-          {messages.map((msg, idx) => (
-            <Message key={idx} role={msg.role} text={msg.text} isError={msg.isError} context={msg.context} mode={msg.mode} />
-          ))}
-          {isTyping && <TypingIndicator />}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      <div className="border-t border-[#2A2A35] bg-[#0D0D12] px-4 py-4">
-        <div className="max-w-3xl mx-auto">
-          {pendingConfirmation ? (
-            <div className="bg-[#16161E] rounded-2xl border border-purple-500/30 px-5 py-4">
-              <p className="text-sm text-gray-400 text-center mb-3">
-                Shall I go ahead and create this event?
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => confirmAction("confirmed")}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors"
-                >
-                  <CheckIcon />
-                  Yes, create it
-                </button>
-                <button
-                  onClick={() => confirmAction("rejected")}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2A2A35] hover:bg-[#3A3A45] text-gray-300 text-sm font-medium transition-colors"
-                >
-                  <XIcon />
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <ChatInput onSend={handleSend} />
-          )}
+        {/* Hint row */}
+        <div className="myra-composer-hint">
+          <div className="row gap-2">
+            <span className="myra-source-pill" style={{ cursor: "default" }}>
+              <span className="dot" />All sources
+            </span>
+            <span className="myra-source-pill" style={{ cursor: "default" }}>
+              <SparklesSmIcon />Claude Haiku 4.5
+            </span>
+          </div>
+          <span>Enter to send · Shift+Enter newline</span>
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Quick suggestions for empty state ────────────────────────────────────────
+const QUICK_SUGGESTIONS = [
+  "What's important in my inbox today?",
+  "What's on my calendar this week?",
+  "Summarize my recent notes",
+  "Draft a reply to my latest email",
+];
+
+// ── Icons ────────────────────────────────────────────────────────────────────
+const IC = { fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" };
+
+function SidebarIcon() {
+  return <svg width={16} height={16} viewBox="0 0 24 24" {...IC}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>;
+}
+function EditIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 1 1 3 3L12 15l-4 1 1-4z"/></svg>;
+}
+function TrashIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>;
+}
+function PaperclipIcon() {
+  return <svg width={16} height={16} viewBox="0 0 24 24" {...IC}><path d="m21 12-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg>;
+}
+function MicIcon() {
+  return <svg width={16} height={16} viewBox="0 0 24 24" {...IC}><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10a7 7 0 0 1-14 0M12 19v3"/></svg>;
+}
+function SendIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
+}
+function CheckIcon() {
+  return <svg width={13} height={13} viewBox="0 0 24 24" {...IC} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>;
+}
+function XIcon() {
+  return <svg width={13} height={13} viewBox="0 0 24 24" {...IC} strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+}
+function CalendarSmIcon() {
+  return <svg width={10} height={10} viewBox="0 0 24 24" {...IC}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>;
+}
+function SparklesSmIcon() {
+  return <svg width={12} height={12} viewBox="0 0 24 24" {...IC}><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="m6 6 2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg>;
+}
+function HomeIcon() {
+  return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+}
+function MyraMarkIcon({ size = 24 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#7A4A2E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 19V6l7 9 7-9v13" />
+      <circle cx="12" cy="20.5" r="1.2" fill="#7A4A2E" stroke="none" />
+    </svg>
   );
 }
 
