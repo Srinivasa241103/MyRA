@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { useAuthStore } from "../store/authStore";
 import useSyncStore from "../store/syncStore";
 import { homeApi, DUMMY as HOME_DUMMY } from "../api/home";
+import { useChatStore } from "../store/chatStore";
 
 const SUGGESTIONS = [
   { icon: "mail",     title: "What's important in my inbox today?", sub: "Triage unread emails" },
@@ -13,6 +14,7 @@ const SUGGESTIONS = [
 function HomePage({ onNavigate }) {
   const { user } = useAuthStore();
   const { gmail, calendar } = useSyncStore();
+  const { startNewChat } = useChatStore();
   const textareaRef = useRef(null);
   const [upcomingEvents, setUpcomingEvents] = useState(HOME_DUMMY.upcomingEvents);
   const [dailySummary, setDailySummary] = useState(HOME_DUMMY.dailySummary);
@@ -31,7 +33,14 @@ function HomePage({ onNavigate }) {
 
   const handleSend = () => {
     const text = textareaRef.current?.value?.trim();
-    if (text) onNavigate("chat");
+    if (!text) return;
+    startNewChat(text);
+    onNavigate("chat");
+  };
+
+  const handleSuggestionClick = (text) => {
+    startNewChat(text);
+    onNavigate("chat");
   };
 
   const handleKeyDown = (e) => {
@@ -111,7 +120,7 @@ function HomePage({ onNavigate }) {
               key={i}
               className="myra-suggestion-card"
               style={{ border: "1px solid var(--border)" }}
-              onClick={() => onNavigate("chat")}
+              onClick={() => handleSuggestionClick(s.title)}
             >
               <div className="icon">
                 {s.icon === "mail"     && <MailIconMed />}

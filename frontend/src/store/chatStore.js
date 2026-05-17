@@ -8,6 +8,7 @@ export const useChatStore = create((set, get) => ({
   pendingConfirmation: false,
   agentActive: false,
   error: null,
+  pendingMessage: null,
 
   conversations: [],
   conversationsLoading: false,
@@ -124,5 +125,19 @@ export const useChatStore = create((set, get) => ({
       pendingConfirmation: false,
       agentActive: false,
       error: null,
+      pendingMessage: null,
     }),
+
+  startNewChat: (text = null) =>
+    set({
+      messages: [],
+      isTyping: false,
+      conversationId: null,
+      pendingConfirmation: false,
+      agentActive: false,
+      error: null,
+      pendingMessage: text,
+    }),
+
+  clearPendingMessage: () => set({ pendingMessage: null }),
 }));

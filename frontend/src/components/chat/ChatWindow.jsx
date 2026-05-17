@@ -6,11 +6,20 @@ import { useAuthStore } from "../../store/authStore";
 // ── ChatWindow — exact MyRA design replica ───────────────────────────────────
 
 function ChatWindow({ onNavigate, onToggleSidebar }) {
-  const { messages, isTyping, sendMessage, pendingConfirmation, confirmAction, conversationId } = useChatStore();
+  const { messages, isTyping, sendMessage, pendingConfirmation, confirmAction, conversationId, clearPendingMessage } = useChatStore();
   const { user } = useAuthStore();
   const [draft, setDraft] = useState("");
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // Send any message queued from the home page
+  useEffect(() => {
+    const { pendingMessage } = useChatStore.getState();
+    if (pendingMessage) {
+      clearPendingMessage();
+      sendMessage(pendingMessage);
+    }
+  }, []);
 
   // Auto-scroll on new messages
   useEffect(() => {
