@@ -11,7 +11,7 @@ export default class EmbeddingCronJob {
     this.schedule = process.env.EMBEDDING_CRON_SCHEDULE || "* * * * *"; // Every minute
   }
 
-  start(runImmediately = true) {
+  start(runImmediately = false) {
     if (this.task) {
       logger.warn("Embedding cron job already running");
       return;

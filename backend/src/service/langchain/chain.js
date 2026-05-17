@@ -1,5 +1,3 @@
-import { RunnableSequence } from "@langchain/core/runnables";
-import { StringOutputParser } from "@langchain/core/output_parsers";
 import LangChainLLMService from "./llm.js";
 import vectorStore from "./vectorStore.js";
 import LangChainMemoryService from "./memory.js";
@@ -29,14 +27,6 @@ class RAGChainService {
     }
   }
 
-  _buildAnswerChain() {
-    return RunnableSequence.from([
-      QA_PROMPT,
-      this.llm.model,
-      new StringOutputParser(),
-    ]);
-  }
-
   async query(question, conversationId, options = {}) {
     try {
       logger.info("RAG query", {
@@ -64,23 +54,23 @@ class RAGChainService {
         .map((msg) => `${msg.role}: ${msg.content}`)
         .join("\n");
 
-      const answer = await this._buildAnswerChain().invoke({
+      const formattedPrompt = await QA_PROMPT.format({
         context,
         chat_history: chatHistory,
         question,
       });
+      const llmResult = await this.llm.generateResponse(
+        formattedPrompt,
+        conversationId
+      );
+      const answer = llmResult.text;
 
       const duration = Date.now() - startTime;
 
-      await this.memory.saveConversation(
-        conversationId,
-        question,
-        answer,
-        {
-          sourceDocuments: sourceDocuments.length,
-          duration,
-        }
-      );
+      await this.memory.saveConversation(conversationId, question, answer, {
+        sourceDocuments: sourceDocuments.length,
+        duration,
+      });
 
       logger.info("RAG query completed", {
         duration: `${duration}ms`,

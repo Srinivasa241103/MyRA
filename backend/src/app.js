@@ -3,6 +3,7 @@ import cors from "cors";
 import authRoutes from "./api/routes/authRoutes.js";
 import syncRoutes from "./api/routes/syncRoutes.js";
 import chatRoutes from "./api/routes/chat.js";
+import statsRoutes from "./api/routes/stats.js";
 
 const app = express();
 
@@ -44,5 +45,6 @@ app.get("/", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/sync", syncRoutes);
 app.use("/chat", chatRoutes);
+app.use("/stats", statsRoutes);
 
 export default app;
