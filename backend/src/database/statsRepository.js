@@ -40,6 +40,18 @@ export class StatsRepository {
     return result.rows;
   }
 
+  async getEmbeddingCostAndTokens(days) {
+    const query = `SELECT
+                    model,
+                    SUM(total_tokens) AS totaltokens,
+                    SUM(estimated_cost) AS totalcost
+                  FROM embedding_costs
+                  WHERE processed_at >= NOW() - INTERVAL '${days} days'
+                  GROUP BY model`;
+    const result = await getPool().query(query);
+    return result.rows;
+  }
+
   async getConversationSessions(days) {
     const query = `SELECT DATE(created_at) AS day, COUNT(DISTINCT conversation_id) AS totalsessions
                   FROM conversations
