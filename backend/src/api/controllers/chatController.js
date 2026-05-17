@@ -64,10 +64,11 @@ class ChatController {
           : {
               userMessage: message.trim(),
               userId,
-              // Explicitly reset so stale "confirmed" from a prior event on the
-              // same thread doesn't trigger an immediate create_event.
               confirmationStatus: null,
-              eventDetails: null,
+              // Only reset eventDetails at the start of a new agent conversation.
+              // Mid-collection turns must NOT send null or the checkpoint-persisted
+              // fields (e.g. title already collected) will be wiped by the reducer.
+              ...(agentActive ? {} : { eventDetails: null }),
             };
 
         const agentResult = await calendarAgentGraph.invoke(agentInput, {
@@ -189,7 +190,7 @@ class ChatController {
               userMessage: message.trim(),
               userId,
               confirmationStatus: null,
-              eventDetails: null,
+              ...(agentActive ? {} : { eventDetails: null }),
             };
 
         const agentResult = await calendarAgentGraph.invoke(agentInput, {

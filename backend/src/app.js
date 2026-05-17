@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import authRoutes from "./api/routes/authRoutes.js";
 import syncRoutes from "./api/routes/syncRoutes.js";
-import embeddingRoutes from "./api/routes/embeddingRoutes.js";
 import chatRoutes from "./api/routes/chat.js";
 
 const app = express();
@@ -13,7 +12,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 // CORS configuration
-const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "http://localhost:5173")
+const allowedOrigins = (
+  process.env.CORS_ORIGIN ||
+  process.env.FRONTEND_URL ||
+  "http://localhost:5173"
+)
   .split(",")
   .map((o) => o.trim());
 
@@ -40,7 +43,6 @@ app.get("/", (req, res) => {
 // Auth routes
 app.use("/auth", authRoutes);
 app.use("/sync", syncRoutes);
-app.use("/embedding", embeddingRoutes);
 app.use("/chat", chatRoutes);
 
 export default app;

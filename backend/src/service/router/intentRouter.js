@@ -1,45 +1,30 @@
-import { ChatAnthropic } from "@langchain/anthropic";
+import LangChainLLMService from "../langchain/llm.js";
+import { logger } from "../../utils/logger.js";
 
-const ROUTER_SYSTEM_PROMPT = `
-You are an intent classifier for a personal AI assistant.
-Classify the user's message into exactly one of these categories:
+const llm = new LangChainLLMService();
 
-- "rag": User is asking a question, requesting information,
-  or wanting to retrieve/summarise personal data.
-  Examples: "What emails did I get from Rahul?",
-            "Summarise my week", "What music did I listen to?"
+const SYSTEM_PROMPT = `You are an intent classifier. Classify the user message into exactly one of these categories:
+- calendar_agent: The user wants to CREATE, SCHEDULE, ADD, UPDATE, MODIFY, DELETE, or CANCEL a calendar event
+- calendar_rag: The user wants to READ, VIEW, LIST, CHECK, or QUERY existing calendar events or schedule
+- rag: Anything else (emails, general questions, etc.)
 
-- "calendar_agent": User wants to CREATE, SCHEDULE, or MODIFY
-  a calendar event. This requires taking action, not just reading.
-  Examples: "Schedule a meeting tomorrow",
-            "Block 2 hours for studying", "Create an event"
+Respond with ONLY the category name, nothing else.`;
 
-- "calendar_rag": User wants to READ or QUERY calendar data
-  but NOT create anything.
-  Examples: "What's on my calendar tomorrow?",
-            "Am I free on Friday?", "Show me this week's meetings"
+export async function routeIntent(message) {
+  try {
+    const response = await llm.generateResponse(message, {
+      systemPrompt: SYSTEM_PROMPT,
+    });
+    const intent = response.text.trim().toLowerCase();
 
-Respond with ONLY the category name, nothing else.
-`;
-
-export async function routeIntent(userMessage) {
-  const llm = new ChatAnthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    model: "claude-haiku-4-5-20251001",
-    maxTokens: 16,
-    temperature: 0,
-  });
-
-  const response = await llm.invoke([
-    {
-      role: "user",
-      content: `${ROUTER_SYSTEM_PROMPT}\n\nMessage: ${userMessage}`,
-    },
-  ]);
-
-  const intent = response.content.trim().toLowerCase();
-
-  // Validate — never crash on unexpected output
-  const validIntents = ["rag", "calendar_agent", "calendar_rag"];
-  return validIntents.includes(intent) ? intent : "rag"; // Safe default
+    if (intent === "calendar_agent" || intent === "calendar_rag") {
+      return intent;
+    }
+    return "rag";
+  } catch (error) {
+    logger.error("Intent routing failed, defaulting to rag", {
+      error: error.message,
+    });
+    return "rag";
+  }
 }
