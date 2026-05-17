@@ -11,13 +11,6 @@ function getHeaders() {
   };
 }
 
-async function safeFetch(url) {
-  const res = await fetch(url, { headers: getHeaders(), credentials: "include" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return data.data ?? data;
-}
-
 // ── Dummy data (fallback when API is unavailable) ─────────────────────────────
 
 export const DUMMY = {
@@ -40,77 +33,37 @@ export const DUMMY = {
     { provider: "Gemini", spend: 4.20  },
     { provider: "Local",  spend: 0.00  },
   ],
-  chatSessions: [3, 5, 2, 7, 8, 4, 6, 9, 5, 7, 11, 6, 8, 10],
-  calEvents:    [2, 4, 3, 6, 5, 1, 3, 4, 7, 2,  5, 6,  3,  4],
+  sessions:  [3, 5, 2, 7, 8, 4, 6, 9, 5, 7, 11, 6, 8, 10],
+  calEvents: [2, 4, 3, 6, 5, 1, 3, 4, 7, 2,  5, 6,  3,  4],
 };
 
-// ── API calls with dummy fallback ─────────────────────────────────────────────
+// ── Single unified API call ───────────────────────────────────────────────────
 
 export const statsApi = {
-  /** GET /stats/emails?range=14d → number[] (daily email counts) */
-  getEmails: async (range = "14d") => {
-    try {
-      return await safeFetch(`${API_BASE_URL}/stats/emails?range=${range}`);
-    } catch {
-      return DUMMY.emails;
-    }
-  },
-
-  /** GET /stats/tokens?range=30d → { name, value, color }[] */
-  getTokens: async (range = "30d") => {
-    try {
-      return await safeFetch(`${API_BASE_URL}/stats/tokens?range=${range}`);
-    } catch {
-      return DUMMY.tokens;
-    }
-  },
-
-  /** GET /stats/reminders?range=7d → { day, set, done }[] */
-  getReminders: async (range = "7d") => {
-    try {
-      return await safeFetch(`${API_BASE_URL}/stats/reminders?range=${range}`);
-    } catch {
-      return DUMMY.reminders;
-    }
-  },
-
-  /** GET /stats/cost?range=30d → { provider, spend }[] */
-  getCost: async (range = "30d") => {
-    try {
-      return await safeFetch(`${API_BASE_URL}/stats/cost?range=${range}`);
-    } catch {
-      return DUMMY.cost;
-    }
-  },
-
-  /** GET /stats/sessions?range=14d → number[] (daily session counts) */
-  getSessions: async (range = "14d") => {
-    try {
-      return await safeFetch(`${API_BASE_URL}/stats/sessions?range=${range}`);
-    } catch {
-      return DUMMY.chatSessions;
-    }
-  },
-
-  /** GET /stats/calendar?range=14d → number[] (daily calendar event counts) */
-  getCalendar: async (range = "14d") => {
-    try {
-      return await safeFetch(`${API_BASE_URL}/stats/calendar?range=${range}`);
-    } catch {
-      return DUMMY.calEvents;
-    }
-  },
-
-  /** Fetch all stats in parallel, always returns something */
+  /**
+   * GET /stats/all?range=14d
+   * Returns all stats in one response.
+   */
   getAll: async (range = "14d") => {
-    const [emails, tokens, reminders, cost, sessions, calEvents] = await Promise.all([
-      statsApi.getEmails(range),
-      statsApi.getTokens(range),
-      statsApi.getReminders(range),
-      statsApi.getCost(range),
-      statsApi.getSessions(range),
-      statsApi.getCalendar(range),
-    ]);
-    return { emails, tokens, reminders, cost, sessions, calEvents };
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/stats/all?range=${range}`,
+        { headers: getHeaders(), credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const d = json.data ?? json;
+      const pick = (val, fallback) => (Array.isArray(val) && val.length > 0 ? val : fallback);
+      return {
+        emails:    pick(d.emails,    DUMMY.emails),
+        tokens:    pick(d.tokens,    DUMMY.tokens),
+        reminders: pick(d.reminders, DUMMY.reminders),
+        cost:      pick(d.cost,      DUMMY.cost),
+        sessions:  pick(d.sessions,  DUMMY.sessions),
+        calEvents: pick(d.calEvents, DUMMY.calEvents),
+      };
+    } catch {
+      return { ...DUMMY };
+    }
   },
 };

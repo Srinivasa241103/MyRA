@@ -8,7 +8,7 @@ export default function StatsScreen() {
     tokens:    DUMMY.tokens,
     reminders: DUMMY.reminders,
     cost:      DUMMY.cost,
-    sessions:  DUMMY.chatSessions,
+    sessions:  DUMMY.sessions,
     calEvents: DUMMY.calEvents,
   });
 
@@ -69,8 +69,8 @@ export default function StatsScreen() {
         />
         <KpiTile
           label="Spend (30d)"
-          value={"$" + totalCost.toFixed(2)}
-          delta="−$2.18 vs prev"
+          value={"₹" + totalCost.toFixed(2)}
+          delta="−₹2.18 vs prev"
           up
           trend={[2.1,1.8,2.4,2.0,2.6,2.3,2.1,1.9,2.5,2.2,1.7,1.9,2.0,2.0]}
         />
@@ -156,13 +156,13 @@ export default function StatsScreen() {
               label={c.provider}
               value={c.spend}
               max={Math.max(...COST_30D.map((x) => x.spend)) || 1}
-              fmt={(v) => "$" + v.toFixed(2)}
+              fmt={(v) => "₹" + v.toFixed(2)}
             />
           ))}
           <div className="myra-divider" style={{ margin: "12px 0" }} />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
             <span className="muted">Total</span>
-            <strong style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>${totalCost.toFixed(2)}</strong>
+            <strong style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>₹{totalCost.toFixed(2)}</strong>
           </div>
         </div>
       </div>
