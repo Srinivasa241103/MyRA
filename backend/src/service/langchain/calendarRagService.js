@@ -1,6 +1,4 @@
 import { PromptTemplate } from "@langchain/core/prompts";
-import { RunnableSequence } from "@langchain/core/runnables";
-import { StringOutputParser } from "@langchain/core/output_parsers";
 import LangChainLLMService from "./llm.js";
 import vectorStore from "./vectorStore.js";
 import LangChainMemoryService from "./memory.js";
@@ -59,13 +57,9 @@ class CalendarRagService {
       .map((msg) => `${msg.role}: ${msg.content}`)
       .join("\n");
 
-    const answerChain = RunnableSequence.from([
-      CALENDAR_PROMPT,
-      this.llm.model,
-      new StringOutputParser(),
-    ]);
-
-    const answer = await answerChain.invoke({ context, chat_history: chatHistory, question: userMessage });
+    const formattedPrompt = await CALENDAR_PROMPT.format({ context, chat_history: chatHistory, question: userMessage });
+    const llmResult = await this.llm.generateResponse(formattedPrompt, conversationId);
+    const answer = llmResult.text;
     const duration = Date.now() - startTime;
 
     await this.memory.saveConversation(conversationId, userMessage, answer, {

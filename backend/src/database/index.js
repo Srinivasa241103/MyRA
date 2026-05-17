@@ -1,7 +1,8 @@
-import {DocumentRepository} from './documentRepository.js';
-import {CredentialRepository} from './credentialRepository.js';
-import {SyncLogRepository} from './syncLogsRepository.js';
-import {UserRepository} from './userRepository.js';
+import { DocumentRepository } from "./documentRepository.js";
+import { CredentialRepository } from "./credentialRepository.js";
+import { SyncLogRepository } from "./syncLogsRepository.js";
+import { UserRepository } from "./userRepository.js";
+import { StatsRepository } from "./statsRepository.js";
 
 export const documentRepository = new DocumentRepository();
 export const credentialRepository = new CredentialRepository();
@@ -9,8 +10,9 @@ export const syncLogRepository = new SyncLogRepository();
 export const userRepository = new UserRepository();
 
 export {
-    DocumentRepository,
-    CredentialRepository,
-    SyncLogRepository,
-    UserRepository
+  DocumentRepository,
+  CredentialRepository,
+  SyncLogRepository,
+  UserRepository,
+  StatsRepository,
 };

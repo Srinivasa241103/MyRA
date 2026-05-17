@@ -5,6 +5,8 @@ import {
   AIMessage,
 } from "@langchain/core/messages";
 import { logger } from "../../utils/logger.js";
+import { usdToInr } from "../../utils/exchanceRates.js";
+import { StatsRepository } from "../../database/index.js";
 
 /**
  * LangChain wrapper for Claude (Anthropic) LLM
@@ -21,6 +23,7 @@ export default class LangChainLLMService {
       timeout: 30000,
       streaming: false,
     });
+    this.statsRepo = new StatsRepository();
 
     logger.info("LangChain LLM Service initialized (Claude)", {
       model: process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022",
@@ -36,7 +39,7 @@ export default class LangChainLLMService {
    * @param {Array} options.conversationHistory - Previous messages
    * @returns {Promise<Object>} - Generated response
    */
-  async generateResponse(prompt, options = {}) {
+  async generateResponse(prompt, conversationId, options = {}) {
     try {
       const startTime = Date.now();
 
@@ -54,6 +57,26 @@ export default class LangChainLLMService {
         duration: `${duration}ms`,
         responseLength: response.content.length,
       });
+
+      const rate = await usdToInr();
+      const usageData = {
+        provider: "Anthropic",
+        model: process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022",
+        inputTokens: response.usage_metadata?.input_tokens ?? 0,
+        outputTokens: response.usage_metadata?.output_tokens ?? 0,
+        conversationId: conversationId ?? null,
+        invocationType: "chat",
+      };
+      usageData.inputCost = (usageData.inputTokens / 1000000) * rate;
+      usageData.outputCost = ((usageData.outputTokens * 5) / 1000000) * rate;
+
+      try {
+        await this.statsRepo.insertLLMPrice(usageData);
+      } catch (dbErr) {
+        logger.error("Failed to save LLM usage stats", {
+          error: dbErr.message,
+        });
+      }
 
       return {
         text: response.content,
@@ -123,7 +146,7 @@ export default class LangChainLLMService {
         historyLength: conversationHistory.length,
       });
 
-      const response = await this.generateResponse(userMessage, {
+      const response = await this.generateResponse(userMessage, null, {
         systemPrompt,
         conversationHistory,
       });
