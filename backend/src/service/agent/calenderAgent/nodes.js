@@ -33,7 +33,10 @@ function formatDate(dateStr) {
 }
 
 const parseIntent = async (state) => {
-  logger.info("[Agent] Node: parse_intent", { userMessage: state.userMessage, userId: state.userId });
+  logger.info("[Agent] Node: parse_intent", {
+    userMessage: state.userMessage,
+    userId: state.userId,
+  });
 
   // If we're mid-collection, tell the LLM which field the user is answering
   // so short replies like "6:00 pm" or "today" are interpreted correctly.
@@ -48,7 +51,9 @@ const parseIntent = async (state) => {
     .join(", ");
 
   const extractionPrompt = `
-    Extract calendar event details from this user message: "${state.userMessage}"
+    Extract calendar event details from this user message: "${
+      state.userMessage
+    }"
     Today's date is ${new Date().toISOString().split("T")[0]}.
     ${collectionHint}
     ${alreadyCollected ? `Already collected: ${alreadyCollected}` : ""}
@@ -86,7 +91,10 @@ const parseIntent = async (state) => {
   const required = ["title", "date", "startTime"];
   const missing = required.filter((f) => !mergedDetails[f]);
 
-  logger.info("[Agent] parse_intent result", { extracted: newDetails, missingFields: missing });
+  logger.info("[Agent] parse_intent result", {
+    extracted: newDetails,
+    missingFields: missing,
+  });
 
   return {
     eventDetails: newDetails,
@@ -96,7 +104,9 @@ const parseIntent = async (state) => {
 };
 
 const askForMissingInfo = async (state) => {
-  logger.info("[Agent] Node: ask_for_missing_info", { missingFields: state.missingFields });
+  logger.info("[Agent] Node: ask_for_missing_info", {
+    missingFields: state.missingFields,
+  });
 
   const fieldDescriptions = {
     title: "What should the event be called?",
@@ -119,7 +129,12 @@ const checkConflicts = async (state) => {
   const { date, startTime, endTime } = state.eventDetails;
   const userId = state.userId ?? DEFAULT_USER_ID;
 
-  logger.info("[Agent] Node: check_conflicts", { userId, date, startTime, endTime });
+  logger.info("[Agent] Node: check_conflicts", {
+    userId,
+    date,
+    startTime,
+    endTime,
+  });
 
   const startDateTime = `${date}T${startTime}:00`;
   const endDateTime = endTime
@@ -179,7 +194,9 @@ const suggestAlternativeSlots = async (state) => {
 };
 
 const awaitConfirmation = async (state) => {
-  logger.info("[Agent] Node: await_confirmation", { eventDetails: state.eventDetails });
+  logger.info("[Agent] Node: await_confirmation", {
+    eventDetails: state.eventDetails,
+  });
 
   const { title, date, startTime, endTime, attendees, location } =
     state.eventDetails;
@@ -208,7 +225,14 @@ const createCalendarEvent = async (state) => {
     state.eventDetails;
   const userId = state.userId ?? DEFAULT_USER_ID;
 
-  logger.info("[Agent] Node: create_event", { userId, title, date, startTime, endTime, attendees });
+  logger.info("[Agent] Node: create_event", {
+    userId,
+    title,
+    date,
+    startTime,
+    endTime,
+    attendees,
+  });
 
   const calendar = await getGoogleCalendarClient(userId);
 
@@ -235,7 +259,11 @@ const createCalendarEvent = async (state) => {
     sendUpdates: attendees.length > 0 ? "all" : "none",
   });
 
-  logger.info("[Agent] Event created successfully", { eventId: created.data.id, title, date });
+  logger.info("[Agent] Event created successfully", {
+    eventId: created.data.id,
+    title,
+    date,
+  });
 
   const successMsg = `✅ Event "${title}" created for ${formatDate(
     date
