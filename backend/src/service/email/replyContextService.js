@@ -1,12 +1,8 @@
 /**
  * Searches the Gmail vector store to find the original email
  * the user wants to reply to.
- *
- * Wraps your existing generateEmbedding and searchVectors functions.
- * Adjust import paths to match your actual pipeline locations.
  */
-import { generateEmbedding } from "../data-pipeline/embedder.js";
-import { searchVectors } from "../retrieval/vector-store.js";
+import vectorStore from "../langchain/vectorStore.js";
 
 const TOP_K = 3;
 
@@ -20,23 +16,19 @@ const TOP_K = 3;
  */
 const findOriginalEmail = async (replyReference) => {
   try {
-    const queryEmbedding = await generateEmbedding(replyReference);
-
-    const results = await searchVectors({
-      embedding: queryEmbedding,
-      topK: TOP_K,
-      filter: {
-        source: "gmail",
-        type: "email",
-      },
-    });
+    // similaritySearch returns [{ pageContent, metadata, similarity }]
+    const results = await vectorStore.similaritySearch(
+      replyReference,
+      TOP_K,
+      { source: "gmail" }
+    );
 
     if (!results || results.length === 0) {
       return { candidates: [], confidence: 0 };
     }
 
     const candidates = results.map((r) => ({
-      messageId: r.metadata.messageId || r.id,
+      messageId: r.metadata.messageId || r.metadata.document_id,
       threadId: r.metadata.threadId,
       from: r.metadata.from,
       subject: r.metadata.subject || r.metadata.title,
@@ -45,7 +37,7 @@ const findOriginalEmail = async (replyReference) => {
         (r.pageContent && r.pageContent.slice(0, 300)),
       timestamp: r.metadata.timestamp || r.metadata.date,
       references: r.metadata.references || null,
-      score: r.score,
+      score: r.similarity ?? 1,
     }));
 
     return {
