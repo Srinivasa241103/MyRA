@@ -35,6 +35,30 @@
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+:root[data-theme="dark"] {
+  --bg-0: #0F1216;
+  --bg-1: #161A20;
+  --bg-2: #202631;
+  --bg-3: #313A47;
+  --border: #2D3540;
+  --border-strong: #7DB7C8;
+  --accent: #7DB7C8;
+  --accent-hover: #A8D6E2;
+  --amber: #E3B86E;
+  --parchment: #22313A;
+  --text-1: #EEF2F4;
+  --text-2: #F8FAFB;
+  --text-muted: #A2AFBA;
+  --text-soft: #7E8E9B;
+  --success: #8CD17D;
+  --warning: #F0B86A;
+  --danger: #F08383;
+  --info: #87BFF2;
+  --elev-1: 0 1px 4px rgba(0,0,0,.24);
+  --elev-2: 0 8px 18px rgba(0,0,0,.28);
+  --elev-3: 0 16px 34px rgba(0,0,0,.36);
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body, #root {
@@ -42,6 +66,7 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  background: var(--bg-0);
 }
 
 /* ── Root app wrapper ── */
@@ -56,6 +81,7 @@ html, body, #root {
   overflow: hidden;
   position: relative;
   -webkit-font-smoothing: antialiased;
+  transition: background .18s ease, color .18s ease;
 }
 
 .myra-app h1, .myra-app h2, .myra-app h3, .myra-app h4 { margin: 0; color: var(--text-2); }
@@ -74,6 +100,7 @@ html, body, #root {
   background: var(--parchment);
   border: 1.5px solid var(--accent);
   display: grid; place-items: center;
+  color: var(--accent);
 }
 .myra-logo .mark svg { display: block; }
 .myra-logo .word {
@@ -137,7 +164,14 @@ html, body, #root {
   cursor: pointer;
 }
 .myra-btn.primary { background: var(--accent); color: var(--bg-0); }
-.myra-btn.primary:hover { background: var(--text-2); }
+.myra-btn.primary:hover { background: var(--text-2); color: var(--bg-0); }
+:root[data-theme="dark"] .myra-btn.primary {
+  color: #071014;
+}
+:root[data-theme="dark"] .myra-btn.primary:hover {
+  background: var(--accent-hover);
+  color: #071014;
+}
 .myra-btn.secondary { background: transparent; border-color: var(--border-strong); color: var(--accent); }
 .myra-btn.secondary:hover { background: var(--parchment); }
 .myra-btn.ghost { background: transparent; color: var(--accent); border-color: transparent; }
