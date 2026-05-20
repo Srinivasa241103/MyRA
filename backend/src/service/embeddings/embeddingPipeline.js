@@ -17,7 +17,8 @@ export default class EmbeddingPipeline {
       logger.info("Starting embedding pipeline", { syncLogId });
 
       while (true) {
-        const pending = await this.documentRepo.findPendingEmbeddings(BATCH_SIZE);
+        const pending =
+          await this.documentRepo.findPendingEmbeddings(BATCH_SIZE);
         if (pending.length === 0) break;
 
         for (const doc of pending) {
@@ -40,10 +41,17 @@ export default class EmbeddingPipeline {
       }
 
       const duration = Date.now() - startTime;
-      logger.info("Embedding pipeline complete", { processed, duration, syncLogId });
+      logger.info("Embedding pipeline complete", {
+        processed,
+        duration,
+        syncLogId,
+      });
       return { processed, duration };
     } catch (error) {
-      logger.error("Embedding pipeline error", { error: error.message, syncLogId });
+      logger.error("Embedding pipeline error", {
+        error: error.message,
+        syncLogId,
+      });
       return { processed, duration: Date.now() - startTime };
     }
   }

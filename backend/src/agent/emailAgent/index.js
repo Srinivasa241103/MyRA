@@ -9,15 +9,12 @@
  * Uses the same PostgreSQL checkpointer as the calendar agent.
  * Adjust the import path to match your checkpointer config location.
  */
+import { MemorySaver } from "@langchain/langgraph";
 import { buildEmailAgentGraph } from "./graph.js";
 import { getLatestDraft } from "./state.js";
 
-// Shared checkpointer — same instance as calendar agent
-// Adjust this path to wherever your checkpointer is configured
-import { checkpointer } from "../../config/checkpointer.js";
-
 // Compile once at module load — reused across all requests
-const emailAgentGraph = buildEmailAgentGraph(checkpointer);
+const emailAgentGraph = buildEmailAgentGraph(new MemorySaver());
 
 // Statuses that mean the session is finished — no need to resume
 const TERMINAL_STATUSES = ["sent", "saved_draft", "cancelled", "idle"];

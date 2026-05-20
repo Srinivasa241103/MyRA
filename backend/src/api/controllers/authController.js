@@ -24,6 +24,8 @@ export class AuthController {
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
         "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.compose",
         "https://www.googleapis.com/auth/calendar.events",
         "https://www.googleapis.com/auth/calendar.readonly",
       ];
@@ -154,10 +156,9 @@ export class AuthController {
    * Store OAuth tokens in credentials table
    */
   async storeOAuthTokens(userId, tokens) {
-    const expiryDate = new Date();
-    expiryDate.setSeconds(
-      expiryDate.getSeconds() + (tokens.expiry_date || 3600)
-    );
+    const expiryDate = tokens.expiry_date
+      ? new Date(tokens.expiry_date)
+      : new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000);
 
     const encryptedAccessToken = this.oauthService.encrypt(tokens.access_token);
     const encryptedRefreshToken = tokens.refresh_token

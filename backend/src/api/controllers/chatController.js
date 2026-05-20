@@ -6,8 +6,15 @@ import { logger } from "../../utils/logger.js";
 
 import { routeIntent } from "../../service/router/intentRouter.js";
 import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
+import {
+  invokeEmailAgent,
+  hasActiveEmailSession,
+} from "../../agent/emailAgent/index.js";
 
 const conversationRepo = new ConversationRepository();
+
+// Statuses that mean the email session is fully finished
+const EMAIL_TERMINAL_STATUSES = ["sent", "saved_draft", "cancelled", "idle"];
 
 class ChatController {
   async _resolveHandler(
@@ -16,17 +23,27 @@ class ChatController {
     confirmationStatus,
     agentActive
   ) {
-    // Skip routing if we're already mid-agent-conversation (collecting details
-    // or awaiting confirmation). The conversationId doubles as thread_id.
+    // Mid-agent turn: determine which agent is currently active for this conversation.
+    // Email sessions are tracked server-side via the LangGraph checkpointer, so we
+    // don't rely on the frontend to know which agent type is running.
     if (confirmationStatus || agentActive) {
+      if (conversationId) {
+        const emailActive = await hasActiveEmailSession(conversationId);
+        if (emailActive) {
+          return { handler: "email_agent" };
+        }
+      }
+      // No active email session — fall through to calendar agent (existing behaviour)
       return { handler: "agent", confirmationStatus };
     }
 
-    const intent = await routeIntent(message);
+    const intent = await routeIntent(message, conversationId);
     logger.info("Intent routed", { intent, conversationId });
 
     if (intent === "calendar_agent") return { handler: "agent", intent };
     if (intent === "calendar_rag") return { handler: "calendar_rag", intent };
+    if (intent === "email_draft") return { handler: "email_agent", intent: "email_draft" };
+    if (intent === "email_reply") return { handler: "email_agent", intent: "email_reply" };
     return { handler: "rag", intent };
   }
 
@@ -54,6 +71,41 @@ class ChatController {
         agentActive
       );
 
+      // ── Email agent ─────────────────────────────────────────────────────────
+      if (handler === "email_agent") {
+        const threadId = conversationId ?? uuidv4();
+
+        const finalState = await invokeEmailAgent(
+          message.trim(),
+          threadId,
+          // Pass intent only on the first turn; subsequent turns read it from
+          // the checkpointed state.
+          intent ?? null
+        );
+
+        const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(
+          finalState.status
+        );
+
+        return res.json({
+          success: true,
+          queryId: uuidv4(),
+          conversationId: threadId,
+          query: message.trim(),
+          response: finalState.agentResponse,
+          mode: "email_agent",
+          agentActive: !emailSessionEnded,
+          emailStatus: finalState.status,
+          context: {
+            documentsUsed: [],
+            totalDocuments: 0,
+            selectedDocuments: 0,
+          },
+          metadata: {},
+        });
+      }
+
+      // ── Calendar agent ───────────────────────────────────────────────────────
       if (handler === "agent") {
         // Always ensure a stable thread ID — null would collapse all new
         // conversations onto the same LangGraph checkpoint.
@@ -88,7 +140,7 @@ class ChatController {
           mode: "agent",
           pendingConfirmation:
             agentResult.confirmationStatus === "pending_confirmation",
-          agentActive: !agentDone, // tells frontend to keep bypassing routeIntent
+          agentActive: !agentDone,
           context: {
             documentsUsed: [],
             totalDocuments: 0,
@@ -98,6 +150,7 @@ class ChatController {
         });
       }
 
+      // ── Calendar RAG ─────────────────────────────────────────────────────────
       if (handler === "calendar_rag") {
         const result = await calendarRagService.chat(
           message.trim(),
@@ -120,6 +173,7 @@ class ChatController {
         });
       }
 
+      // ── Default RAG ──────────────────────────────────────────────────────────
       const result = await langchainChatService.chat(
         message.trim(),
         conversationId
@@ -172,16 +226,51 @@ class ChatController {
 
       const queryId = uuidv4();
 
-      const { handler, confirmationStatus: cs } = await this._resolveHandler(
+      const {
+        handler,
+        intent,
+        confirmationStatus: cs,
+      } = await this._resolveHandler(
         message.trim(),
         conversationId,
         confirmationStatus,
         agentActive
       );
 
+      // ── Email agent (non-streaming — emits a single SSE event) ──────────────
+      if (handler === "email_agent") {
+        const threadId = conversationId ?? uuidv4();
+
+        const finalState = await invokeEmailAgent(
+          message.trim(),
+          threadId,
+          intent ?? null
+        );
+
+        const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(
+          finalState.status
+        );
+
+        const emailEvent = {
+          type: "done",
+          queryId,
+          conversationId: threadId,
+          mode: "email_agent",
+          agentActive: !emailSessionEnded,
+          emailStatus: finalState.status,
+          data: {
+            fullResponse: finalState.agentResponse,
+            sourceDocuments: [],
+          },
+        };
+
+        res.write(`data: ${JSON.stringify(emailEvent)}\n\n`);
+        res.write("data: [DONE]\n\n");
+        return res.end();
+      }
+
+      // ── Calendar agent (non-streaming — emits a single SSE event) ───────────
       if (handler === "agent") {
-        // Agents are not streamed — they pause and wait for user input.
-        // Emit a single SSE event and close, same shape as streaming "done".
         const threadId = conversationId ?? uuidv4();
 
         const agentInput = cs
@@ -220,7 +309,7 @@ class ChatController {
         return res.end();
       }
 
-      // Choose stream source based on handler
+      // ── Streaming sources (calendar_rag or default rag) ──────────────────────
       const streamSource =
         handler === "calendar_rag"
           ? calendarRagService.chatStream(message.trim(), conversationId)

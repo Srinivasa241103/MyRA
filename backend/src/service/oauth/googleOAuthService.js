@@ -40,8 +40,9 @@ export class GoogleAuthService {
       const { tokens } = await this.oauth2Client.getToken(code);
       logger.info(`Exchanged code for tokens for user ${userId}`);
 
-      const expiryDate = new Date();
-      expiryDate.setSeconds(expiryDate.getSeconds() + tokens.expiry_date);
+      const expiryDate = tokens.expiry_date
+        ? new Date(tokens.expiry_date)
+        : new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000);
 
       const encryptedAccessToken = this.encrypt(tokens.access_token);
       const encryptedRefreshToken = tokens.refresh_token
@@ -98,7 +99,7 @@ export class GoogleAuthService {
 
       // Check if token is expired (with 5 minute buffer)
       const now = new Date();
-      const expiryBuffer = new Date(credential.token_expiry);
+      const expiryBuffer = new Date(credential.token_expires_at);
       expiryBuffer.setMinutes(expiryBuffer.getMinutes() - 5);
 
       if (now < expiryBuffer) {
@@ -123,10 +124,9 @@ export class GoogleAuthService {
       const { credentials } = await this.oauth2Client.refreshAccessToken();
 
       // Update stored credentials
-      const newExpiryDate = new Date();
-      newExpiryDate.setSeconds(
-        newExpiryDate.getSeconds() + credentials.expiry_date
-      );
+      const newExpiryDate = credentials.expiry_date
+        ? new Date(credentials.expiry_date)
+        : new Date(Date.now() + (credentials.expires_in ?? 3600) * 1000);
 
       await this.credentialsRepo.update(credential.id, {
         accessToken: this.encrypt(credentials.access_token),

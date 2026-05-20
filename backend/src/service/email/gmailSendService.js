@@ -1,16 +1,13 @@
 import { google } from "googleapis";
+import { GoogleAuthService } from "../oauth/googleOAuthService.js";
 
-/**
- * Wraps Gmail API send and draft-save operations.
- *
- * Assumes getAuthClient() is available from your existing OAuth setup.
- * Adjust the import path to match where your Google OAuth provider lives.
- */
-import { getAuthClient } from "../oauth/GoogleOAuthProvider.js";
+const authService = new GoogleAuthService();
 
 const getGmailClient = async () => {
-  const auth = await getAuthClient();
-  return google.gmail({ version: "v1", auth });
+  const userId = parseInt(process.env.SYNC_USER_ID, 10);
+  const accessToken = await authService.getValidAccessToken(userId, "gmail");
+  authService.oauth2Client.setCredentials({ access_token: accessToken });
+  return google.gmail({ version: "v1", auth: authService.oauth2Client });
 };
 
 /**
