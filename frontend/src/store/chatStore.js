@@ -1,6 +1,24 @@
 import { create } from "zustand";
 import { chatApi } from "../api/chat";
 
+// Normalise the email agent's agentResponse into something the UI can safely
+// render. The response is either a plain string (clarify question) or a
+// structured object (draft_approval, success, cancelled, error).
+const normalizeEmailResponse = (response) => {
+  if (response === null || response === undefined) {
+    return { text: null, emailResponse: null };
+  }
+  if (typeof response === "string") {
+    return { text: response, emailResponse: null };
+  }
+  if (response.type === "draft_approval") {
+    // Full card — keep as emailResponse; text is the instructions line
+    return { text: null, emailResponse: response };
+  }
+  // success, cancelled, error — all have a message field
+  return { text: response.message ?? "Done.", emailResponse: null };
+};
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   isTyping: false,
@@ -27,17 +45,31 @@ export const useChatStore = create((set, get) => ({
       const result = await chatApi.sendMessage(text, conversationId, confirmationStatus, agentActive);
 
       if (result.success) {
+        let messageEntry;
+
+        if (result.mode === "email_agent") {
+          const { text: normText, emailResponse } = normalizeEmailResponse(result.response);
+          messageEntry = {
+            role: "ai",
+            text: normText,
+            emailResponse,
+            emailStatus: result.emailStatus ?? null,
+            mode: result.mode,
+            context: result.context,
+            metadata: result.metadata,
+          };
+        } else {
+          messageEntry = {
+            role: "ai",
+            text: result.response,
+            mode: result.mode ?? null,
+            context: result.context,
+            metadata: result.metadata,
+          };
+        }
+
         set((state) => ({
-          messages: [
-            ...state.messages,
-            {
-              role: "ai",
-              text: result.response,
-              mode: result.mode ?? null,
-              context: result.context,
-              metadata: result.metadata,
-            },
-          ],
+          messages: [...state.messages, messageEntry],
           isTyping: false,
           conversationId: result.conversationId,
           pendingConfirmation: result.pendingConfirmation ?? false,
@@ -80,7 +112,6 @@ export const useChatStore = create((set, get) => ({
   },
 
   confirmAction: async (status) => {
-    // status: "confirmed" | "rejected"
     const label = status === "confirmed" ? "Yes, create it" : "Cancel";
     get().sendMessage(label, status);
   },
@@ -102,7 +133,6 @@ export const useChatStore = create((set, get) => ({
       const data = await chatApi.getHistory(conversationId);
       const history = data?.data?.history ?? data?.history ?? [];
 
-      // Flatten [ {user_message, assistant_message} ] → [ {role,text}, {role,text} ]
       const messages = history.flatMap((entry) => [
         { role: "user", text: entry.user_message },
         { role: "ai", text: entry.assistant_message },

@@ -189,7 +189,7 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
           <div className="myra-bubble system">{todayLabel}</div>
 
           {messages.map((msg, idx) => (
-            <MessageTurn key={idx} msg={msg} />
+            <MessageTurn key={idx} msg={msg} setDraft={setDraft} />
           ))}
 
           {isTyping && (
@@ -218,7 +218,7 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
 
 // ── MessageTurn — renders one user or AI bubble ──────────────────────────────
 
-function MessageTurn({ msg }) {
+function MessageTurn({ msg, setDraft }) {
   const isUser = msg.role === "user";
 
   if (isUser) {
@@ -229,12 +229,17 @@ function MessageTurn({ msg }) {
     );
   }
 
+  // Email agent: draft approval card
+  if (msg.mode === "email_agent" && msg.emailResponse?.type === "draft_approval") {
+    return <DraftApprovalCard data={msg.emailResponse} setDraft={setDraft} />;
+  }
+
   return (
     <div className="myra-bubble assistant myra-fade-in" style={msg.isError ? { borderColor: "rgba(160,48,48,.3)", background: "rgba(160,48,48,.06)" } : {}}>
-      <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
+      {msg.text && <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>}
 
       {/* Source pills */}
-      {msg.mode !== "agent" && msg.context?.selectedDocuments > 0 && (
+      {msg.mode !== "agent" && msg.mode !== "email_agent" && msg.context?.selectedDocuments > 0 && (
         <div className="src-row" style={{ marginTop: 10 }}>
           <span className="myra-source-pill">
             <span className="dot" />
@@ -243,7 +248,7 @@ function MessageTurn({ msg }) {
         </div>
       )}
 
-      {/* Agent mode badge */}
+      {/* Agent mode badges */}
       {msg.mode === "agent" && (
         <div style={{ marginTop: 8 }}>
           <span className="myra-badge accent">
@@ -251,6 +256,132 @@ function MessageTurn({ msg }) {
           </span>
         </div>
       )}
+      {msg.mode === "email_agent" && (
+        <div style={{ marginTop: 8 }}>
+          <span className="myra-badge accent" style={{ background: "rgba(59,130,246,.12)", color: "#2563eb" }}>
+            <MailSmIcon /> Email Agent
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── DraftApprovalCard — rendered when email agent returns a draft ─────────────
+
+function DraftApprovalCard({ data, setDraft }) {
+  const { sendMessage } = useChatStore();
+  const { draft, meta, instructions } = data;
+
+  const cardStyle = {
+    border: "1px solid var(--border-strong)",
+    borderRadius: 10,
+    overflow: "hidden",
+    background: "var(--bg-2)",
+    marginBottom: 4,
+  };
+  const headerStyle = {
+    padding: "10px 14px",
+    borderBottom: "1px solid var(--border)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    background: "var(--parchment)",
+  };
+  const bodyStyle = {
+    padding: "12px 14px",
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "var(--text-2)",
+    whiteSpace: "pre-wrap",
+    maxHeight: 260,
+    overflowY: "auto",
+  };
+  const metaStyle = {
+    padding: "8px 14px",
+    borderTop: "1px solid var(--border)",
+    fontSize: 12,
+    color: "var(--text-muted)",
+    background: "var(--bg-1)",
+  };
+  const actionsStyle = {
+    padding: "10px 14px",
+    borderTop: "1px solid var(--border)",
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    background: "var(--bg-1)",
+  };
+
+  return (
+    <div className="myra-fade-in" style={{ alignSelf: "flex-start", width: "100%", maxWidth: 580 }}>
+      <div style={cardStyle}>
+        {/* Header */}
+        <div style={headerStyle}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <MailSmIcon />
+            <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-2)" }}>
+              {draft.subject || "Draft"}
+            </span>
+          </div>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+            v{draft.version} · {draft.source}
+          </span>
+        </div>
+
+        {/* Body */}
+        <div style={bodyStyle}>{draft.body}</div>
+
+        {/* Meta row */}
+        <div style={metaStyle}>
+          {meta.to && <span>To: <strong>{meta.to}</strong></span>}
+          {meta.cc && <span style={{ marginLeft: 12 }}>CC: {meta.cc}</span>}
+          <span style={{ marginLeft: 12 }}>Tone: {meta.tone}</span>
+          {meta.totalVersions > 1 && <span style={{ marginLeft: 12 }}>{meta.totalVersions} versions</span>}
+        </div>
+
+        {/* Action buttons */}
+        <div style={actionsStyle}>
+          <button
+            className="myra-btn primary sm"
+            onClick={() => sendMessage("approve")}
+          >
+            <CheckIcon /> Approve
+          </button>
+          <button
+            className="myra-btn secondary sm"
+            onClick={() => { setDraft("Edit: "); }}
+          >
+            <EditIcon /> Edit
+          </button>
+          <button
+            className="myra-btn secondary sm"
+            onClick={() => sendMessage("regenerate")}
+          >
+            <RefreshIcon /> Regenerate
+          </button>
+          <button
+            className="myra-btn ghost sm"
+            onClick={() => sendMessage("cancel")}
+            style={{ color: "var(--text-muted)" }}
+          >
+            <XIcon /> Cancel
+          </button>
+        </div>
+      </div>
+
+      {/* Instructions hint */}
+      {instructions && (
+        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, paddingLeft: 4 }}>
+          {instructions}
+        </p>
+      )}
+
+      <div style={{ marginTop: 6 }}>
+        <span className="myra-badge accent" style={{ background: "rgba(59,130,246,.12)", color: "#2563eb" }}>
+          <MailSmIcon /> Email Agent
+        </span>
+      </div>
     </div>
   );
 }
@@ -366,6 +497,12 @@ function XIcon() {
 }
 function CalendarSmIcon() {
   return <svg width={10} height={10} viewBox="0 0 24 24" {...IC}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>;
+}
+function MailSmIcon() {
+  return <svg width={11} height={11} viewBox="0 0 24 24" {...IC}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>;
+}
+function RefreshIcon() {
+  return <svg width={13} height={13} viewBox="0 0 24 24" {...IC}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>;
 }
 function SparklesSmIcon() {
   return <svg width={12} height={12} viewBox="0 0 24 24" {...IC}><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="m6 6 2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg>;
