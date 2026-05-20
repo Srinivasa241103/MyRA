@@ -83,4 +83,15 @@ export class StatsRepository {
     const result = await getPool().query(query);
     return result.rows;
   }
+
+  async getLLMCredsUsage() {
+    const query = `SELECT
+                    provider,
+                    SUM(input_cost + output_cost) AS totalcost
+                  FROM llm_usage_logs
+                  WHERE created_at >= date_trunc('month', CURRENT_DATE)
+                  GROUP BY provider`;
+    const result = await getPool().query(query);
+    return result.rows;
+  }
 }

@@ -1,17 +1,17 @@
 import nodemailer from "nodemailer";
 import "dotenv/config";
-import { logger } from "./logger";
+import { logger } from "./logger.js";
 export default class Mailer {
   constructor() {
     this.transporter = null;
     this.fromAddress = null;
-    this.initialised = false;
+    this.initialized = false;
   }
 
   _init() {
     if (this.initialized) return;
     const user = process.env.MAIL_USER;
-    const pass = process.env.MAILER_APP_PASSWORD;
+    const pass = process.env.MAIL_APP_PASSWORD;
 
     if (!user || !pass) {
       throw new Error(
@@ -20,15 +20,18 @@ export default class Mailer {
     }
 
     this.transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: process.env.MAIL_SMTP_HOST,
+      port: Number(process.env.MAIL_SMTP_PORT),
+      secure: false,
       auth: { user, pass },
       pool: true,
       maxConnections: 3,
-      masMessages: 100,
+      maxMessages: 100,
     });
 
     const fromName = process.env.MAIL_FROM_NAME || "MyRA";
-    this.fromAddress = `"${fromName}" <${user}>`;
+    const fromEMail = process.env.MAIL_FROM_ADDRESS || user;
+    this.fromAddress = `"${fromName}" <${fromEMail}>`;
     this.initialized = true;
   }
 
@@ -43,7 +46,7 @@ export default class Mailer {
    * @param {Array}  [options.attachments]   Nodemailer attachments array
    * @returns {Promise<{success: boolean, messageId?: string, error?: string}>}
    */
-  async sendMail({ to, subject, html, text, from, atttachments }) {
+  async sendMail({ to, subject, html, text, from, attachments }) {
     try {
       this._init();
       if (!to || !subject || !html) {

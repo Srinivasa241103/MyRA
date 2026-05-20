@@ -2,8 +2,8 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import {
   getGoogleCalendarClient,
   findFreeSlotsForDay,
-} from "../../sources/GoogleCalendarDataSource.js";
-import { logger } from "../../../utils/logger.js";
+} from "../../service/sources/GoogleCalendarDataSource.js";
+import { logger } from "../../utils/logger.js";
 
 const llm = new ChatAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,

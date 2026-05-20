@@ -38,7 +38,7 @@ export function buildCredsAlertEmail({
   service,
   used,
   budget,
-  unit = "$",
+  unit = "₨",
   periodStart,
   periodEnd,
 }) {

@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { logger } from "../../utils/logger.js";
 
 import { routeIntent } from "../../service/router/intentRouter.js";
-import { calendarAgentGraph } from "../../service/agent/calenderAgent/graph.js";
+import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
 
 const conversationRepo = new ConversationRepository();
 

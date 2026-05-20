@@ -1,7 +1,7 @@
 import { StateGraph, END, MemorySaver } from "@langchain/langgraph";
 import calendarAgentState from "./state.js";
 import nodes from "./nodes.js";
-import { logger } from "../../../utils/logger.js";
+import { logger } from "../../utils/logger.js";
 
 // Entry router: if the user has already confirmed/rejected, skip straight to
 // the right node instead of re-running parse_intent.
