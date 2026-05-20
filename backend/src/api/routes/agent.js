@@ -1,5 +1,5 @@
 import express from "express";
-import { calendarAgentGraph } from "../../service/agent/calenderAgent/graph.js";
+import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
 
 const router = express.Router();
 

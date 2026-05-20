@@ -1,5 +1,5 @@
 import { BaseCheckpointSaver } from "@langchain/langgraph";
-import { pool } from "../../../config/dbConfig.js";
+import { pool } from "../../config/dbConfig.js";
 
 export class PostgresCheckpointer extends BaseCheckpointSaver {
   async get(config) {

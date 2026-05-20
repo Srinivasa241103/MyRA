@@ -1,6 +1,7 @@
 import EmbeddingCronJob from "./embeddingCron.js";
 import GmailSyncCronJob from "./gmailSyncCron.js";
 import CalendarSyncCronJob from "./calendarSyncCron.js";
+import CredsAlertCronJob from "./credsAlertCron.js";
 import { logger } from "../../utils/logger.js";
 
 export default class CronManager {
@@ -9,6 +10,7 @@ export default class CronManager {
       embedding: new EmbeddingCronJob(),
       gmailSync: new GmailSyncCronJob(),
       calendarSync: new CalendarSyncCronJob(),
+      credsAlert: new CredsAlertCronJob(),
     };
   }
 
@@ -23,6 +25,9 @@ export default class CronManager {
       }
       if (process.env.ENABLE_CALENDAR_SYNC_CRON !== "false") {
         this.jobs.calendarSync.start();
+      }
+      if (process.env.ENABLE_CREDS_ALERT_CRON !== "false") {
+        this.jobs.credsAlert.start();
       }
     } catch (error) {
       logger.error("Error starting cron jobs", error);
@@ -41,6 +46,7 @@ export default class CronManager {
       embedding: this.jobs.embedding.getStatus(),
       gmailSync: this.jobs.gmailSync.getStatus(),
       calendarSync: this.jobs.calendarSync.getStatus(),
+      credsAlert: this.jobs.credsAlert.getStatus(),
     };
   }
 
