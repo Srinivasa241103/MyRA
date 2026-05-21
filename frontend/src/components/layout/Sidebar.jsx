@@ -4,7 +4,7 @@ import { useChatStore } from "../../store/chatStore";
 import useSyncStore from "../../store/syncStore";
 import { authApi } from "../../api/auth";
 
-function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle }) {
+function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobile = false }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { user, isAuthenticated, logout } = useAuthStore();
   const {
@@ -64,7 +64,7 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle }) {
   const iconOnly = !isExpanded;
 
   return (
-    <div className={"myra-sidebar" + (iconOnly ? " icon-only" : "")}>
+    <div className={"myra-sidebar" + (iconOnly ? " icon-only" : "") + (isMobile && isExpanded ? " mobile-open" : "")}>
       {/* Header */}
       <div className="myra-sidebar-header">
         {!iconOnly && (

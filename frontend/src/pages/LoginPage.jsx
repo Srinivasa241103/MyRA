@@ -17,27 +17,9 @@ function LoginPage({ onNavigate }) {
   };
 
   return (
-    <div
-      style={{
-        height: "100%",
-        width: "100%",
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        background: "var(--bg-0)",
-      }}
-    >
+    <div className="myra-login-layout">
       {/* Left panel — editorial */}
-      <div
-        style={{
-          background: "var(--parchment)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "48px",
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
+      <div className="myra-login-hero">
         {/* Decorative circles */}
         <div style={{
           position: "absolute", top: -60, right: -60,
@@ -54,7 +36,7 @@ function LoginPage({ onNavigate }) {
 
         <div style={{ maxWidth: 420, position: "relative" }}>
           <span className="myra-badge accent" style={{ marginBottom: 20, display: "inline-flex" }}>Personal AI · v1.0</span>
-          <h2 className="display" style={{ fontSize: 42, marginBottom: 16 }}>
+          <h2 className="display myra-login-headline" style={{ fontSize: 42, marginBottom: 16 }}>
             Your retrieval assistant —<br />
             <em style={{ fontStyle: "italic", fontWeight: 600 }}>quietly</em> in the background.
           </h2>
@@ -71,7 +53,7 @@ function LoginPage({ onNavigate }) {
       </div>
 
       {/* Right panel — sign in form */}
-      <div style={{ display: "grid", placeItems: "center", padding: "32px 16px", background: "var(--bg-0)" }}>
+      <div className="myra-login-form-panel">
         <div style={{ width: "100%", maxWidth: 380 }}>
           {/* Logo */}
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>

@@ -30,7 +30,8 @@ function pageFromURL() {
 
 function App() {
   const [currentPage, setCurrentPage] = useState(pageFromURL);
-  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarExpanded, setSidebarExpanded] = useState(!isMobile);
   const [theme, setTheme] = useState(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (storedTheme === "dark" || storedTheme === "warm") return storedTheme;
@@ -43,6 +44,20 @@ function App() {
     document.documentElement.style.colorScheme = theme === "dark" ? "dark" : "light";
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  // Handle window resize for mobile responsiveness
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // Collapse sidebar on mobile unless user just expanded
+      if (mobile && sidebarExpanded) {
+        setSidebarExpanded(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [sidebarExpanded]);
 
   // Keep URL in sync and handle browser back/forward
   useEffect(() => {
@@ -71,6 +86,8 @@ function App() {
     const path = PAGE_TO_PATH[page] ?? "/";
     window.history.pushState({}, "", path);
     setCurrentPage(page);
+    // Close sidebar on mobile after navigation
+    if (isMobile) setSidebarExpanded(false);
   };
 
   const handleToggleSidebar = () => setSidebarExpanded((v) => !v);
@@ -118,14 +135,38 @@ function App() {
 
   // Chat page — sidebar + chat
   return (
-    <div className="myra-app" data-theme={theme} style={{ display: "flex" }}>
+    <div 
+      className="myra-app" 
+      data-theme={theme} 
+      style={{ display: "flex" }}
+      data-mobile={isMobile}
+    >
+      {isMobile && (
+        <div 
+          onClick={() => setSidebarExpanded(false)} 
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.5)",
+            zIndex: 99,
+            opacity: sidebarExpanded ? 1 : 0,
+            pointerEvents: sidebarExpanded ? "auto" : "none",
+            transition: "opacity 0.3s ease",
+          }}
+          aria-hidden="true"
+        />
+      )}
       <Sidebar
         onNavigate={handleNavigate}
         currentPage={currentPage}
         isExpanded={sidebarExpanded}
         onToggle={handleToggleSidebar}
+        isMobile={isMobile}
       />
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
         {renderPage()}
       </div>
     </div>

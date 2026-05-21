@@ -42,9 +42,9 @@ export default function SettingsPage({ theme = "warm", onThemeChange = () => {} 
       <h1 className="h1" style={{ marginBottom: 4 }}>Settings</h1>
       <p className="muted" style={{ marginBottom: 24 }}>Configure MyRA the way you want.</p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 28 }}>
+      <div className="myra-settings-layout">
         {/* Tab nav */}
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <nav className="myra-settings-nav" aria-label="Settings sections">
           {SETTINGS_TABS.map((t) => (
             <button
               key={t.id}
@@ -99,17 +99,17 @@ export default function SettingsPage({ theme = "warm", onThemeChange = () => {} 
                 </button>
               </div>
               {SOURCES_DUMMY.map((s) => (
-                <div key={s.id} className="myra-settings-row">
-                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--parchment)", display: "grid", placeItems: "center", color: "var(--accent)" }}>
+                <div key={s.id} className="myra-settings-row myra-settings-source-row">
+                  <div className="myra-settings-source-info">
+                    <div className="myra-settings-source-icon">
                       <DatabaseIcon />
                     </div>
-                    <div>
+                    <div className="myra-settings-source-text">
                       <div style={{ fontSize: 13, color: "var(--text-2)", fontWeight: 500 }}>{s.name}</div>
                       <div className="desc">{s.docs.toLocaleString()} indexed · last sync {s.sync}</div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="myra-settings-row-actions">
                     <span className={"myra-badge " + (s.status === "connected" ? "success" : "warning")}>{s.status}</span>
                     <button className="myra-btn ghost sm">
                       {s.status === "connected" ? "Sync" : "Connect"}
@@ -220,7 +220,7 @@ function SettingsField({ label, value, badge }) {
         <div className="myra-label">{label}</div>
         <div style={{ fontSize: 13, color: "var(--text-2)", marginTop: 2 }}>{value}</div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="myra-settings-row-actions">
         {badge && <span className="myra-badge accent">{badge}</span>}
         <button className="myra-btn ghost sm">Change</button>
       </div>
