@@ -512,9 +512,9 @@ function HomeIcon() {
 }
 function MyraMarkIcon({ size = 24 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#7A4A2E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M5 19V6l7 9 7-9v13" />
-      <circle cx="12" cy="20.5" r="1.2" fill="#7A4A2E" stroke="none" />
+      <circle cx="12" cy="20.5" r="1.2" fill="currentColor" stroke="none" />
     </svg>
   );
 }

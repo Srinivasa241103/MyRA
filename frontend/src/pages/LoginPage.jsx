@@ -77,9 +77,9 @@ function LoginPage({ onNavigate }) {
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>
             <div className="myra-logo" style={{ fontSize: 22 }}>
               <span className="mark">
-                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#7A4A2E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M5 19V6l7 9 7-9v13" />
-                  <circle cx="12" cy="20.5" r="1.2" fill="#7A4A2E" stroke="none" />
+                  <circle cx="12" cy="20.5" r="1.2" fill="currentColor" stroke="none" />
                 </svg>
               </span>
               <span className="word">My<b>RA</b></span>

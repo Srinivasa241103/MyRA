@@ -31,11 +31,10 @@ const SETTINGS_TABS = [
   { id: "privacy",       label: "Privacy" },
 ];
 
-export default function SettingsPage({ onNavigate }) {
+export default function SettingsPage({ theme = "warm", onThemeChange = () => {} }) {
   const { user } = useAuthStore();
   const [tab, setTab] = useState("general");
   const [notif, setNotif] = useState({ email: true, push: true, weekly: false });
-  const [theme, setTheme] = useState("warm");
   const [density, setDensity] = useState("comfortable");
 
   return (
@@ -68,13 +67,15 @@ export default function SettingsPage({ onNavigate }) {
               <SettingsField label="Time zone" value="Detected automatically" />
               <div className="myra-settings-row">
                 <div>
-                  <div className="myra-label">Theme</div>
-                  <div className="desc">Switch between Warm Pastel and Dark Professional.</div>
+                  <div className="myra-label">Dark mode</div>
+                  <div className="desc">Switch the full app between Warm Pastel and Dark Professional.</div>
                 </div>
-                <div className="myra-pills">
-                  <button className={theme === "warm" ? "active" : ""} onClick={() => setTheme("warm")}>Warm</button>
-                  <button className={theme === "dark" ? "active" : ""} onClick={() => setTheme("dark")}>Dark</button>
-                </div>
+                <button
+                  className={"myra-toggle" + (theme === "dark" ? " on" : "")}
+                  onClick={() => onThemeChange(theme === "dark" ? "warm" : "dark")}
+                  aria-label="Toggle dark mode"
+                  aria-pressed={theme === "dark"}
+                />
               </div>
               <div className="myra-settings-row">
                 <div>
