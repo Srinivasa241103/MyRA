@@ -46,7 +46,7 @@ export default function StatsScreen() {
       </div>
 
       {/* KPI tiles */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+      <div className="myra-stats-kpi-scroll">
         <KpiTile
           label="Emails received"
           value={EMAILS_14D.reduce((s, v) => s + v, 0)}
@@ -77,7 +77,7 @@ export default function StatsScreen() {
       </div>
 
       {/* Big charts */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div className="myra-stats-charts-scroll" style={{ marginBottom: 16 }}>
         <div className="myra-card">
           <div className="myra-card-header">
             <div>
@@ -94,9 +94,9 @@ export default function StatsScreen() {
             <h3>Tokens by model</h3>
             <span className="muted" style={{ fontSize: 12 }}>30 days</span>
           </div>
-          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <div className="myra-donut-legend">
             <Donut data={TOKENS} centerLabel="TOTAL" centerValue={(totalTokens / 1e6).toFixed(2) + "M"} size={140} />
-            <div style={{ flex: 1 }}>
+            <div className="myra-donut-legend-list">
               {TOKENS.map((t) => (
                 <div key={t.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 12 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: t.color, flexShrink: 0 }} />
@@ -110,7 +110,7 @@ export default function StatsScreen() {
       </div>
 
       {/* Bottom charts row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div className="myra-stats-cards-scroll" style={{ marginBottom: 16 }}>
         {/* Reminders */}
         <div className="myra-card">
           <div className="myra-card-header">
@@ -135,7 +135,7 @@ export default function StatsScreen() {
             <h3>Calendar events</h3>
             <span className="muted" style={{ fontSize: 12 }}>handled by agent</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div className="myra-grid-2-tight" style={{ marginBottom: 12 }}>
             {[["Created","34"],["Rescheduled","11"],["Cancelled","3"],["Conflicts caught","7"]].map(([label, value]) => (
               <SubKpi key={label} label={label} value={value} />
             ))}
@@ -168,7 +168,7 @@ export default function StatsScreen() {
       </div>
 
       {/* RAG + sessions */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="myra-stats-bottom-scroll">
         <div className="myra-card">
           <div className="myra-card-header">
             <h3>Documents indexed</h3>
@@ -191,7 +191,7 @@ export default function StatsScreen() {
             <span className="muted" style={{ fontSize: 12 }}>Per day</span>
           </div>
           <BarChart values={CHAT_SESSIONS} labels={labels14} h={140} color="#C9845A" />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12 }}>
+          <div className="myra-grid-3-tight" style={{ marginTop: 12 }}>
             <SubKpi label="Sessions"  value="91" />
             <SubKpi label="Avg turns" value="6.4" />
             <SubKpi label="Avg time"  value="3m 42s" />
@@ -327,7 +327,7 @@ function Donut({ data, size = 160, thickness = 22, centerLabel, centerValue }) {
 function HBarRow({ label, value, max, color = "var(--accent)", fmt = (v) => v }) {
   const pct = (value / max) * 100;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 72px", alignItems: "center", gap: 12, padding: "8px 0" }}>
+    <div className="myra-hbar-row">
       <span style={{ fontSize: 12, color: "var(--text-2)" }}>{label}</span>
       <div style={{ height: 8, background: "var(--bg-2)", borderRadius: 4, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, width: pct + "%", background: color, borderRadius: 4 }} />

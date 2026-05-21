@@ -137,6 +137,12 @@ html, body, #root {
 .myra-topnav .nav-link.active { background: var(--parchment); color: var(--accent); }
 .myra-topnav .topnav-right { display: flex; align-items: center; gap: 12px; }
 
+  /* Hide text labels in mobile topnav, show icons only where possible */
+  @media (max-width: 480px) {
+    .myra-topnav .nav-link span:not(.muted) {
+      display: none;
+    }
+  }
 /* ── Avatar ── */
 .myra-avatar {
   width: 36px; height: 36px; border-radius: 50%;
@@ -274,6 +280,166 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
 .myra-page::-webkit-scrollbar { width: 8px; }
 .myra-page::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 8px; }
 .myra-page-inner { padding: 32px; max-width: 1200px; margin: 0 auto; }
+
+/* ── Home layout ── */
+.myra-home-composer {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.myra-grid-suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.myra-grid-home-split {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+}
+.myra-grid-kpi-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+/* ── Stats layout ── */
+.myra-stats-kpi-scroll {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.myra-stats-charts-scroll {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+}
+.myra-stats-cards-scroll {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.myra-stats-bottom-scroll {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.myra-donut-legend {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.myra-donut-legend-list { flex: 1; }
+.myra-hbar-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 72px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+/* ── Settings layout (desktop) ── */
+.myra-settings-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 28px;
+  min-width: 0;
+}
+.myra-settings-layout > div:last-child {
+  min-width: 0;
+}
+.myra-settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.myra-settings-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.myra-settings-source-info {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+.myra-settings-source-text { min-width: 0; }
+.myra-settings-source-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--parchment);
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.myra-settings-row .desc {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* ── Profile page ── */
+.myra-profile-toolbar {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.myra-profile-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* ── Compact grids inside cards ── */
+.myra-grid-2-tight {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.myra-grid-3-tight {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* ── Login layout (desktop defaults match original inline layout) ── */
+.myra-login-layout {
+  height: 100%;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--bg-0);
+}
+.myra-login-hero {
+  background: var(--parchment);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  overflow: hidden;
+  position: relative;
+}
+.myra-login-form-panel {
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  background: var(--bg-0);
+}
 
 /* ── Sidebar ── */
 .myra-sidebar {
@@ -420,6 +586,11 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   max-width: 760px; margin: 8px auto 0; padding: 0 24px;
   display: flex; justify-content: space-between; align-items: center;
   font-size: 11px; color: var(--text-muted);
+}
+.myra-composer-hint-pills {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 /* ── Confirmation card ── */
@@ -602,4 +773,512 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
 .myra-connection-expand {
   border-top: 1px solid var(--border);
   padding: 14px 16px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE DESIGN: MOBILE & TABLET
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tablet (768px - 1024px) ── */
+@media (max-width: 1024px) {
+  .display.xl { font-size: 36px; }
+  .display.lg { font-size: 28px; }
+  .h1 { font-size: 24px; }
+  .h2 { font-size: 20px; }
+  .h3 { font-size: 16px; }
+  .myra-page-inner { padding: 24px; max-width: 100%; }
+  .myra-chat-scroll-inner { max-width: 100%; padding: 0 16px; }
+  .myra-composer-inner { max-width: 100%; padding: 0 16px; }
+  .myra-composer-hint { max-width: 100%; padding: 0 16px; }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Mobile (< 768px) ── */
+@media (max-width: 768px) {
+  /* Typography scaling */
+  html, body, #root { font-size: 13px; }
+  .display.xl { font-size: 28px; line-height: 1.1; }
+  .display.lg { font-size: 22px; }
+  .h1 { font-size: 20px; }
+  .h2 { font-size: 18px; }
+  .h3 { font-size: 15px; }
+  .myra-label { font-size: 10px; }
+  .myra-badge { font-size: 10px; height: 20px; }
+
+  /* Prevent horizontal page bleed on mweb only */
+  .myra-page { overflow-x: hidden; min-width: 0; }
+  .myra-page-inner { padding: 16px 12px; max-width: 100%; min-width: 0; box-sizing: border-box; }
+
+  /* Padding & margins */
+  .myra-card { padding: 14px; }
+  .myra-card.tight { padding: 12px; }
+
+  /* Sidebar behavior */
+  .myra-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    width: 260px;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .myra-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .myra-sidebar.icon-only {
+    display: none;
+  }
+
+  /* Mobile overlay backdrop */
+  .myra-app::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 99;
+  }
+
+  .myra-app.sidebar-open::before {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Chat layout */
+  .myra-chat-topbar {
+    height: 48px;
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .myra-chat-topbar .row {
+    gap: 8px !important;
+  }
+
+  .myra-chat-topbar .myra-btn {
+    height: 32px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  .myra-chat-topbar .myra-btn.icon {
+    width: 32px;
+  }
+
+  .myra-chat-scroll { padding: 16px 0; }
+  .myra-chat-scroll-inner { max-width: 100%; padding: 0 12px; gap: 12px; }
+  .myra-composer-inner { max-width: 100%; padding: 0 12px; }
+  .myra-composer-hint { max-width: 100%; padding: 0 12px; margin-top: 6px; }
+
+  /* Bubbles */
+  .myra-bubble {
+    max-width: 90%;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .myra-bubble.user { max-width: 85%; }
+
+  /* Chat topbar — hide rename/trash on small screens */
+  .myra-chat-topbar .myra-btn.secondary {
+    display: none;
+  }
+  .myra-chat-topbar-hide-sm { display: none !important; }
+  .myra-btn-text { display: none; }
+  .myra-hbar-row {
+    grid-template-columns: minmax(56px, 72px) 1fr minmax(48px, 60px);
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  /* Composer */
+  .myra-composer { padding: 10px 0 14px; }
+  .myra-composer-box {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .myra-composer-box textarea {
+    font-size: 13px;
+    min-height: 20px;
+    max-height: 100px;
+  }
+
+  /* Buttons */
+  .myra-btn {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .myra-btn.lg { height: 40px; padding: 0 16px; font-size: 13px; }
+  .myra-btn.sm { height: 24px; padding: 0 8px; font-size: 11px; }
+  .myra-btn.icon { width: 32px; }
+  .myra-btn.icon.sm { width: 24px; height: 24px; }
+
+  /* Inputs */
+  .myra-input { height: 36px; padding: 0 10px; font-size: 13px; }
+  textarea.myra-input { padding: 8px 10px; }
+
+  /* Grids */
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; gap: 12px; }
+
+  /* Home */
+  .myra-home-composer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .myra-home-composer .myra-btn {
+    width: 100%;
+    height: 44px;
+    align-self: stretch;
+  }
+  .myra-home-composer textarea {
+    min-height: 44px !important;
+  }
+  .myra-grid-suggestions { grid-template-columns: 1fr; }
+  .myra-grid-home-split { grid-template-columns: 1fr; }
+  .myra-grid-kpi-3 { grid-template-columns: 1fr; }
+
+  /* Stats — horizontal swipe rows */
+  .myra-stats-kpi-scroll,
+  .myra-stats-charts-scroll,
+  .myra-stats-cards-scroll,
+  .myra-stats-bottom-scroll {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    gap: 12px;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bg-3) transparent;
+  }
+  .myra-stats-kpi-scroll { margin-bottom: 20px; }
+  .myra-stats-kpi-scroll::-webkit-scrollbar,
+  .myra-stats-charts-scroll::-webkit-scrollbar,
+  .myra-stats-cards-scroll::-webkit-scrollbar,
+  .myra-stats-bottom-scroll::-webkit-scrollbar { height: 4px; }
+  .myra-stats-kpi-scroll > .myra-stat-tile {
+    flex: 0 0 min(168px, 78vw);
+    scroll-snap-align: start;
+    margin-bottom: 0;
+  }
+  .myra-stats-charts-scroll > .myra-card,
+  .myra-stats-cards-scroll > .myra-card,
+  .myra-stats-bottom-scroll > .myra-card {
+    flex: 0 0 min(300px, 88vw);
+    scroll-snap-align: start;
+    margin-bottom: 0;
+  }
+  .myra-donut-legend { flex-direction: column; align-items: flex-start; }
+
+  /* Login — stack hero above form */
+  .myra-login-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    overflow-y: auto;
+  }
+  .myra-login-hero {
+    padding: 28px 20px 24px;
+    min-height: auto;
+  }
+  .myra-login-headline { font-size: 26px; }
+  .myra-login-hero p { font-size: 14px; }
+  .myra-login-form-panel {
+    padding: 24px 16px 32px;
+    align-content: start;
+  }
+
+  /* Composer hint — mweb only */
+  .myra-composer-hint {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .myra-composer-hint-pills {
+    flex-wrap: wrap;
+    min-width: 0;
+    flex: 1;
+  }
+  .myra-composer-hint-text {
+    font-size: 10px;
+    line-height: 1.4;
+    width: 100%;
+  }
+  .myra-source-pill {
+    height: 28px;
+    min-height: 28px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1;
+    box-sizing: border-box;
+  }
+  .myra-source-pill--model { max-width: 100%; }
+  .myra-source-pill--model .myra-source-pill-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 7.5rem;
+  }
+
+  /* Top nav — mweb only */
+  .myra-topnav {
+    gap: 8px;
+    overflow: hidden;
+  }
+  .myra-topnav > .row.gap-6 {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    gap: 10px !important;
+  }
+  .myra-topnav .links {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 100%;
+  }
+  .myra-topnav .links::-webkit-scrollbar { display: none; }
+  .myra-topnav .nav-link { flex-shrink: 0; }
+
+  /* Event cards */
+  .myra-event-card {
+    padding: 12px;
+    gap: 10px;
+    flex-direction: column;
+  }
+
+  .myra-event-date {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .myra-event-date .day { font-size: 18px; }
+
+  /* Settings page — stack nav above content */
+  .myra-settings-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .myra-settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 4px;
+    padding-bottom: 4px;
+  }
+  .myra-settings-nav::-webkit-scrollbar { display: none; }
+  .myra-settings-nav .myra-sidebar-item {
+    flex-shrink: 0;
+    width: auto;
+    white-space: nowrap;
+    margin-left: 0;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+  .myra-settings-nav .myra-sidebar-item.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--accent);
+  }
+  .myra-settings-row > div:first-child {
+    min-width: 0;
+    width: 100%;
+  }
+  .myra-settings-source-row {
+    gap: 12px;
+  }
+  .myra-settings-source-info {
+    width: 100%;
+  }
+  .myra-settings-row-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .myra-settings-layout .myra-pills {
+    flex-wrap: wrap;
+  }
+
+  /* Profile page */
+  .myra-profile-toolbar {
+    padding: 0 12px;
+    gap: 8px;
+    height: 48px;
+  }
+  .myra-profile-toolbar > div:first-of-type {
+    min-width: 0;
+  }
+  .myra-profile-toolbar strong {
+    font-size: 14px;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .myra-profile-nav-btn {
+    padding: 0 8px;
+    font-size: 11px;
+  }
+  .myra-profile-inner {
+    padding: 16px 12px;
+  }
+  .myra-grid-2-tight,
+  .myra-grid-3-tight {
+    grid-template-columns: 1fr;
+  }
+
+  /* Suggestion cards */
+  .myra-suggestion-card {
+    padding: 12px;
+  }
+
+  .myra-suggestion-card .icon {
+    width: 28px;
+    height: 28px;
+    margin-bottom: 8px;
+  }
+
+  .myra-suggestion-card h4 { font-size: 13px; }
+  .myra-suggestion-card p { font-size: 11px; }
+
+  /* Avatar */
+  .myra-avatar { width: 32px; height: 32px; font-size: 12px; }
+  .myra-avatar.lg { width: 56px; height: 56px; font-size: 18px; }
+  .myra-avatar.sm { width: 24px; height: 24px; font-size: 10px; }
+
+  /* Stat tiles */
+  .myra-stat-tile {
+    padding: 16px;
+  }
+
+  .myra-stat-tile .stat-value { font-size: 24px; }
+
+  /* Topbar */
+  .myra-topnav {
+    height: 56px;
+    padding: 0 12px;
+  }
+
+  .myra-topnav .nav-link {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  /* Settings rows */
+  .myra-settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+  }
+
+  .myra-settings-row > div:last-child {
+    align-self: flex-start;
+  }
+
+  /* Card headers wrap on narrow screens */
+  .myra-card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Profile menu positioning on mobile */
+  .myra-profile-menu {
+    position: fixed;
+    bottom: auto;
+    top: 8px;
+    right: 8px;
+    left: auto;
+    width: 90vw;
+    max-width: 280px;
+  }
+
+  /* Connection rows */
+  .myra-connection-main {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .myra-connection-expand { padding: 12px; }
+
+  /* Large text reduction */
+  strong { font-size: inherit; }
+}
+
+/* ── Extra small mobile (< 480px) ── */
+@media (max-width: 480px) {
+  html, body, #root { font-size: 12px; }
+  .display.xl { font-size: 24px; }
+  .display.lg { font-size: 20px; }
+  .h1 { font-size: 18px; }
+  .h2 { font-size: 16px; }
+
+  .myra-page-inner { padding: 12px; }
+  .myra-card { padding: 12px; }
+  .myra-btn { height: 28px; padding: 0 10px; font-size: 11px; }
+  .myra-btn.icon { width: 28px; }
+  .myra-input { height: 32px; padding: 0 8px; font-size: 12px; }
+
+  .myra-chat-topbar {
+    height: 44px;
+    padding: 0 8px;
+  }
+
+  .myra-topnav {
+    height: 48px;
+    padding: 0 8px;
+  }
+
+  .myra-topnav .nav-link {
+    height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+
+  .myra-sidebar-item {
+    height: 32px;
+    padding: 0 8px 0 10px;
+    font-size: 12px;
+  }
+
+  .myra-avatar { width: 28px; height: 28px; font-size: 10px; }
+  .myra-avatar.sm { width: 20px; height: 20px; font-size: 8px; }
+
+  .myra-event-date { width: 100%; }
+  .myra-event-date .day { font-size: 16px; }
+
+  .myra-stat-tile { padding: 12px; }
+  .myra-stat-tile .stat-value { font-size: 20px; }
+
+  /* Confirm card */
+  .myra-confirm-card { padding: 12px; }
+  .myra-confirm-actions { gap: 8px; }
+
+  .myra-logo .mark { width: 24px; height: 24px; }
+  .myra-logo .word { font-size: 14px; }
+  .myra-logo.sm .mark { width: 20px; height: 20px; }
+  .myra-logo.sm .word { font-size: 12px; }
 }

@@ -273,7 +273,7 @@ function ProfilePage({ onNavigate }) {
     <div style={{ height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-0)" }}>
       {/* Top bar */}
       <div style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-1)", flexShrink: 0 }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 24px", height: 56, display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="myra-profile-toolbar">
           <button
             onClick={() => window.history.back()}
             className="myra-btn ghost icon sm"
@@ -285,10 +285,10 @@ function ProfilePage({ onNavigate }) {
             <strong style={{ fontSize: 15, color: "var(--text-2)" }}>Profile & Settings</strong>
             <div className="muted" style={{ fontSize: 11 }}>Manage your account and data connections</div>
           </div>
-          <button className="myra-btn ghost sm" onClick={() => onNavigate("home")}>
+          <button className="myra-btn ghost sm myra-profile-nav-btn" onClick={() => onNavigate("home")}>
             Home
           </button>
-          <button className="myra-btn ghost sm" onClick={() => onNavigate("chat")}>
+          <button className="myra-btn ghost sm myra-profile-nav-btn" onClick={() => onNavigate("chat")}>
             Chat
           </button>
         </div>
@@ -296,7 +296,7 @@ function ProfilePage({ onNavigate }) {
 
       {/* Scrollable content */}
       <div className="myra-page" style={{ flex: 1 }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="myra-profile-inner">
 
           {/* ── 1. Profile Info ── */}
           <div className="myra-card">
@@ -317,7 +317,7 @@ function ProfilePage({ onNavigate }) {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="grid-2">
               <div>
                 <div className="myra-label" style={{ marginBottom: 6 }}>Display name</div>
                 <input
@@ -478,7 +478,7 @@ function ProfilePage({ onNavigate }) {
                       <span className={"myra-badge " + getStatusVariant(item.status)}>{item.status}</span>
                     </div>
                     {item.stats && (
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                      <div className="grid-2" style={{ paddingTop: 8, borderTop: "1px solid var(--border)" }}>
                         <div>
                           <p style={{ fontSize: 11, color: "var(--text-muted)" }}>Fetched</p>
                           <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-2)" }}>{item.stats.total_fetched ?? "—"}</p>

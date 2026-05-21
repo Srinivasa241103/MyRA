@@ -81,7 +81,7 @@ function HomePage({ onNavigate }) {
 
       {/* ── Composer ── */}
       <div className="myra-card" style={{ padding: 16, marginBottom: 28 }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+        <div className="myra-home-composer">
           <textarea
             ref={textareaRef}
             className="myra-input"
@@ -114,7 +114,7 @@ function HomePage({ onNavigate }) {
             Refresh <SparklesIcon />
           </button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+        <div className="myra-grid-suggestions">
           {SUGGESTIONS.map((s, i) => (
             <button
               key={i}
@@ -136,7 +136,7 @@ function HomePage({ onNavigate }) {
       </div>
 
       {/* ── Today at a glance + Connected sources ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
+      <div className="myra-grid-home-split">
 
         {/* Today at a glance */}
         <div className="myra-card">
@@ -148,7 +148,7 @@ function HomePage({ onNavigate }) {
           </div>
 
           {/* KPI tiles */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+          <div className="myra-grid-kpi-3" style={{ marginBottom: 16 }}>
             {[
               { label: "Unread emails", value: dailySummary.unreadEmails ?? "—", delta: dailySummary.unreadEmails == null ? "Sync to load" : "" },
               { label: "Reminders due", value: dailySummary.remindersDue ?? "—", delta: "" },

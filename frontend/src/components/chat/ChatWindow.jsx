@@ -70,7 +70,7 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
               </button>
             )}
             <button className="myra-btn ghost sm" onClick={() => onNavigate?.("home")} aria-label="Home">
-              <HomeIcon /> Home
+              <HomeIcon /><span className="myra-btn-text">Home</span>
             </button>
             <div className="col" style={{ gap: 1 }}>
               <strong style={{ fontSize: 14, color: "var(--text-2)" }}>New chat</strong>
@@ -154,7 +154,7 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
             </button>
           )}
           <button className="myra-btn ghost sm" onClick={() => onNavigate?.("home")} aria-label="Home">
-            <HomeIcon /> Home
+            <HomeIcon /><span className="myra-btn-text">Home</span>
           </button>
           <div className="col" style={{ gap: 1 }}>
             <strong style={{ fontSize: 14, color: "var(--text-2)" }}>{chatTitle}</strong>
@@ -164,10 +164,10 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
           </div>
         </div>
         <div className="row gap-2" style={{ alignItems: "center" }}>
-          <button className="myra-btn secondary sm">
+          <button className="myra-btn secondary sm myra-chat-topbar-hide-sm">
             <EditIcon /> Rename
           </button>
-          <button className="myra-btn ghost sm icon">
+          <button className="myra-btn ghost sm icon myra-chat-topbar-hide-sm" aria-label="Delete chat">
             <TrashIcon />
           </button>
           <button
@@ -445,15 +445,15 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
 
         {/* Hint row */}
         <div className="myra-composer-hint">
-          <div className="row gap-2">
+          <div className="myra-composer-hint-pills">
             <span className="myra-source-pill" style={{ cursor: "default" }}>
               <span className="dot" />All sources
             </span>
-            <span className="myra-source-pill" style={{ cursor: "default" }}>
-              <SparklesSmIcon />Claude Haiku 4.5
+            <span className="myra-source-pill myra-source-pill--model" style={{ cursor: "default" }}>
+              <SparklesSmIcon /><span className="myra-source-pill-label">Claude Haiku 4.5</span>
             </span>
           </div>
-          <span>Enter to send · Shift+Enter newline</span>
+          <span className="myra-composer-hint-text">Enter to send · Shift+Enter newline</span>
         </div>
       </div>
     </div>
