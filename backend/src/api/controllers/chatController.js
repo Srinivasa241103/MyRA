@@ -21,12 +21,9 @@ class ChatController {
     message,
     conversationId,
     confirmationStatus,
-    agentActive
+    agentActive,
   ) {
-    // Mid-agent turn: determine which agent is currently active for this conversation.
-    // Email sessions are tracked server-side via the LangGraph checkpointer, so we
-    // don't rely on the frontend to know which agent type is running.
-    if (confirmationStatus || agentActive) {
+     if (confirmationStatus || agentActive) {
       if (conversationId) {
         const emailActive = await hasActiveEmailSession(conversationId);
         if (emailActive) {
@@ -42,8 +39,11 @@ class ChatController {
 
     if (intent === "calendar_agent") return { handler: "agent", intent };
     if (intent === "calendar_rag") return { handler: "calendar_rag", intent };
-    if (intent === "email_draft") return { handler: "email_agent", intent: "email_draft" };
-    if (intent === "email_reply") return { handler: "email_agent", intent: "email_reply" };
+    if (intent === "email_draft")
+      return { handler: "email_agent", intent: "email_draft" };
+    if (intent === "email_reply")
+      return { handler: "email_agent", intent: "email_reply" };
+    if (intent === "email_read") return { handler: "rag", intent };
     return { handler: "rag", intent };
   }
 
@@ -68,7 +68,7 @@ class ChatController {
         message.trim(),
         conversationId,
         confirmationStatus,
-        agentActive
+        agentActive,
       );
 
       // ── Email agent ─────────────────────────────────────────────────────────
@@ -80,12 +80,25 @@ class ChatController {
           threadId,
           // Pass intent only on the first turn; subsequent turns read it from
           // the checkpointed state.
-          intent ?? null
+          intent ?? null,
         );
 
         const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(
-          finalState.status
+          finalState.status,
         );
+
+        if (finalState.agentResponse) {
+          const assistantMessage = typeof finalState.agentResponse === "object"
+            ? JSON.stringify(finalState.agentResponse)
+            : finalState.agentResponse;
+          await conversationRepo.saveChatConversation({
+            conversation_id: threadId,
+            user_message: message.trim(),
+            assistant_message: assistantMessage,
+            metadata: { mode: "email_agent", emailStatus: finalState.status },
+          });
+          logger.info("Saved email agent conversation to database", { conversationId: threadId });
+        }
 
         return res.json({
           success: true,
@@ -154,7 +167,7 @@ class ChatController {
       if (handler === "calendar_rag") {
         const result = await calendarRagService.chat(
           message.trim(),
-          conversationId
+          conversationId,
         );
         if (!result.success) return res.status(500).json(result);
         return res.json({
@@ -176,7 +189,7 @@ class ChatController {
       // ── Default RAG ──────────────────────────────────────────────────────────
       const result = await langchainChatService.chat(
         message.trim(),
-        conversationId
+        conversationId,
       );
 
       if (!result.success) {
@@ -234,7 +247,7 @@ class ChatController {
         message.trim(),
         conversationId,
         confirmationStatus,
-        agentActive
+        agentActive,
       );
 
       // ── Email agent (non-streaming — emits a single SSE event) ──────────────
@@ -244,12 +257,25 @@ class ChatController {
         const finalState = await invokeEmailAgent(
           message.trim(),
           threadId,
-          intent ?? null
+          intent ?? null,
         );
 
         const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(
-          finalState.status
+          finalState.status,
         );
+
+        if (finalState.agentResponse) {
+          const assistantMessage = typeof finalState.agentResponse === "object"
+            ? JSON.stringify(finalState.agentResponse)
+            : finalState.agentResponse;
+          await conversationRepo.saveChatConversation({
+            conversation_id: threadId,
+            user_message: message.trim(),
+            assistant_message: assistantMessage,
+            metadata: { mode: "email_agent", emailStatus: finalState.status },
+          });
+          logger.info("Saved email agent conversation to database", { conversationId: threadId });
+        }
 
         const emailEvent = {
           type: "done",

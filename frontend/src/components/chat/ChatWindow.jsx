@@ -188,9 +188,16 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
           {/* Date system bubble */}
           <div className="myra-bubble system">{todayLabel}</div>
 
-          {messages.map((msg, idx) => (
-            <MessageTurn key={idx} msg={msg} setDraft={setDraft} />
-          ))}
+          {(() => {
+            // Index of the last draft_approval card — only that one gets live buttons
+            const lastDraftIdx = messages.reduce((last, m, i) =>
+              (m.mode === "email_agent" && m.emailResponse?.type === "draft_approval") ? i : last, -1);
+            return messages.map((msg, idx) => {
+              const readonly = msg.isHistorical ||
+                (msg.mode === "email_agent" && msg.emailResponse?.type === "draft_approval" && idx !== lastDraftIdx);
+              return <MessageTurn key={idx} msg={msg} setDraft={setDraft} readonly={readonly} />;
+            });
+          })()}
 
           {isTyping && (
             <div style={{ alignSelf: "flex-start" }}>
@@ -218,7 +225,7 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
 
 // ── MessageTurn — renders one user or AI bubble ──────────────────────────────
 
-function MessageTurn({ msg, setDraft }) {
+function MessageTurn({ msg, setDraft, readonly = false }) {
   const isUser = msg.role === "user";
 
   if (isUser) {
@@ -231,7 +238,7 @@ function MessageTurn({ msg, setDraft }) {
 
   // Email agent: draft approval card
   if (msg.mode === "email_agent" && msg.emailResponse?.type === "draft_approval") {
-    return <DraftApprovalCard data={msg.emailResponse} setDraft={setDraft} />;
+    return <DraftApprovalCard data={msg.emailResponse} setDraft={setDraft} readonly={readonly} />;
   }
 
   return (
@@ -269,7 +276,7 @@ function MessageTurn({ msg, setDraft }) {
 
 // ── DraftApprovalCard — rendered when email agent returns a draft ─────────────
 
-function DraftApprovalCard({ data, setDraft }) {
+function DraftApprovalCard({ data, setDraft, readonly = false }) {
   const { sendMessage } = useChatStore();
   const { draft, meta, instructions } = data;
 
@@ -279,6 +286,7 @@ function DraftApprovalCard({ data, setDraft }) {
     overflow: "hidden",
     background: "var(--bg-2)",
     marginBottom: 4,
+    opacity: readonly ? 0.75 : 1,
   };
   const headerStyle = {
     padding: "10px 14px",
@@ -310,6 +318,7 @@ function DraftApprovalCard({ data, setDraft }) {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
+    alignItems: "center",
     background: "var(--bg-1)",
   };
 
@@ -342,36 +351,44 @@ function DraftApprovalCard({ data, setDraft }) {
 
         {/* Action buttons */}
         <div style={actionsStyle}>
-          <button
-            className="myra-btn primary sm"
-            onClick={() => sendMessage("approve")}
-          >
-            <CheckIcon /> Approve
-          </button>
-          <button
-            className="myra-btn secondary sm"
-            onClick={() => { setDraft("Edit: "); }}
-          >
-            <EditIcon /> Edit
-          </button>
-          <button
-            className="myra-btn secondary sm"
-            onClick={() => sendMessage("regenerate")}
-          >
-            <RefreshIcon /> Regenerate
-          </button>
-          <button
-            className="myra-btn ghost sm"
-            onClick={() => sendMessage("cancel")}
-            style={{ color: "var(--text-muted)" }}
-          >
-            <XIcon /> Cancel
-          </button>
+          {readonly ? (
+            <span style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+              Session ended · actions unavailable
+            </span>
+          ) : (
+            <>
+              <button
+                className="myra-btn primary sm"
+                onClick={() => sendMessage("approve")}
+              >
+                <CheckIcon /> Approve
+              </button>
+              <button
+                className="myra-btn secondary sm"
+                onClick={() => { setDraft("Edit: "); }}
+              >
+                <EditIcon /> Edit
+              </button>
+              <button
+                className="myra-btn secondary sm"
+                onClick={() => sendMessage("regenerate")}
+              >
+                <RefreshIcon /> Regenerate
+              </button>
+              <button
+                className="myra-btn ghost sm"
+                onClick={() => sendMessage("cancel")}
+                style={{ color: "var(--text-muted)" }}
+              >
+                <XIcon /> Cancel
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Instructions hint */}
-      {instructions && (
+      {/* Instructions hint — only shown during active session */}
+      {!readonly && instructions && (
         <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, paddingLeft: 4 }}>
           {instructions}
         </p>

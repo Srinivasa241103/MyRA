@@ -133,10 +133,22 @@ export const useChatStore = create((set, get) => ({
       const data = await chatApi.getHistory(conversationId);
       const history = data?.data?.history ?? data?.history ?? [];
 
-      const messages = history.flatMap((entry) => [
-        { role: "user", text: entry.user_message },
-        { role: "ai", text: entry.assistant_message },
-      ]);
+      const messages = history.flatMap((entry) => {
+        let aiMsg;
+        // Detect email agent responses stored as JSON strings
+        try {
+          const parsed = JSON.parse(entry.assistant_message);
+          if (parsed && typeof parsed === "object" && parsed.type) {
+            const { text: normText, emailResponse } = normalizeEmailResponse(parsed);
+            aiMsg = { role: "ai", text: normText, emailResponse, mode: "email_agent", isHistorical: true };
+          } else {
+            aiMsg = { role: "ai", text: entry.assistant_message, isHistorical: true };
+          }
+        } catch {
+          aiMsg = { role: "ai", text: entry.assistant_message, isHistorical: true };
+        }
+        return [{ role: "user", text: entry.user_message, isHistorical: true }, aiMsg];
+      });
 
       set({ messages, conversationId, isTyping: false });
     } catch (error) {
