@@ -30,7 +30,6 @@ const TERMINAL_STATUSES = ["sent", "saved_draft", "cancelled", "idle"];
 const invokeEmailAgent = async (userMessage, conversationId, intent) => {
   const config = {
     configurable: {
-      // Namespace away from calendar agent threads
       thread_id: `email_${conversationId}`,
     },
   };

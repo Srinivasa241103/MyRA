@@ -8,7 +8,8 @@ const SYSTEM_PROMPT = `You are an intent classifier. Classify the user message i
 - calendar_rag: The user wants to READ, VIEW, LIST, CHECK, or QUERY existing calendar events or schedule
 - email_draft: The user wants to COMPOSE, WRITE, or SEND a new email to someone
 - email_reply: The user wants to REPLY to an existing email they have received
-- rag: Anything else (general questions, tasks, reminders not tied to calendar, etc.)
+- email_read: The user wants to READ, VIEW, LIST, SUMMARIZE, or SEARCH their emails/mails/inbox
+- rag: Anything else (general questions, tasks, reminders not tied to calendar or email, etc.)
 
 Respond with ONLY the category name, nothing else.`;
 
@@ -17,6 +18,7 @@ const VALID_INTENTS = [
   "calendar_rag",
   "email_draft",
   "email_reply",
+  "email_read",
 ];
 
 export async function routeIntent(message, conversationId = null) {
