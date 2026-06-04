@@ -23,7 +23,7 @@ class ChatController {
     confirmationStatus,
     agentActive,
   ) {
-     if (confirmationStatus || agentActive) {
+    if (confirmationStatus || agentActive) {
       if (conversationId) {
         const emailActive = await hasActiveEmailSession(conversationId);
         if (emailActive) {
@@ -44,7 +44,8 @@ class ChatController {
     if (intent === "email_reply")
       return { handler: "email_agent", intent: "email_reply" };
     if (intent === "email_read") return { handler: "rag", intent };
-    return { handler: "rag", intent };
+    if (intent === "rag") return { handler: "rag", intent };
+    return { handler: "Normal", intent: "general" }
   }
 
   async sendMessage(req, res) {
@@ -127,14 +128,14 @@ class ChatController {
         const agentInput = cs
           ? { confirmationStatus: cs, userId }
           : {
-              userMessage: message.trim(),
-              userId,
-              confirmationStatus: null,
-              // Only reset eventDetails at the start of a new agent conversation.
-              // Mid-collection turns must NOT send null or the checkpoint-persisted
-              // fields (e.g. title already collected) will be wiped by the reducer.
-              ...(agentActive ? {} : { eventDetails: null }),
-            };
+            userMessage: message.trim(),
+            userId,
+            confirmationStatus: null,
+            // Only reset eventDetails at the start of a new agent conversation.
+            // Mid-collection turns must NOT send null or the checkpoint-persisted
+            // fields (e.g. title already collected) will be wiped by the reducer.
+            ...(agentActive ? {} : { eventDetails: null }),
+          };
 
         const agentResult = await calendarAgentGraph.invoke(agentInput, {
           configurable: { thread_id: threadId },
@@ -302,11 +303,11 @@ class ChatController {
         const agentInput = cs
           ? { confirmationStatus: cs, userId }
           : {
-              userMessage: message.trim(),
-              userId,
-              confirmationStatus: null,
-              ...(agentActive ? {} : { eventDetails: null }),
-            };
+            userMessage: message.trim(),
+            userId,
+            confirmationStatus: null,
+            ...(agentActive ? {} : { eventDetails: null }),
+          };
 
         const agentResult = await calendarAgentGraph.invoke(agentInput, {
           configurable: { thread_id: threadId },

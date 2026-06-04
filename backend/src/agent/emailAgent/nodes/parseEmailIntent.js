@@ -1,7 +1,10 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 import buildParseIntentPrompt from "../prompts/parseIntent.prompt.js";
 import { logger } from "../../../utils/logger.js";
-import { safeParse, applySafetyDefaults } from "../schemas/parseOutput.schema.js";
+import {
+  safeParse,
+  applySafetyDefaults,
+} from "../schemas/parseOutput.schema.js";
 import { mergeEmailDetails, appendError } from "../state.js";
 
 const llm = new ChatAnthropic({
@@ -28,7 +31,7 @@ const parseEmailIntent = async (state) => {
       parsed = JSON.parse(cleaned);
     } catch (error) {
       throw new Error(
-        `Failed to parse LLM output as JSON. Raw output: ${rawText}`
+        `Failed to parse LLM output as JSON. Raw output: ${rawText}`,
       );
     }
 

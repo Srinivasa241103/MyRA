@@ -9,7 +9,8 @@ const SYSTEM_PROMPT = `You are an intent classifier. Classify the user message i
 - email_draft: The user wants to COMPOSE, WRITE, or SEND a new email to someone
 - email_reply: The user wants to REPLY to an existing email they have received
 - email_read: The user wants to READ, VIEW, LIST, SUMMARIZE, or SEARCH their emails/mails/inbox
-- rag: Anything else (general questions, tasks, reminders not tied to calendar or email, etc.)
+- rag: The user wants to READ, VIEW, LIST OR SUMMARIZE anything related to the emails, calandar data which is other than the agentic intents
+- general: Any general question related to Facts or questions not related to the personal data stored (email, calandar events, music tastes, github data)
 
 Respond with ONLY the category name, nothing else.`;
 
@@ -19,6 +20,7 @@ const VALID_INTENTS = [
   "email_draft",
   "email_reply",
   "email_read",
+  "rag",
 ];
 
 export async function routeIntent(message, conversationId = null) {
@@ -31,11 +33,11 @@ export async function routeIntent(message, conversationId = null) {
     if (VALID_INTENTS.includes(intent)) {
       return intent;
     }
-    return "rag";
+    return "general";
   } catch (error) {
-    logger.error("Intent routing failed, defaulting to rag", {
+    logger.error("Intent routing failed, defaulting to general", {
       error: error.message,
     });
-    return "rag";
+    return "general";
   }
 }
