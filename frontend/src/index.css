@@ -441,6 +441,92 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   background: var(--bg-0);
 }
 
+/* ── Login: theme toggle ── */
+.myra-login-theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.myra-login-theme-toggle:hover { background: var(--bg-2); }
+
+/* ── Login: animated doodle + typewriter art ── */
+.myra-login-art {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: clamp(24px, 4vw, 56px);
+  overflow: hidden;
+}
+.myra-login-art-top { position: relative; z-index: 2; }
+.myra-login-art-center { position: relative; z-index: 2; display: grid; place-items: center; padding: 0 8px; }
+.myra-login-art-bottom { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; }
+
+.myra-login-doodles { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.myra-login-doodles .doodle { position: absolute; transform: rotate(var(--rot, 0deg)); overflow: visible; opacity: 0.9; }
+.myra-login-doodles .doodle path {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: doodle-draw var(--dur, 8s) cubic-bezier(.45,.05,.4,1) var(--delay, 0s) infinite;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.06));
+}
+@keyframes doodle-draw {
+  0% { stroke-dashoffset: 1; } 38% { stroke-dashoffset: 0; }
+  62% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1; }
+}
+.myra-login-doodles .doodle-dot { position: absolute; border-radius: 50%; transform: scale(0); animation: doodle-pop 3.4s ease-in-out var(--delay, 0s) infinite; }
+@keyframes doodle-pop {
+  0%, 100% { transform: scale(0); opacity: 0; }
+  20% { transform: scale(1.15); opacity: 1; }
+  60% { transform: scale(1); opacity: 1; }
+  80% { transform: scale(0); opacity: 0; }
+}
+
+.myra-login-type {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(28px, 3.4vw, 46px);
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+  text-align: center;
+  text-wrap: balance;
+  margin: 0;
+  min-height: 2.4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  max-width: 12ch;
+}
+.myra-login-type .cursor {
+  display: inline-block;
+  width: 3px; height: 1em;
+  margin-left: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  transform: translateY(0.08em);
+  animation: type-caret 0.9s steps(1) infinite;
+}
+@keyframes type-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .myra-login-doodles .doodle path { animation: none; stroke-dashoffset: 0; }
+  .myra-login-doodles .doodle-dot { animation: none; transform: scale(1); opacity: 1; }
+  .myra-login-type .cursor { display: none; }
+}
+
 /* ── Sidebar ── */
 .myra-sidebar {
   width: 260px;

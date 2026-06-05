@@ -95,7 +95,7 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case "auth-callback": return <AuthCallbackPage onNavigate={handleNavigate} />;
-      case "login":         return <LoginPage onNavigate={handleNavigate} />;
+      case "login":         return <LoginPage onNavigate={handleNavigate} theme={theme} onThemeChange={setTheme} />;
       case "profile":       return <ProfilePage onNavigate={handleNavigate} />;
       case "home":          return <HomePage onNavigate={handleNavigate} />;
       case "stats":         return <StatsPage onNavigate={handleNavigate} />;

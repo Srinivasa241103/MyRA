@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { authApi } from "../api/auth";
 
-function LoginPage({ onNavigate }) {
+function LoginPage({ onNavigate, theme = "warm", onThemeChange = () => {} }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const isDark = theme === "dark";
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -18,32 +20,28 @@ function LoginPage({ onNavigate }) {
 
   return (
     <div className="myra-login-layout">
-      {/* Left panel — editorial */}
-      <div className="myra-login-hero">
-        {/* Decorative circles */}
-        <div style={{
-          position: "absolute", top: -60, right: -60,
-          width: 240, height: 240, borderRadius: "50%",
-          background: "rgba(196,148,90,.12)",
-          pointerEvents: "none",
-        }} />
-        <div style={{
-          position: "absolute", bottom: -40, left: -40,
-          width: 180, height: 180, borderRadius: "50%",
-          background: "rgba(122,74,46,.08)",
-          pointerEvents: "none",
-        }} />
+      {/* Theme toggle */}
+      <button
+        className="myra-login-theme-toggle"
+        onClick={() => onThemeChange(isDark ? "warm" : "dark")}
+        aria-label="Toggle colour theme"
+        aria-pressed={isDark}
+        type="button"
+      >
+        {isDark ? "☀ Warm Pastel" : "🌙 Dark Pro"}
+      </button>
 
-        <div style={{ maxWidth: 420, position: "relative" }}>
-          <span className="myra-badge accent" style={{ marginBottom: 20, display: "inline-flex" }}>Personal AI · v1.0</span>
-          <h2 className="display myra-login-headline" style={{ fontSize: 42, marginBottom: 16 }}>
-            Your retrieval assistant —<br />
-            <em style={{ fontStyle: "italic", fontWeight: 600 }}>quietly</em> in the background.
-          </h2>
-          <p style={{ fontSize: 15, color: "var(--text-2)", lineHeight: 1.65 }}>
-            MyRA reads your inbox, calendar, and notes — then answers your questions, drafts replies, and helps run your day.
-          </p>
-          <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
+      {/* Left panel — animated editorial art */}
+      <div className="myra-login-hero">
+        <div className="myra-login-art">
+          <DoodleLayer />
+          <div className="myra-login-art-top">
+            <span className="myra-badge accent">Personal AI · v1.0</span>
+          </div>
+          <div className="myra-login-art-center">
+            <Typewriter />
+          </div>
+          <div className="myra-login-art-bottom">
             <SourcePill icon={<MailIcon />} label="Gmail" />
             <SourcePill icon={<CalendarIcon />} label="Calendar" />
             <SourcePill icon={<FileTextIcon />} label="Notes" />
@@ -126,6 +124,117 @@ function LoginPage({ onNavigate }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Animated doodle layer ────────────────────────────────────────────────────
+
+/* Doodle vocabulary (0..100 box; pathLength=1 → draw/erase via dashoffset) */
+const DOODLES = [
+  "M52 50 C52 44 44 44 44 50 C44 58 56 58 56 47 C56 36 39 36 39 50 C39 65 63 65 63 45", // spiral
+  "M5 50 Q20 22 35 50 T65 50 T95 50",                                                    // wave
+  "M50 8 L61 38 L93 38 L67 58 L77 92 L50 71 L23 92 L33 58 L7 38 L39 38 Z",               // star
+  "M4 62 C20 62 18 28 40 30 C62 32 58 72 80 60 C92 53 94 42 96 40",                      // loop
+  "M5 42 L25 62 L45 42 L65 62 L85 42",                                                   // zigzag
+  "M56 5 L30 52 L49 52 L41 95 L74 40 L53 40 Z",                                          // lightning
+  "M50 86 C8 56 20 12 50 38 C80 12 92 56 50 86 Z",                                       // heart
+  "M50 9 C73 7 92 28 91 50 C90 73 71 92 50 91 C27 90 9 71 10 49 C11 27 28 11 50 9 Z",    // wobbly circle
+  "M8 32 C40 8 60 92 92 50 M76 41 L92 50 L82 65",                                        // curly arrow
+  "M50 18 L50 82 M22 50 L78 50 M31 31 L69 69 M69 31 L31 69",                             // sparkle
+  "M14 18 H86 V62 H44 L29 82 V62 H14 Z",                                                 // speech bubble
+  "M50 12 L88 80 L12 80 Z",                                                              // triangle
+];
+const PALETTE = ["#E8714C", "#2BB6A3", "#E0A93B", "#7E6BE0", "#4FB477", "#4C8DE8", "#E0588A"];
+const PLACEMENTS = [
+  { doodle: 0,  top: "8%",  left: "9%",  size: 92,  dur: 7.5, delay: 0.0,  rot: -12 },
+  { doodle: 2,  top: "5%",  left: "62%", size: 70,  dur: 9.0, delay: 1.1,  rot: 14 },
+  { doodle: 1,  top: "22%", left: "74%", size: 120, dur: 8.0, delay: 0.5,  rot: 8 },
+  { doodle: 9,  top: "33%", left: "3%",  size: 78,  dur: 6.5, delay: 1.8,  rot: 0 },
+  { doodle: 3,  top: "63%", left: "70%", size: 128, dur: 9.5, delay: 0.3,  rot: -6 },
+  { doodle: 5,  top: "70%", left: "10%", size: 84,  dur: 7.0, delay: 2.2,  rot: 10 },
+  { doodle: 6,  top: "83%", left: "44%", size: 76,  dur: 8.5, delay: 1.4,  rot: -8 },
+  { doodle: 4,  top: "88%", left: "76%", size: 90,  dur: 6.8, delay: 0.8,  rot: 6 },
+  { doodle: 7,  top: "47%", left: "85%", size: 64,  dur: 10.0, delay: 2.6, rot: 0 },
+  { doodle: 8,  top: "16%", left: "30%", size: 88,  dur: 8.2, delay: 3.0,  rot: 0 },
+  { doodle: 10, top: "55%", left: "2%",  size: 96,  dur: 9.2, delay: 1.6,  rot: -4 },
+  { doodle: 11, top: "78%", left: "30%", size: 60,  dur: 7.8, delay: 2.9,  rot: 12 },
+];
+const DOTS = [
+  { top: "12%", left: "48%", c: 0, s: 9,  d: 0.0 },
+  { top: "40%", left: "20%", c: 3, s: 7,  d: 1.2 },
+  { top: "58%", left: "55%", c: 1, s: 11, d: 0.6 },
+  { top: "73%", left: "62%", c: 2, s: 8,  d: 1.9 },
+  { top: "30%", left: "55%", c: 6, s: 7,  d: 2.5 },
+  { top: "92%", left: "16%", c: 5, s: 9,  d: 0.9 },
+];
+
+function DoodleLayer() {
+  return (
+    <div className="myra-login-doodles" aria-hidden="true">
+      {PLACEMENTS.map((p, i) => (
+        <svg
+          key={i}
+          className="doodle"
+          viewBox="0 0 100 100"
+          style={{
+            top: p.top, left: p.left, width: p.size, height: p.size,
+            "--rot": p.rot + "deg", "--dur": p.dur + "s", "--delay": p.delay + "s",
+            color: PALETTE[i % PALETTE.length],
+          }}
+        >
+          <path d={DOODLES[p.doodle]} pathLength="1" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ))}
+      {DOTS.map((d, i) => (
+        <span
+          key={"dot" + i}
+          className="doodle-dot"
+          style={{ top: d.top, left: d.left, width: d.s, height: d.s, background: PALETTE[d.c], "--delay": d.d + "s" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Typewriter headline ──────────────────────────────────────────────────────
+
+const PHRASES = [
+  "Your retrieval assistant.",
+  "Quietly in the background.",
+  "It reads. It drafts. It runs your day.",
+  "Just ask — MyRA remembers.",
+];
+
+function Typewriter() {
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [txt, setTxt] = useState(reduce ? PHRASES[0] : "");
+  const st = useRef({ p: 0, c: 0, del: false });
+
+  useEffect(() => {
+    if (reduce) return;
+    let timer;
+    const tick = () => {
+      const s = st.current;
+      const full = PHRASES[s.p];
+      if (!s.del) {
+        s.c++;
+        setTxt(full.slice(0, s.c));
+        if (s.c >= full.length) { s.del = true; timer = setTimeout(tick, 1500); return; }
+        timer = setTimeout(tick, 52 + Math.random() * 40);
+      } else {
+        s.c--;
+        setTxt(full.slice(0, s.c));
+        if (s.c <= 0) { s.del = false; s.p = (s.p + 1) % PHRASES.length; timer = setTimeout(tick, 420); return; }
+        timer = setTimeout(tick, 26);
+      }
+    };
+    timer = setTimeout(tick, 700);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <h2 className="myra-login-type"><span>{txt}</span>{!reduce && <span className="cursor" />}</h2>
   );
 }
 
