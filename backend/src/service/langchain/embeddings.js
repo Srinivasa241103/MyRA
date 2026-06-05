@@ -1,10 +1,6 @@
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { logger } from "../../utils/logger.js";
 
-// LangChain's GoogleGenerativeAIEmbeddings v2.x does not support
-// outputDimensionality, so we use @google/generative-ai directly
-// and implement the embedQuery/embedDocuments interface that PGVectorStore expects.
-
 class LangCHainEmbeddingService {
   constructor() {
     this._queryModel = null;

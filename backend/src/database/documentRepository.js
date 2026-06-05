@@ -13,7 +13,7 @@ export class DocumentRepository {
             (document_id, source, type, content, title, timestamp, author, metadata)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *;`;
-        
+
         const values = [
             document.document_id,
             document.source,
@@ -76,7 +76,7 @@ export class DocumentRepository {
     async findPendingEmbeddings(limit = 50) {
         const query = `
             SELECT * FROM documents
-            WHERE embedding IS NULL  -- Fixed: singular 'embedding'
+            WHERE needs_embedding IS TRUE
             ORDER BY created_at ASC
             LIMIT $1;`;
         const values = [limit];
@@ -87,20 +87,17 @@ export class DocumentRepository {
     /**
      * Update document with embedding vector
      * @param {string} documentId
-     * @param {number[]} embedding
      * @returns {Promise<Object>}
      */
-    async updateEmbedding(documentId, embedding) {
+    async updateEmbedding(documentId) {
         const query = `
             UPDATE documents
-            SET embedding = $1  -- Fixed: singular 'embedding'
-            WHERE document_id = $2
+            SET needs_embedding = FALSE
+            WHERE document_id = $1
             RETURNING *;`;
-        
-        // Convert array to pgvector format: '[0.1, 0.2, 0.3]'
-        const embeddingString = `[${embedding.join(',')}]`;
-        const values = [embeddingString, documentId];
-        
+
+        const values = [documentId];
+
         const { rows } = await pool.query(query, values);
         if (rows.length === 0) {
             throw new Error(`Document with ID ${documentId} not found`);
@@ -163,7 +160,7 @@ export class DocumentRepository {
         values.push(limit);
 
         const { rows } = await pool.query(query, values);
-        
+
         // Return empty array instead of throwing error
         return rows;
     }
@@ -235,7 +232,7 @@ export class DocumentRepository {
         let query = `
             SELECT * FROM documents
             WHERE timestamp >= $1 AND timestamp <= $2`;
-        
+
         const values = [startDate, endDate];
 
         if (source) {
