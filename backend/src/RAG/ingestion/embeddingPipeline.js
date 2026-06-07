@@ -1,8 +1,8 @@
-import { documentRepository } from "../../database";
-import { chunkRepository } from "../../database";
-import { chunkDocument } from "./chunker";
-import Embedding from "./embeddingsProvider";
-import { logger } from "../../utils/logger";
+import { documentRepository } from "../../database/index.js";
+import { chunkRepository } from "../../database/index.js";
+import { chunkDocument } from "./chunker.js";
+import Embedding from "./embeddingsProvider.js";
+import { logger } from "../../utils/logger.js";
 
 export default class EmbeddingPipeline {
     constructor() {
@@ -12,7 +12,7 @@ export default class EmbeddingPipeline {
     }
 
     async runEmbedding(options = {}) {
-        const { batchSize = 50, maxBatches = Infinity } = options;
+        const { batchSize = 50, maxBatches = 3 } = options;
         const response = {
             processed: 0,
             success: 0,
@@ -25,6 +25,9 @@ export default class EmbeddingPipeline {
             const pending = await this.documentRepo.findPendingEmbeddings(batchSize);
             if (!pending.length) break;
             batchCount++;
+            logger.info(`Embedding batch ${batchCount}`);
+            logger.info(`Processing ${pending.length} documents...`);
+
             for (const doc of pending) {
                 try {
                     //chunk each doc

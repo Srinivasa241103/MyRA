@@ -19,7 +19,7 @@ const SOURCES = {
 export class IngestionPipeline {
     constructor() {
         this.syncRepo = new SyncLogRepository();
-        this.documentRepo = new documentRepository();
+        this.documentRepo = documentRepository;
     }
 
     async runIngestion(sourceName, isFullSync, userId) {
@@ -32,7 +32,7 @@ export class IngestionPipeline {
         }
 
         const { source: SourceClass, normalizer: NormalizerClass } = SOURCES[sourceName];
-        const source = new SourceClass();
+        const source = new SourceClass(userId);
         const normalizer = new NormalizerClass();
         const response = {};
         let data;
@@ -57,12 +57,29 @@ export class IngestionPipeline {
             try {
                 const doc = normalizer.normalize(item, userId);
 
+                // Normalizer returns null for items it chooses to skip (e.g. empty content)
+                if (!doc) {
+                    response.skipped++;
+                    continue;
+                }
+
                 const isExisting = await this.documentRepo.findByDocumentId(doc.documentId);
                 if (isExisting) {
                     response.skipped++;
                     continue;
                 }
-                await this.documentRepo.create(doc);
+
+                // Map camelCase normalizer output to snake_case DB columns
+                await this.documentRepo.create({
+                    document_id: doc.documentId,
+                    source: doc.source,
+                    type: doc.type,
+                    content: doc.content,
+                    title: doc.title,
+                    timestamp: doc.timestamp,
+                    author: doc.author,
+                    metadata: doc.metadata,
+                });
                 response.inserted++;
             } catch (error) {
                 logger.error(`Failed to process item ${item.id}:`, error);

@@ -12,6 +12,7 @@ export async function chunkDocument(doc) {
     return chunks.map((chunk, index) => ({
         content: chunk,
         chunk_index: index,
+        source_type: doc.source,
     }));
 
 }
