@@ -21,16 +21,17 @@ export class SyncLogRepository {
   /**
    * Create a new sync log entry
    * @param {string} source
+   * @param {number} userId
    * @returns {Promise<Object>}
    */
-  async create(source) {
+  async create(source, userId) {
     const query = `
             INSERT INTO sync_logs
-            (source, status)
-            VALUES ($1, $2)
+            (source, status, user_id)
+            VALUES ($1, $2, $3)
             RETURNING *;`;
 
-    const values = [source, "in_progress"];
+    const values = [source, "in_progress", userId];
     const { rows } = await pool.query(query, values);
 
     if (rows.length === 0) {
@@ -95,16 +96,17 @@ export class SyncLogRepository {
   /**
    * Get last successful sync for a source
    * @param {string} source
+   * @param {number} userId
    * @returns {Promise<Object|null>}
    */
-  async getLastSuccessfulSync(source) {
+  async getLastSuccessfulSync(source, userId) {
     const query = `
             SELECT * FROM sync_logs
-            WHERE source = $1 AND status = 'success'
+            WHERE source = $1 AND status = 'success' AND user_id = $2
             ORDER BY sync_completed_at DESC
             LIMIT 1;`;
 
-    const values = [source];
+    const values = [source, userId];
     const { rows } = await pool.query(query, values);
 
     return rows.length > 0 ? rows[0] : null;
@@ -113,65 +115,70 @@ export class SyncLogRepository {
   /**
    * Get last sync (any status) for a source
    * @param {string} source
+   * @param {number} userId
    * @returns {Promise<Object|null>}
    */
-  async getLastSync(source) {
+  async getLastSync(source, userId) {
     const query = `
             SELECT * FROM sync_logs
-            WHERE source = $1
+            WHERE source = $1 AND user_id = $2
             ORDER BY sync_started_at DESC
             LIMIT 1;`;
 
-    const values = [source];
+    const values = [source, userId];
     const { rows } = await pool.query(query, values);
 
     return rows.length > 0 ? rows[0] : null;
   }
 
   /**
-   * Get all sync logs for a source
+   * Get all sync logs for a source belonging to a user
    * @param {string} source
+   * @param {number} userId
    * @param {number} limit
    * @returns {Promise<Array>}
    */
-  async findBySource(source, limit = 5) {
+  async findBySource(source, userId, limit = 5) {
     const query = `
             SELECT * FROM sync_logs
-            WHERE source = $1
+            WHERE source = $1 AND user_id = $2
+            ORDER BY sync_started_at DESC
+            LIMIT $3;`;
+
+    const values = [source, userId, limit];
+    const { rows } = await pool.query(query, values);
+
+    return rows;
+  }
+
+  /**
+   * Get all sync logs for a user (all sources)
+   * @param {number} userId
+   * @param {number} limit
+   * @returns {Promise<Array>}
+   */
+  async findAll(userId, limit = 20) {
+    const query = `
+            SELECT * FROM sync_logs
+            WHERE user_id = $1
             ORDER BY sync_started_at DESC
             LIMIT $2;`;
 
-    const values = [source, limit];
+    const values = [userId, limit];
     const { rows } = await pool.query(query, values);
 
     return rows;
   }
 
   /**
-   * Get all sync logs (all sources)
-   * @param {number} limit
-   * @returns {Promise<Array>}
-   */
-  async findAll(limit = 20) {
-    const query = `
-            SELECT * FROM sync_logs
-            ORDER BY sync_started_at DESC
-            LIMIT $1;`;
-
-    const values = [limit];
-    const { rows } = await pool.query(query, values);
-
-    return rows;
-  }
-
-  /**
-   * Get sync statistics for a source
+   * Get sync statistics for a source belonging to a user
    * @param {string} source
+   * @param {number} userId
    * @returns {Promise<Object>}
    */
-  async getStats(source) {
+  async getStats(source, userId) {
     const query = `
-            SELECT 
+            SELECT
                 COUNT(*) as total_syncs,
                 COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_syncs,
                 COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_syncs,
@@ -180,26 +187,27 @@ export class SyncLogRepository {
                 SUM(documents_stored) as total_documents_stored,
                 MAX(sync_completed_at) as last_sync_time
             FROM sync_logs
-            WHERE source = $1;`;
+            WHERE source = $1 AND user_id = $2;`;
 
-    const values = [source];
+    const values = [source, userId];
     const { rows } = await pool.query(query, values);
 
     return rows[0];
   }
 
   /**
-   * Check if a sync is currently in progress for a source
+   * Check if a sync is currently in progress for a source belonging to a user
    * @param {string} source
+   * @param {number} userId
    * @returns {Promise<boolean>}
    */
-  async isSyncInProgress(source) {
+  async isSyncInProgress(source, userId) {
     const query = `
             SELECT 1 FROM sync_logs
-            WHERE source = $1 AND status = 'in_progress'
+            WHERE source = $1 AND status = 'in_progress' AND user_id = $2
             LIMIT 1;`;
 
-    const values = [source];
+    const values = [source, userId];
     const { rows } = await pool.query(query, values);
 
     return rows.length > 0;
@@ -229,19 +237,20 @@ export class SyncLogRepository {
   }
 
   /**
-   * Get sync logs by status
+   * Get sync logs by status for a user
    * @param {string} status - 'success', 'failed', or 'in_progress'
+   * @param {number} userId
    * @param {number} limit
    * @returns {Promise<Array>}
    */
-  async findByStatus(status, limit = 10) {
+  async findByStatus(status, userId, limit = 10) {
     const query = `
             SELECT * FROM sync_logs
-            WHERE status = $1
+            WHERE status = $1 AND user_id = $2
             ORDER BY sync_started_at DESC
-            LIMIT $2;`;
+            LIMIT $3;`;
 
-    const values = [status, limit];
+    const values = [status, userId, limit];
     const { rows } = await pool.query(query, values);
 
     return rows;

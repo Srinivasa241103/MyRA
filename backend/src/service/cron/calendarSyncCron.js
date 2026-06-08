@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import SyncController from "../../api/controllers/syncController.js";
 import { SyncLogRepository } from "../../database/syncLogsRepository.js";
+import { SYNC_SOURCE } from "../../utils/constants.js";
 import { logger } from "../../utils/logger.js";
 
 const syncController = new SyncController();
@@ -62,12 +63,12 @@ export default class CalendarSyncCronJob {
     try {
       logger.info("Calendar sync cron job executing", { userId: this.userId });
 
-      const syncLog = await syncLogRepo.create("google_calendar");
-      await syncController.performCalendarSync(
+      const syncLog = await syncLogRepo.create("google_calendar", this.userId);
+      await syncController.performDocumentsSync(
         this.userId,
         "incremental",
         syncLog.id,
-        null
+        SYNC_SOURCE.GOOGLE_CALENDER
       );
 
       const duration = Date.now() - startTime;

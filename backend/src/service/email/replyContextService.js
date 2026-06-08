@@ -1,44 +1,42 @@
 /**
- * Searches the Gmail vector store to find the original email
- * the user wants to reply to.
+ * Searches the user's Gmail chunks to find the original email
+ * they want to reply to.
  */
-import vectorStore from "../langchain/vectorStore.js";
+import Retriever from "../../RAG/retrieval/retriever.js";
 
 const TOP_K = 3;
+const retriever = new Retriever();
 
 /**
- * Searches Gmail embeddings using the user's natural language reference phrase.
+ * Searches the user's Gmail embeddings using their natural language reference phrase.
  *
  * @param {string} replyReference — e.g. "Raj's email about the deadline"
+ * @param {number} userId — owning user, scopes the search to their own emails
  * @returns {{ candidates: Array, confidence: number }}
  *
  * Each candidate: { messageId, threadId, from, subject, bodyPreview, timestamp, references, score }
  */
-const findOriginalEmail = async (replyReference) => {
+const findOriginalEmail = async (replyReference, userId) => {
   try {
-    // similaritySearch returns [{ pageContent, metadata, similarity }]
-    const results = await vectorStore.similaritySearch(
-      replyReference,
-      TOP_K,
-      { source: "gmail" }
-    );
+    const chunks = await retriever.retrieve(replyReference, userId, { sourceType: "gmail", topK: TOP_K });
 
-    if (!results || results.length === 0) {
+    if (!chunks || chunks.length === 0) {
       return { candidates: [], confidence: 0 };
     }
 
-    const candidates = results.map((r) => ({
-      messageId: r.metadata.messageId || r.metadata.document_id,
-      threadId: r.metadata.threadId,
-      from: r.metadata.from,
-      subject: r.metadata.subject || r.metadata.title,
-      bodyPreview:
-        r.metadata.content_preview ||
-        (r.pageContent && r.pageContent.slice(0, 300)),
-      timestamp: r.metadata.timestamp || r.metadata.date,
-      references: r.metadata.references || null,
-      score: r.similarity ?? 1,
-    }));
+    const candidates = chunks.map((chunk) => {
+      const gmailMeta = chunk.document?.metadata?.gmail || {};
+      return {
+        messageId: gmailMeta.messageId || chunk.document?.source_id,
+        threadId: gmailMeta.threadId,
+        from: gmailMeta.from || chunk.document?.author,
+        subject: gmailMeta.subject,
+        bodyPreview: chunk.content?.slice(0, 300),
+        timestamp: gmailMeta.date || chunk.occurred_at,
+        references: gmailMeta.references || null,
+        score: 1 - chunk.distance,
+      };
+    });
 
     return {
       candidates,

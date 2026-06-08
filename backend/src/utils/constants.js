@@ -6,5 +6,5 @@ export const LLM_INVOCATION_TYPES = {
 
 export const SYNC_SOURCE = {
     GMAIL: 'gmail',
-    GOOGLE_CALENDER: 'calender'
+    GOOGLE_CALENDER: 'google_calendar'
 }

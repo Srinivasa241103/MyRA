@@ -55,35 +55,38 @@ export class StatsRepository {
     return result.rows;
   }
 
-  async getConversationSessions(days) {
+  async getConversationSessions(days, userId) {
     const query = `SELECT DATE(created_at) AS day, COUNT(DISTINCT conversation_id) AS totalsessions
                   FROM conversations
                   WHERE created_at >= NOW() - INTERVAL '${days} days'
+                  AND user_id = $1
                   GROUP BY DATE(created_at)
                   ORDER BY DATE(created_at) ASC`;
-    const result = await getPool().query(query);
+    const result = await getPool().query(query, [userId]);
     return result.rows;
   }
 
-  async getEmails(days) {
+  async getEmails(days, userId) {
     const query = `SELECT DATE(created_at) AS day, COUNT(*) AS count
                   FROM documents
                   WHERE source = 'gmail'
+                  AND user_id = $1
                   AND created_at >= NOW() - INTERVAL '${days} days'
                   GROUP BY DATE(created_at)
                   ORDER BY DATE(created_at) ASC`;
-    const result = await getPool().query(query);
+    const result = await getPool().query(query, [userId]);
     return result.rows;
   }
 
-  async getCalendarEvents(days) {
+  async getCalendarEvents(days, userId) {
     const query = `SELECT DATE(created_at) AS day, COUNT(*) AS count
                   FROM documents
-                  WHERE source = 'google_calendar'
+                  WHERE source = 'calendar'
+                  AND user_id = $1
                   AND created_at >= NOW() - INTERVAL '${days} days'
                   GROUP BY DATE(created_at)
                   ORDER BY DATE(created_at) ASC`;
-    const result = await getPool().query(query);
+    const result = await getPool().query(query, [userId]);
     return result.rows;
   }
 

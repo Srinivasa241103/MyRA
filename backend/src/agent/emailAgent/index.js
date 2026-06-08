@@ -25,9 +25,10 @@ const TERMINAL_STATUSES = ["sent", "saved_draft", "cancelled", "idle"];
  * @param {string} userMessage    — current user message
  * @param {string} conversationId — used as the checkpointer thread key
  * @param {string|null} intent    — 'email_draft' | 'email_reply' | null (when resuming)
+ * @param {number|null} userId    — owning user, threaded down to reply-context retrieval
  * @returns {object} finalState   — complete state after this turn
  */
-const invokeEmailAgent = async (userMessage, conversationId, intent) => {
+const invokeEmailAgent = async (userMessage, conversationId, intent, userId = null) => {
   const config = {
     configurable: {
       thread_id: `email_${conversationId}`,
@@ -38,6 +39,7 @@ const invokeEmailAgent = async (userMessage, conversationId, intent) => {
   const input = {
     userMessage,
     conversationId,
+    userId,
     ...(intent ? { intent } : {}),
   };
 

@@ -42,7 +42,7 @@ export default class IngestionPipeline {
             });
             response.fetched = data.length;
         } else {
-            const lastSyncLog = await this.syncRepo.getLastSuccessfulSync(sourceName);
+            const lastSyncLog = await this.syncRepo.getLastSuccessfulSync(sourceName, userId);
             const since = lastSyncLog?.sync_completed_at || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
             data = await source.fetchNew(since);
             response.fetched = data.length;
@@ -63,7 +63,7 @@ export default class IngestionPipeline {
                     continue;
                 }
 
-                const isExisting = await this.documentRepo.findByDocumentId(doc.documentId);
+                const isExisting = await this.documentRepo.findByDocumentId(doc.documentId, userId);
                 if (isExisting) {
                     response.skipped++;
                     continue;

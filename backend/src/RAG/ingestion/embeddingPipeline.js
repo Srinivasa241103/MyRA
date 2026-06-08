@@ -11,7 +11,11 @@ export default class EmbeddingPipeline {
         this.embedder = new Embedding();
     }
 
-    async runEmbedding(options = {}) {
+    async runEmbedding(userId, options = {}) {
+        if (!userId) {
+            throw new Error('User ID is required for embedding generation');
+        }
+
         const { batchSize = 50, maxBatches = 3 } = options;
         const response = {
             processed: 0,
@@ -22,7 +26,7 @@ export default class EmbeddingPipeline {
         logger.info("Starting embedding generation for synced documents");
         let batchCount = 0;
         while (batchCount < maxBatches) {
-            const pending = await this.documentRepo.findPendingEmbeddings(batchSize);
+            const pending = await this.documentRepo.findPendingEmbeddings(userId, batchSize);
             if (!pending.length) break;
             batchCount++;
             logger.info(`Embedding batch ${batchCount}`);
@@ -33,7 +37,7 @@ export default class EmbeddingPipeline {
                     //chunk each doc
                     const chunks = await chunkDocument(doc);
                     if (chunks.length === 0) {
-                        await this.documentRepo.updateEmbedding(doc.document_id);
+                        await this.documentRepo.updateEmbedding(doc.document_id, userId);
                         response.success++;
                         continue;
                     }
@@ -43,7 +47,7 @@ export default class EmbeddingPipeline {
 
                     //store each chunk and its embeddings
                     await this.chunkRepo.insertChunks(doc.id, embedChunks);
-                    await this.documentRepo.updateEmbedding(doc.document_id);
+                    await this.documentRepo.updateEmbedding(doc.document_id, userId);
                     response.success++;
 
                 } catch (error) {

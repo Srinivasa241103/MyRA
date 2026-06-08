@@ -41,15 +41,16 @@ export class DocumentRepository {
     }
 
     /**
-     * Find document by document_id
+     * Find document by document_id, scoped to a user
      * @param {string} documentId
+     * @param {number} userId
      * @returns {Promise<Object|null>}
      */
-    async findByDocumentId(documentId) {
+    async findByDocumentId(documentId, userId) {
         const query = `
             SELECT * FROM documents
-            WHERE document_id = $1;`;
-        const values = [documentId];
+            WHERE document_id = $1 AND user_id = $2;`;
+        const values = [documentId, userId];
         const { rows } = await pool.query(query, values);
         return rows.length > 0 ? rows[0] : null;
     }
@@ -70,34 +71,36 @@ export class DocumentRepository {
     }
 
     /**
-     * Find documents that need embeddings
+     * Find documents that need embeddings, scoped to a user
+     * @param {number} userId
      * @param {number} limit
      * @returns {Promise<Array>}
      */
-    async findPendingEmbeddings(limit = 50) {
+    async findPendingEmbeddings(userId, limit = 50) {
         const query = `
             SELECT * FROM documents
-            WHERE needs_embedding IS TRUE
+            WHERE needs_embedding IS TRUE AND user_id = $1
             ORDER BY created_at ASC
-            LIMIT $1;`;
-        const values = [limit];
+            LIMIT $2;`;
+        const values = [userId, limit];
         const { rows } = await pool.query(query, values);
         return rows;
     }
 
     /**
-     * Update document with embedding vector
+     * Update document with embedding vector, scoped to a user
      * @param {string} documentId
+     * @param {number} userId
      * @returns {Promise<Object>}
      */
-    async updateEmbedding(documentId) {
+    async updateEmbedding(documentId, userId) {
         const query = `
             UPDATE documents
             SET needs_embedding = FALSE
-            WHERE document_id = $1
+            WHERE document_id = $1 AND user_id = $2
             RETURNING *;`;
 
-        const values = [documentId];
+        const values = [documentId, userId];
 
         const { rows } = await pool.query(query, values);
         if (rows.length === 0) {

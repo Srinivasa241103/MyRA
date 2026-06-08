@@ -31,6 +31,7 @@ const cancelEmail = async () => ({
 const channels = {
   userMessage: { value: (x, y) => y ?? x, default: () => null },
   conversationId: { value: (x, y) => y ?? x, default: () => null },
+  userId: { value: (x, y) => y ?? x, default: () => null },
   intent: { value: (x, y) => y ?? x, default: () => null },
   status: { value: (x, y) => y ?? x, default: () => "idle" },
   mode: { value: (x, y) => y ?? x, default: () => "save_draft" },

@@ -87,6 +87,7 @@ class ChatController {
           // Pass intent only on the first turn; subsequent turns read it from
           // the checkpointed state.
           intent ?? null,
+          userId,
         );
 
         const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(
@@ -268,6 +269,7 @@ class ChatController {
           message.trim(),
           threadId,
           intent ?? null,
+          userId,
         );
 
         const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(

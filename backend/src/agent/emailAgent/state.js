@@ -23,6 +23,7 @@ const DEFAULT_ORIGINAL_EMAIL = {
 const INITIAL_STATE = {
   userMessage: null,
   conversationId: null,
+  userId: null,
   intent: null,
   status: "idle",
   // idle → parsing → resolving → clarifying → generating → reviewing

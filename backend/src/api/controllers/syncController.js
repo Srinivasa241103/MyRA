@@ -1,18 +1,19 @@
-import GmailDataSource from "../../service/sources/GmailDataSource.js";
-import GoogleCalendarDataSource from "../../service/sources/GoogleCalendarDataSource.js";
 import { logger } from "../../utils/logger.js";
-import { GmailNormalizer } from "../../service/normalizers/GmailNormalizer.js";
-import { GoogleCalendarNormalizer } from "../../service/normalizers/GoogleCalendarNormalizer.js";
 import { SyncLogRepository } from "../../database/syncLogsRepository.js";
-import { DocumentRepository } from "../../database/documentRepository.js";
 import EmbeddingPipeline from "../../RAG/ingestion/embeddingPipeline.js";
 import IngestionPipeline from "../../RAG/ingestion/ingestionPipeline.js";
 import socketServer from "../../service/websocket/sockeService.js";
 import { SYNC_SOURCE } from "../../utils/constants.js";
 
+// sync_logs/websocket source names ("gmail"/"google_calendar") differ from
+// IngestionPipeline's source keys ("gmail"/"calendar")
+const INGESTION_SOURCE_BY_SYNC_SOURCE = {
+  [SYNC_SOURCE.GMAIL]: "gmail",
+  [SYNC_SOURCE.GOOGLE_CALENDER]: "calendar",
+};
+
 export default class SyncController {
   constructor() {
-    this.documentRepo = new DocumentRepository();
     this.syncLogRepo = new SyncLogRepository();
     this.embeddingPipeline = new EmbeddingPipeline();
     this.ingestionPipeline = new IngestionPipeline();
@@ -29,7 +30,7 @@ export default class SyncController {
       }
       logger.info(`Starting ${syncType} Gmail sync for user ${userId}`);
 
-      const syncLog = await this.syncLogRepo.create("gmail");
+      const syncLog = await this.syncLogRepo.create("gmail", userId);
       res.json({
         success: true,
         data: {
@@ -51,78 +52,7 @@ export default class SyncController {
     }
   }
 
-  async performGmailSync(userId, syncType, syncLogId) {
-    try {
-      socketServer.emitSyncProgress("gmail", {
-        syncId: syncLogId,
-        status: "in_progress",
-        phase: "ingesting",
-        message: "Fetching and storing emails from Gmail...",
-        progress: 25,
-      });
-
-      const isFullSync = syncType === "full";
-      const ingestionResponse = await this.ingestionPipeline.runIngestion(
-        "gmail",
-        isFullSync,
-        userId
-      );
-
-      logger.info(
-        `Gmail ingestion completed for user ${userId}: ${ingestionResponse.inserted} inserted, ${ingestionResponse.skipped} skipped, ${ingestionResponse.failed} failed`
-      );
-
-      await this.syncLogRepo.complete(syncLogId, {
-        status: "success",
-        documentsFetched: ingestionResponse.fetched,
-        documentsStored: ingestionResponse.inserted,
-        lastSyncTimestamp: new Date(),
-      });
-
-      socketServer.emitSyncProgress("gmail", {
-        syncId: syncLogId,
-        status: "in_progress",
-        phase: "embedding_start",
-        message: "Documents stored. Starting embedding generation...",
-        progress: 60,
-        documentsAdded: ingestionResponse.inserted,
-        documentsSkipped: ingestionResponse.skipped,
-      });
-
-      const embeddingResponse = await this.embeddingPipeline.runEmbedding();
-
-      logger.info("Gmail embedding generation completed", {
-        syncId: syncLogId,
-        embeddingsProcessed: embeddingResponse.processed,
-      });
-
-      socketServer.emitSyncComplete("gmail", {
-        syncId: syncLogId,
-        status: "success",
-        message: "Gmail sync and embeddings completed successfully",
-        summary: {
-          totalFetched: ingestionResponse.fetched,
-          documentsAdded: ingestionResponse.inserted,
-          documentsSkipped: ingestionResponse.skipped,
-          documentsFailed: ingestionResponse.failed,
-          embeddingsGenerated: embeddingResponse.processed,
-          embeddingsFailed: embeddingResponse.failed,
-        },
-      });
-    } catch (syncError) {
-      logger.error(`Gmail sync error for user ${userId}: ${syncError.message}`);
-      await this.syncLogRepo.fail(syncLogId, syncError.message);
-
-      socketServer.emitSyncError("gmail", {
-        syncId: syncLogId,
-        message: syncError.message,
-        code: "SYNC_FAILED",
-      });
-    }
-  }
-
   async syncCalendar(req, res) {
-    const sinceDate = new Date();
     try {
       const {
         userId,
@@ -135,7 +65,7 @@ export default class SyncController {
 
       logger.info(`Starting ${syncType} Calendar sync for user ${userId}`);
 
-      const syncLog = await this.syncLogRepo.create("google_calendar");
+      const syncLog = await this.syncLogRepo.create("google_calendar", userId);
       res.json({
         success: true,
         data: {
@@ -145,7 +75,7 @@ export default class SyncController {
         },
       });
 
-      this.performDocumentsSync(userId, syncType, syncLog.id, sinceDate, SYNC_SOURCE.GOOGLE_CALENDER).catch(
+      this.performDocumentsSync(userId, syncType, syncLog.id, SYNC_SOURCE.GOOGLE_CALENDER).catch(
         (error) => {
           logger.error(`Calendar sync failed for user ${userId}: ${error.message}`);
         }
@@ -156,7 +86,7 @@ export default class SyncController {
     }
   }
 
-  async performDocumentsSync(userId, syncType, syncLogId, sinceDate, source) {
+  async performDocumentsSync(userId, syncType, syncLogId, source) {
     try {
       socketServer.emitSyncProgress(`${source}`, {
         syncId: syncLogId,
@@ -166,8 +96,11 @@ export default class SyncController {
         progress: 25,
       });
       const isFullSync = syncType === "full";
+      // sync_logs/websocket source names ("gmail"/"google_calendar") differ
+      // from IngestionPipeline's source keys ("gmail"/"calendar")
+      const ingestionSource = INGESTION_SOURCE_BY_SYNC_SOURCE[source] || source;
       const ingestionResponse = await this.ingestionPipeline.runIngestion(
-        source,
+        ingestionSource,
         isFullSync,
         userId
       );
@@ -202,6 +135,8 @@ export default class SyncController {
         documentsAdded: ingestionResponse.inserted,
         documentsSkipped: ingestionResponse.skipped,
       });
+
+      const embeddingResponse = await this.embeddingPipeline.runEmbedding(userId);
 
       logger.info(`${source} embedding generation completed`, {
         syncId: syncLogId,
@@ -267,7 +202,7 @@ export default class SyncController {
         });
       }
 
-      const history = await this.syncLogRepo.findBySource(source);
+      const history = await this.syncLogRepo.findBySource(source, userId, parseInt(limit, 10));
       res.json({
         success: true,
         data: { history },

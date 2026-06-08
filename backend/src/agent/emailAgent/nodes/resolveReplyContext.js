@@ -15,6 +15,7 @@ const AMBIGUITY_DELTA = 0.05;
  */
 const resolveReplyContext = async (state) => {
   const { replyReference } = state.emailDetails;
+  const { userId } = state;
 
   if (!replyReference) {
     // No reference phrase yet — checkRequiredFields will catch this
@@ -22,7 +23,7 @@ const resolveReplyContext = async (state) => {
   }
 
   try {
-    const result = await replyContextService.findOriginalEmail(replyReference);
+    const result = await replyContextService.findOriginalEmail(replyReference, userId);
 
     // ── Ambiguous: two results too close in score ─────────────────────────────
     if (

@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import SyncController from "../../api/controllers/syncController.js";
 import { SyncLogRepository } from "../../database/syncLogsRepository.js";
+import { SYNC_SOURCE } from "../../utils/constants.js";
 import { logger } from "../../utils/logger.js";
 
 const syncController = new SyncController();
@@ -58,12 +59,12 @@ export default class GmailSyncCronJob {
     try {
       logger.info("Gmail sync cron job executing", { userId: this.userId });
 
-      const syncLog = await syncLogRepo.create("gmail");
-      await syncController.performSync(
+      const syncLog = await syncLogRepo.create("gmail", this.userId);
+      await syncController.performDocumentsSync(
         this.userId,
         "incremental",
         syncLog.id,
-        null
+        SYNC_SOURCE.GMAIL
       );
 
       const duration = Date.now() - startTime;

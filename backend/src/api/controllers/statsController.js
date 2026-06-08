@@ -22,14 +22,15 @@ export default class StatsController {
   async getAllStats(req, res) {
     const rangeParam = req.query.range || "14d";
     const days = RANGE_TO_DAYS[rangeParam] ?? 14;
+    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
 
     try {
       const [tokensData, embeddingData, sessionData, emailsData, calData] = await Promise.all([
-        this.statsRepo.getCostAndTokensConsumed(days),
+        this.statsRepo.getCostAndTokensConsumed(days, userId),
         this.statsRepo.getEmbeddingCostAndTokens(days),
-        this.statsRepo.getConversationSessions(days),
-        this.statsRepo.getEmails(days),
-        this.statsRepo.getCalendarEvents(days),
+        this.statsRepo.getConversationSessions(days, userId),
+        this.statsRepo.getEmails(days, userId),
+        this.statsRepo.getCalendarEvents(days, userId),
       ]);
 
       // tokens: one entry per model with total token count + color

@@ -4,7 +4,8 @@
       "Bash(npx nodemon:*)",
       "Bash(ls:*)",
       "Bash(node test-query-processor.js:*)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('peerDependencies',''\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('peerDependencies',''\\)\\)\")",
+      "Bash(node /Users/cherry/personal-ai-assistant/backend/check_tmp.mjs)"
     ]
   }
 }
