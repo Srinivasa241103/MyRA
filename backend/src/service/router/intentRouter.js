@@ -30,7 +30,7 @@ export async function routeIntent(message, conversationId = null, userId = null)
       { role: "user", content: message },
     ];
     const response = await llm.generateResponse(
-      "anthropic",
+      "Anthropic",
       messages,
       userId ?? parseInt(process.env.SYNC_USER_ID, 10),
       conversationId ?? "intent_router",

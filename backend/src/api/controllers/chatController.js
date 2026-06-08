@@ -42,7 +42,7 @@ class ChatController {
     logger.info("Intent routed", { intent, conversationId });
 
     if (intent === "calendar_agent") return { handler: "agent", intent };
-    if (intent === "calendar_rag") return { handler: "calendar_rag", intent };
+    if (intent === "calendar_rag") return { handler: "rag", intent };
     if (intent === "email_draft")
       return { handler: "email_agent", intent: "email_draft" };
     if (intent === "email_reply")

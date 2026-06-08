@@ -10,11 +10,12 @@ export class DocumentRepository {
     async create(document) {
         const query = `
             INSERT INTO documents
-            (document_id, source, type, content, title, timestamp, author, metadata)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            (user_id, document_id, source, type, content, title, timestamp, author, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *;`;
 
         const values = [
+            document.user_id,
             document.document_id,
             document.source,
             document.type,

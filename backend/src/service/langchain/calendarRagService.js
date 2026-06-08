@@ -5,7 +5,7 @@ import RagMemoryService from "../../RAG/query/memoryService.js";
 import { logger } from "../../utils/logger.js";
 import { v4 as uuidv4 } from "uuid";
 
-const LLM_PROVIDER = "anthropic";
+const LLM_PROVIDER = "Anthropic";
 
 const CALENDAR_PROMPT = PromptTemplate.fromTemplate(`
 You are a personal AI assistant with access to the user's Google Calendar data.

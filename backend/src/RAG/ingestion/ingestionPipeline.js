@@ -16,7 +16,7 @@ const SOURCES = {
         normalizer: GoogleCalendarNormalizer
     }
 }
-export class IngestionPipeline {
+export default class IngestionPipeline {
     constructor() {
         this.syncRepo = new SyncLogRepository();
         this.documentRepo = documentRepository;
@@ -71,6 +71,7 @@ export class IngestionPipeline {
 
                 // Map camelCase normalizer output to snake_case DB columns
                 await this.documentRepo.create({
+                    user_id: userId,
                     document_id: doc.documentId,
                     source: doc.source,
                     type: doc.type,
