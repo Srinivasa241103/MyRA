@@ -5,7 +5,7 @@ import { logger } from "../../utils/logger.js";
 import RagChain from "../../RAG/ragService.js";
 import RagMemoryService from "../../RAG/query/memoryService.js";
 
-import { routeIntent } from "../../service/router/intentRouter.js";
+import { routeIntent } from "../../agent/intentRouter.js";
 import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
 import {
   invokeEmailAgent,
@@ -171,28 +171,28 @@ class ChatController {
       }
 
       // ── Calendar RAG ─────────────────────────────────────────────────────────
-      if (handler === "calendar_rag") {
-        const result = await calendarRagService.chat(
-          message.trim(),
-          conversationId,
-          userId,
-        );
-        if (!result.success) return res.status(500).json(result);
-        return res.json({
-          success: true,
-          queryId: uuidv4(),
-          conversationId: result.conversationId,
-          query: message.trim(),
-          response: result.response,
-          mode: "calendar_rag",
-          context: {
-            documentsUsed: result.sourceDocuments,
-            totalDocuments: result.sourceDocuments.length,
-            selectedDocuments: result.sourceDocuments.length,
-          },
-          metadata: { duration: result.duration },
-        });
-      }
+      // if (handler === "calendar_rag") {
+      //   const result = await calendarRagService.chat(
+      //     message.trim(),
+      //     conversationId,
+      //     userId,
+      //   );
+      //   if (!result.success) return res.status(500).json(result);
+      //   return res.json({
+      //     success: true,
+      //     queryId: uuidv4(),
+      //     conversationId: result.conversationId,
+      //     query: message.trim(),
+      //     response: result.response,
+      //     mode: "calendar_rag",
+      //     context: {
+      //       documentsUsed: result.sourceDocuments,
+      //       totalDocuments: result.sourceDocuments.length,
+      //       selectedDocuments: result.sourceDocuments.length,
+      //     },
+      //     metadata: { duration: result.duration },
+      //   });
+      // }
 
       // ── Default RAG ──────────────────────────────────────────────────────────
       const result = await ragChainService.chat({
@@ -230,189 +230,189 @@ class ChatController {
     }
   }
 
-  async sendMessageStream(req, res) {
-    const { message, conversationId, confirmationStatus, agentActive } =
-      req.body;
-    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+  // async sendMessageStream(req, res) {
+  //   const { message, conversationId, confirmationStatus, agentActive } =
+  //     req.body;
+  //   const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
 
-    if (!message || typeof message !== "string" || !message.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: "Message is required",
-      });
-    }
+  //   if (!message || typeof message !== "string" || !message.trim()) {
+  //     return res.status(400).json({
+  //       success: false,
+  //       error: "Message is required",
+  //     });
+  //   }
 
-    try {
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
+  //   try {
+  //     res.setHeader("Content-Type", "text/event-stream");
+  //     res.setHeader("Cache-Control", "no-cache");
+  //     res.setHeader("Connection", "keep-alive");
 
-      const queryId = uuidv4();
+  //     const queryId = uuidv4();
 
-      const {
-        handler,
-        intent,
-        confirmationStatus: cs,
-      } = await this._resolveHandler(
-        message.trim(),
-        conversationId,
-        confirmationStatus,
-        agentActive,
-        userId,
-      );
+  //     const {
+  //       handler,
+  //       intent,
+  //       confirmationStatus: cs,
+  //     } = await this._resolveHandler(
+  //       message.trim(),
+  //       conversationId,
+  //       confirmationStatus,
+  //       agentActive,
+  //       userId,
+  //     );
 
-      // ── Email agent (non-streaming — emits a single SSE event) ──────────────
-      if (handler === "email_agent") {
-        const threadId = conversationId ?? uuidv4();
+  //     // ── Email agent (non-streaming — emits a single SSE event) ──────────────
+  //     if (handler === "email_agent") {
+  //       const threadId = conversationId ?? uuidv4();
 
-        const finalState = await invokeEmailAgent(
-          message.trim(),
-          threadId,
-          intent ?? null,
-          userId,
-        );
+  //       const finalState = await invokeEmailAgent(
+  //         message.trim(),
+  //         threadId,
+  //         intent ?? null,
+  //         userId,
+  //       );
 
-        const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(
-          finalState.status,
-        );
+  //       const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(
+  //         finalState.status,
+  //       );
 
-        if (finalState.agentResponse) {
-          const assistantMessage = typeof finalState.agentResponse === "object"
-            ? JSON.stringify(finalState.agentResponse)
-            : finalState.agentResponse;
-          await conversationRepo.saveChatConversation({
-            conversation_id: threadId,
-            user_message: message.trim(),
-            assistant_message: assistantMessage,
-            metadata: { mode: "email_agent", emailStatus: finalState.status },
-          });
-          logger.info("Saved email agent conversation to database", { conversationId: threadId });
-        }
+  //       if (finalState.agentResponse) {
+  //         const assistantMessage = typeof finalState.agentResponse === "object"
+  //           ? JSON.stringify(finalState.agentResponse)
+  //           : finalState.agentResponse;
+  //         await conversationRepo.saveChatConversation({
+  //           conversation_id: threadId,
+  //           user_message: message.trim(),
+  //           assistant_message: assistantMessage,
+  //           metadata: { mode: "email_agent", emailStatus: finalState.status },
+  //         });
+  //         logger.info("Saved email agent conversation to database", { conversationId: threadId });
+  //       }
 
-        const emailEvent = {
-          type: "done",
-          queryId,
-          conversationId: threadId,
-          mode: "email_agent",
-          agentActive: !emailSessionEnded,
-          emailStatus: finalState.status,
-          data: {
-            fullResponse: finalState.agentResponse,
-            sourceDocuments: [],
-          },
-        };
+  //       const emailEvent = {
+  //         type: "done",
+  //         queryId,
+  //         conversationId: threadId,
+  //         mode: "email_agent",
+  //         agentActive: !emailSessionEnded,
+  //         emailStatus: finalState.status,
+  //         data: {
+  //           fullResponse: finalState.agentResponse,
+  //           sourceDocuments: [],
+  //         },
+  //       };
 
-        res.write(`data: ${JSON.stringify(emailEvent)}\n\n`);
-        res.write("data: [DONE]\n\n");
-        return res.end();
-      }
+  //       res.write(`data: ${JSON.stringify(emailEvent)}\n\n`);
+  //       res.write("data: [DONE]\n\n");
+  //       return res.end();
+  //     }
 
-      // ── Calendar agent (non-streaming — emits a single SSE event) ───────────
-      if (handler === "agent") {
-        const threadId = conversationId ?? uuidv4();
+  //     // ── Calendar agent (non-streaming — emits a single SSE event) ───────────
+  //     if (handler === "agent") {
+  //       const threadId = conversationId ?? uuidv4();
 
-        const agentInput = cs
-          ? { confirmationStatus: cs, userId }
-          : {
-            userMessage: message.trim(),
-            userId,
-            confirmationStatus: null,
-            ...(agentActive ? {} : { eventDetails: null }),
-          };
+  //       const agentInput = cs
+  //         ? { confirmationStatus: cs, userId }
+  //         : {
+  //           userMessage: message.trim(),
+  //           userId,
+  //           confirmationStatus: null,
+  //           ...(agentActive ? {} : { eventDetails: null }),
+  //         };
 
-        const agentResult = await calendarAgentGraph.invoke(agentInput, {
-          configurable: { thread_id: threadId },
-        });
+  //       const agentResult = await calendarAgentGraph.invoke(agentInput, {
+  //         configurable: { thread_id: threadId },
+  //       });
 
-        const agentDone =
-          agentResult.confirmationStatus === "confirmed" ||
-          agentResult.confirmationStatus === "rejected";
+  //       const agentDone =
+  //         agentResult.confirmationStatus === "confirmed" ||
+  //         agentResult.confirmationStatus === "rejected";
 
-        const agentEvent = {
-          type: "done",
-          queryId,
-          conversationId: threadId,
-          mode: "agent",
-          pendingConfirmation:
-            agentResult.confirmationStatus === "pending_confirmation",
-          agentActive: !agentDone,
-          data: {
-            fullResponse: agentResult.responseToUser,
-            sourceDocuments: [],
-          },
-        };
+  //       const agentEvent = {
+  //         type: "done",
+  //         queryId,
+  //         conversationId: threadId,
+  //         mode: "agent",
+  //         pendingConfirmation:
+  //           agentResult.confirmationStatus === "pending_confirmation",
+  //         agentActive: !agentDone,
+  //         data: {
+  //           fullResponse: agentResult.responseToUser,
+  //           sourceDocuments: [],
+  //         },
+  //       };
 
-        res.write(`data: ${JSON.stringify(agentEvent)}\n\n`);
-        res.write("data: [DONE]\n\n");
-        return res.end();
-      }
+  //       res.write(`data: ${JSON.stringify(agentEvent)}\n\n`);
+  //       res.write("data: [DONE]\n\n");
+  //       return res.end();
+  //     }
 
-      // ── Streaming sources (calendar_rag or default rag) ──────────────────────
-      // TODO: the new RAG pipeline (src/RAG) doesn't support streaming yet
-      // (LLMService is configured with streaming: false). Implement a
-      // streaming generator there and wire it in here once ready.
-      async function* defaultRagStreamNotImplemented() {
-        yield {
-          type: "error",
-          data: { error: "Streaming chat is not yet implemented for the new RAG pipeline" },
-        };
-      }
+  //     // ── Streaming sources (calendar_rag or default rag) ──────────────────────
+  //     // TODO: the new RAG pipeline (src/RAG) doesn't support streaming yet
+  //     // (LLMService is configured with streaming: false). Implement a
+  //     // streaming generator there and wire it in here once ready.
+  //     async function* defaultRagStreamNotImplemented() {
+  //       yield {
+  //         type: "error",
+  //         data: { error: "Streaming chat is not yet implemented for the new RAG pipeline" },
+  //       };
+  //     }
 
-      const streamSource =
-        handler === "calendar_rag"
-          ? calendarRagService.chatStream(message.trim(), conversationId, userId)
-          : defaultRagStreamNotImplemented();
+  //     const streamSource =
+  //       handler === "calendar_rag"
+  //         ? calendarRagService.chatStream(message.trim(), conversationId, userId)
+  //         : defaultRagStreamNotImplemented();
 
-      let fullResponse = "";
+  //     let fullResponse = "";
 
-      for await (const chunk of streamSource) {
-        let normalized;
+  //     for await (const chunk of streamSource) {
+  //       let normalized;
 
-        switch (chunk.type) {
-          case "context":
-            normalized = {
-              type: "context",
-              queryId,
-              data: {
-                documentsUsed: chunk.data.sources || [],
-                totalDocuments: chunk.data.documentsFound,
-              },
-            };
-            break;
-          case "text":
-            fullResponse += chunk.data;
-            normalized = { type: "text", queryId, data: chunk.data };
-            break;
-          case "done":
-            normalized = {
-              type: "done",
-              queryId,
-              data: {
-                fullResponse,
-                sourceDocuments: chunk.data.sourceDocuments,
-              },
-            };
-            break;
-          default:
-            normalized = { ...chunk, queryId };
-        }
+  //       switch (chunk.type) {
+  //         case "context":
+  //           normalized = {
+  //             type: "context",
+  //             queryId,
+  //             data: {
+  //               documentsUsed: chunk.data.sources || [],
+  //               totalDocuments: chunk.data.documentsFound,
+  //             },
+  //           };
+  //           break;
+  //         case "text":
+  //           fullResponse += chunk.data;
+  //           normalized = { type: "text", queryId, data: chunk.data };
+  //           break;
+  //         case "done":
+  //           normalized = {
+  //             type: "done",
+  //             queryId,
+  //             data: {
+  //               fullResponse,
+  //               sourceDocuments: chunk.data.sourceDocuments,
+  //             },
+  //           };
+  //           break;
+  //         default:
+  //           normalized = { ...chunk, queryId };
+  //       }
 
-        res.write(`data: ${JSON.stringify(normalized)}\n\n`);
-      }
+  //       res.write(`data: ${JSON.stringify(normalized)}\n\n`);
+  //     }
 
-      res.write("data: [DONE]\n\n");
-      res.end();
-    } catch (error) {
-      logger.error("Chat stream controller error", { error: error.message });
-      if (!res.headersSent) {
-        return res.status(500).json({
-          success: false,
-          error: "Failed to process message",
-        });
-      }
-      res.end();
-    }
-  }
+  //     res.write("data: [DONE]\n\n");
+  //     res.end();
+  //   } catch (error) {
+  //     logger.error("Chat stream controller error", { error: error.message });
+  //     if (!res.headersSent) {
+  //       return res.status(500).json({
+  //         success: false,
+  //         error: "Failed to process message",
+  //       });
+  //     }
+  //     res.end();
+  //   }
+  // }
 
   async getHistory(req, res) {
     const { conversationId } = req.params;
