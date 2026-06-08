@@ -43,7 +43,7 @@ export default class ChunkRepository {
         if (!Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
             throw new Error('searchByEmbedding requires a non-empty queryEmbedding array');
         }
-        if (!Number.isInteger(topK) || topK <= 0) {
+        if (!Number.isInteger(k) || k <= 0) {
             throw new Error('topK must be a positive integer');
         }
 
@@ -55,10 +55,10 @@ export default class ChunkRepository {
                     c.content,
                     c.chunk_index,
                     c.source_type,
-                    c.occured_at,
+                    c.occurred_at,
                     c.embedding <=> $1::vector AS distance,
                     d.id                  AS document_id,
-                    d.source_id,
+                    d.document_id        AS source_id,
                     d.author,
                     d.metadata
                 FROM document_chunks c
@@ -70,13 +70,13 @@ export default class ChunkRepository {
                 ORDER BY c.embedding <=> $1::vector
                 LIMIT $6`;
 
-        constvalues = [
+        const values = [
             embeddingLiteral,
             userId,
             sourceType,
             options.occurredAfter,
             options.occurredBefore,
-            topK,
+            k,
         ]
 
         const result = await pool.query(query, values);
@@ -86,7 +86,7 @@ export default class ChunkRepository {
             content: row.content,
             chunk_index: row.chunk_index,
             source_type: row.source_type,
-            occured_at: row.occured_at,
+            occurred_at: row.occurred_at,
             distance: parseFloat(row.distance),
             document: {
                 id: row.document_id,

@@ -1,8 +1,9 @@
 import cron from "node-cron";
-import EmbeddingPipeline from "../embeddings/embeddingPipeline.js";
 import { logger } from "../../utils/logger.js";
 
-const embeddingPipeline = new EmbeddingPipeline();
+// TODO: wire this up to the new RAG ingestion/embedding pipeline
+// (src/RAG/ingestion) — the old service/embeddings/embeddingPipeline.js
+// has been removed.
 
 export default class EmbeddingCronJob {
   constructor() {
@@ -47,16 +48,10 @@ export default class EmbeddingCronJob {
     }
 
     this.isRunning = true;
-    const startTime = Date.now();
 
     try {
-      logger.info("Embedding cron job executing");
-      const result = await embeddingPipeline.processPendingEmbeddings();
-      const duration = Date.now() - startTime;
-      logger.info("Embedding cron job completed", {
-        duration,
-        processed: result.processed,
-      });
+      // TODO: replace with the new RAG ingestion pipeline (src/RAG/ingestion)
+      logger.info("Embedding cron job skipped — pipeline not yet wired to the new RAG ingestion pipeline");
     } catch (error) {
       logger.error("Embedding cron job failed", {
         error: error.message,

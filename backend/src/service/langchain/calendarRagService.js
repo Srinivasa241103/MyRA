@@ -1,9 +1,11 @@
 import { PromptTemplate } from "@langchain/core/prompts";
-import LangChainLLMService from "./llm.js";
+import LLMService from "../../RAG/query/llmService.js";
 import vectorStore from "./vectorStore.js";
-import LangChainMemoryService from "./memory.js";
+import RagMemoryService from "../../RAG/query/memoryService.js";
 import { logger } from "../../utils/logger.js";
 import { v4 as uuidv4 } from "uuid";
+
+const LLM_PROVIDER = "anthropic";
 
 const CALENDAR_PROMPT = PromptTemplate.fromTemplate(`
 You are a personal AI assistant with access to the user's Google Calendar data.
@@ -28,11 +30,11 @@ Answer:
 
 class CalendarRagService {
   constructor() {
-    this.llm = new LangChainLLMService();
-    this.memory = new LangChainMemoryService();
+    this.llm = new LLMService();
+    this.memory = new RagMemoryService();
   }
 
-  async chat(userMessage, conversationId = null) {
+  async chat(userMessage, conversationId = null, userId) {
     if (!conversationId) {
       conversationId = uuidv4();
     }
@@ -51,18 +53,23 @@ class CalendarRagService {
 
     const context = sourceDocuments.map((doc) => doc.pageContent).join("\n\n---\n\n");
 
-    const history = await this.memory.loadHistory(conversationId);
+    const history = await this.memory.loadHistory(conversationId, userId);
     const chatHistory = history
       .slice(-10)
       .map((msg) => `${msg.role}: ${msg.content}`)
       .join("\n");
 
     const formattedPrompt = await CALENDAR_PROMPT.format({ context, chat_history: chatHistory, question: userMessage });
-    const llmResult = await this.llm.generateResponse(formattedPrompt, conversationId);
-    const answer = llmResult.text;
+    const llmResult = await this.llm.generateResponse(
+      LLM_PROVIDER,
+      [{ role: "user", content: formattedPrompt }],
+      userId,
+      conversationId,
+    );
+    const answer = llmResult.answer;
     const duration = Date.now() - startTime;
 
-    await this.memory.saveConversation(conversationId, userMessage, answer, {
+    await this.memory.saveConversation(userId, conversationId, userMessage, answer, {
       sourceDocuments: sourceDocuments.length,
       duration,
     });
@@ -83,7 +90,7 @@ class CalendarRagService {
     };
   }
 
-  async *chatStream(userMessage, conversationId = null) {
+  async *chatStream(userMessage, conversationId = null, userId) {
     if (!conversationId) {
       conversationId = uuidv4();
     }
@@ -104,18 +111,23 @@ class CalendarRagService {
     };
 
     const context = retrievedDocs.map((doc) => doc.pageContent).join("\n\n---\n\n");
-    const history = await this.memory.loadHistory(conversationId);
+    const history = await this.memory.loadHistory(conversationId, userId);
     const chatHistory = history.slice(-10).map((msg) => `${msg.role}: ${msg.content}`).join("\n");
 
     const prompt = await CALENDAR_PROMPT.format({ context, chat_history: chatHistory, question: userMessage });
 
-    let fullAnswer = "";
-    for await (const chunk of this.llm.generateStreamingResponse(prompt)) {
-      fullAnswer += chunk;
-      yield { type: "text", data: chunk };
-    }
+    // TODO: LLMService doesn't support token-by-token streaming yet — emit
+    // the full answer as a single "text" chunk until it does.
+    const llmResult = await this.llm.generateResponse(
+      LLM_PROVIDER,
+      [{ role: "user", content: prompt }],
+      userId,
+      conversationId,
+    );
+    const fullAnswer = llmResult.answer;
+    yield { type: "text", data: fullAnswer };
 
-    await this.memory.saveConversation(conversationId, userMessage, fullAnswer, {
+    await this.memory.saveConversation(userId, conversationId, userMessage, fullAnswer, {
       sourceDocuments: retrievedDocs.length,
     });
 

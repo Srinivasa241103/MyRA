@@ -10,9 +10,10 @@ export class StatsRepository {
                     output_tokens,
                     input_cost,
                     output_cost,
-                    invocation_type
+                    invocation_type,
+                    user_id
                   )
-                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`;
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
     await getPool().query(query, [
       stats.conversationId,
       stats.provider,
@@ -22,10 +23,11 @@ export class StatsRepository {
       stats.inputCost,
       stats.outputCost,
       stats.invocationType,
+      stats.userId,
     ]);
   }
 
-  async getCostAndTokensConsumed(days) {
+  async getCostAndTokensConsumed(days, userId) {
     const query = `SELECT
                     provider,
                     model,
@@ -35,8 +37,9 @@ export class StatsRepository {
                     SUM(output_cost) AS totaloutputcost
                   FROM llm_usage_logs
                   WHERE created_at >= NOW() - INTERVAL '${days} days'
+                  AND user_id = $2
                   GROUP BY provider, model`;
-    const result = await getPool().query(query);
+    const result = await getPool().query(query, [days, userId]);
     return result.rows;
   }
 

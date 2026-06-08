@@ -1,8 +1,9 @@
-import langchainChatService from "../../service/langchain/chatService.js";
 import calendarRagService from "../../service/langchain/calendarRagService.js";
 import ConversationRepository from "../../database/conversationsRepo.js";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../../utils/logger.js";
+import RagChain from "../../RAG/ragService.js";
+import RagMemoryService from "../../RAG/query/memoryService.js";
 
 import { routeIntent } from "../../service/router/intentRouter.js";
 import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
@@ -12,6 +13,8 @@ import {
 } from "../../agent/emailAgent/index.js";
 
 const conversationRepo = new ConversationRepository();
+const ragChainService = new RagChain();
+const ragMemoryService = new RagMemoryService();
 
 // Statuses that mean the email session is fully finished
 const EMAIL_TERMINAL_STATUSES = ["sent", "saved_draft", "cancelled", "idle"];
@@ -22,6 +25,7 @@ class ChatController {
     conversationId,
     confirmationStatus,
     agentActive,
+    userId,
   ) {
     if (confirmationStatus || agentActive) {
       if (conversationId) {
@@ -34,7 +38,7 @@ class ChatController {
       return { handler: "agent", confirmationStatus };
     }
 
-    const intent = await routeIntent(message, conversationId);
+    const intent = await routeIntent(message, conversationId, userId);
     logger.info("Intent routed", { intent, conversationId });
 
     if (intent === "calendar_agent") return { handler: "agent", intent };
@@ -49,7 +53,7 @@ class ChatController {
   }
 
   async sendMessage(req, res) {
-    const { message, conversationId, confirmationStatus, agentActive } =
+    const { message, conversationId, llmProvider, confirmationStatus, agentActive } =
       req.body;
     const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
 
@@ -70,6 +74,7 @@ class ChatController {
         conversationId,
         confirmationStatus,
         agentActive,
+        userId,
       );
 
       // ── Email agent ─────────────────────────────────────────────────────────
@@ -169,6 +174,7 @@ class ChatController {
         const result = await calendarRagService.chat(
           message.trim(),
           conversationId,
+          userId,
         );
         if (!result.success) return res.status(500).json(result);
         return res.json({
@@ -188,10 +194,12 @@ class ChatController {
       }
 
       // ── Default RAG ──────────────────────────────────────────────────────────
-      const result = await langchainChatService.chat(
-        message.trim(),
+      const result = await ragChainService.chat({
+        userMessage: message.trim(),
         conversationId,
-      );
+        userId,
+        llmProvider,
+      });
 
       if (!result.success) {
         return res.status(500).json(result);
@@ -204,12 +212,12 @@ class ChatController {
         query: message.trim(),
         response: result.response,
         context: {
-          documentsUsed: result.sourceDocuments,
-          totalDocuments: result.sourceDocuments.length,
-          selectedDocuments: result.sourceDocuments.length,
+          documentsUsed: result.sourcedDocuments,
+          totalDocuments: result.sourcedDocuments.length,
+          selectedDocuments: result.sourcedDocuments.length,
         },
         metadata: {
-          duration: result.duration,
+          duration: result?.duration,
         },
       });
     } catch (error) {
@@ -249,6 +257,7 @@ class ChatController {
         conversationId,
         confirmationStatus,
         agentActive,
+        userId,
       );
 
       // ── Email agent (non-streaming — emits a single SSE event) ──────────────
@@ -337,10 +346,20 @@ class ChatController {
       }
 
       // ── Streaming sources (calendar_rag or default rag) ──────────────────────
+      // TODO: the new RAG pipeline (src/RAG) doesn't support streaming yet
+      // (LLMService is configured with streaming: false). Implement a
+      // streaming generator there and wire it in here once ready.
+      async function* defaultRagStreamNotImplemented() {
+        yield {
+          type: "error",
+          data: { error: "Streaming chat is not yet implemented for the new RAG pipeline" },
+        };
+      }
+
       const streamSource =
         handler === "calendar_rag"
-          ? calendarRagService.chatStream(message.trim(), conversationId)
-          : langchainChatService.chatStream(message.trim(), conversationId);
+          ? calendarRagService.chatStream(message.trim(), conversationId, userId)
+          : defaultRagStreamNotImplemented();
 
       let fullResponse = "";
 
@@ -396,6 +415,7 @@ class ChatController {
   async getHistory(req, res) {
     const { conversationId } = req.params;
     const limit = parseInt(req.query.limit) || 10;
+    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
 
     if (!conversationId) {
       return res.status(400).json({
@@ -405,7 +425,7 @@ class ChatController {
     }
 
     try {
-      const messages = await langchainChatService.getHistory(conversationId);
+      const messages = await ragMemoryService.loadHistory(conversationId, userId);
 
       // Map [{role,content},{role,content}...] pairs → [{user_message, assistant_message}]
       const history = [];

@@ -5,14 +5,15 @@ import { GmailNormalizer } from "../../service/normalizers/GmailNormalizer.js";
 import { GoogleCalendarNormalizer } from "../../service/normalizers/GoogleCalendarNormalizer.js";
 import { SyncLogRepository } from "../../database/syncLogsRepository.js";
 import { DocumentRepository } from "../../database/documentRepository.js";
-import EmbeddingPipeline from "../../service/embeddings/embeddingPipeline.js";
 import socketServer from "../../service/websocket/sockeService.js";
+
+// TODO: wire the new RAG ingestion/embedding pipeline (src/RAG/ingestion) in
+// here to replace the old embeddingPipeline.processAllPendingEmbeddings calls.
 
 export default class SyncController {
   constructor() {
     this.documentRepo = new DocumentRepository();
     this.syncLogRepo = new SyncLogRepository();
-    this.embeddingPipeline = new EmbeddingPipeline();
   }
 
   async syncGmail(req, res) {
@@ -192,9 +193,9 @@ export default class SyncController {
       });
 
       // Step 2: Process ALL pending embeddings
+      // TODO: replace with the new RAG ingestion pipeline (src/RAG/ingestion)
       logger.info("Starting embedding generation for synced documents");
-      const embeddingResult =
-        await this.embeddingPipeline.processAllPendingEmbeddings(syncLogId);
+      const embeddingResult = { processed: 0, duration: 0 };
 
       logger.info("Embedding generation completed", {
         syncId: syncLogId,
@@ -380,8 +381,8 @@ export default class SyncController {
         documentsSkipped,
       });
 
-      const embeddingResult =
-        await this.embeddingPipeline.processAllPendingEmbeddings(syncLogId);
+      // TODO: replace with the new RAG ingestion pipeline (src/RAG/ingestion)
+      const embeddingResult = { processed: 0, duration: 0 };
 
       logger.info("Calendar embedding generation completed", {
         syncId: syncLogId,

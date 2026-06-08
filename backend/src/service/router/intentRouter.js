@@ -1,7 +1,7 @@
-import LangChainLLMService from "../langchain/llm.js";
+import LLMService from "../../RAG/query/llmService.js";
 import { logger } from "../../utils/logger.js";
 
-const llm = new LangChainLLMService();
+const llm = new LLMService();
 
 const SYSTEM_PROMPT = `You are an intent classifier. Classify the user message into exactly one of these categories:
 - calendar_agent: The user wants to CREATE, SCHEDULE, ADD, UPDATE, MODIFY, DELETE, or CANCEL a calendar event
@@ -23,12 +23,19 @@ const VALID_INTENTS = [
   "rag",
 ];
 
-export async function routeIntent(message, conversationId = null) {
+export async function routeIntent(message, conversationId = null, userId = null) {
   try {
-    const response = await llm.generateResponse(message, conversationId ?? "intent_router", {
-      systemPrompt: SYSTEM_PROMPT,
-    });
-    const intent = response.text.trim().toLowerCase();
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: message },
+    ];
+    const response = await llm.generateResponse(
+      "anthropic",
+      messages,
+      userId ?? parseInt(process.env.SYNC_USER_ID, 10),
+      conversationId ?? "intent_router",
+    );
+    const intent = response.answer.trim().toLowerCase();
 
     if (VALID_INTENTS.includes(intent)) {
       return intent;

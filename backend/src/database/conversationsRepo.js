@@ -1,16 +1,16 @@
 import { pool } from "../config/dbConfig.js";
 
 export default class ConversationRepository {
-  async getConversationHistory(conversationId) {
+  async getConversationHistory(conversationId, userId) {
     const query = `
       SELECT user_message, assistant_message, created_at
       FROM conversations
-      WHERE conversation_id = $1
+      WHERE conversation_id = $1 AND user_id = $2
         AND (is_deleted = false OR is_deleted IS NULL)
       ORDER BY created_at ASC
       LIMIT 20;`;
 
-    return await pool.query(query, [conversationId]);
+    return await pool.query(query, [conversationId, userId]);
   }
 
   async saveChatConversation({
@@ -18,12 +18,13 @@ export default class ConversationRepository {
     user_message,
     assistant_message,
     metadata = {},
+    userId,
   }) {
     const query = `
-      INSERT INTO conversations (conversation_id, user_message, assistant_message, metadata)
-      VALUES ($1, $2, $3, $4);`;
+      INSERT INTO conversations (conversation_id, user_message, assistant_message, metadata, user_id)
+      VALUES ($1, $2, $3, $4, $5);`;
 
-    const values = [conversation_id, user_message, assistant_message, JSON.stringify(metadata)];
+    const values = [conversation_id, user_message, assistant_message, JSON.stringify(metadata), userId];
     await pool.query(query, values);
   }
 
@@ -31,7 +32,7 @@ export default class ConversationRepository {
    * Returns all distinct conversations ordered by most recent activity.
    * Each entry has conversation_id, the first user message as title, and timestamps.
    */
-  async getConversations(limit = 50) {
+  async getConversations(limit = 50, userId) {
     const query = `
       WITH first_messages AS (
         SELECT DISTINCT ON (conversation_id)
@@ -39,13 +40,13 @@ export default class ConversationRepository {
           user_message AS title,
           created_at   AS started_at
         FROM conversations
-        WHERE (is_deleted = false OR is_deleted IS NULL)
+        WHERE (is_deleted = false OR is_deleted IS NULL) AND user_id = $2
         ORDER BY conversation_id, created_at ASC
       ),
       last_activity AS (
         SELECT conversation_id, MAX(created_at) AS last_message_at
         FROM conversations
-        WHERE (is_deleted = false OR is_deleted IS NULL)
+        WHERE (is_deleted = false OR is_deleted IS NULL) AND user_id = $2  
         GROUP BY conversation_id
       )
       SELECT
@@ -58,31 +59,31 @@ export default class ConversationRepository {
       ORDER BY la.last_message_at DESC
       LIMIT $1;`;
 
-    const { rows } = await pool.query(query, [limit]);
+    const { rows } = await pool.query(query, [limit, userId]);
     return rows;
   }
 
-  async getHistory(conversationId, limit = 20) {
+  async getHistory(userId, conversationId, limit = 20) {
     const query = `
       SELECT
         COUNT(*) as message_count,
         MIN(created_at) as first_message,
         MAX(created_at) as last_message
       FROM conversations
-      WHERE conversation_id = $1
+      WHERE user_id = $1 AND conversation_id = $2
     `;
 
-    const { rows } = await pool.query(query, [conversationId]);
+    const { rows } = await pool.query(query, [userId, conversationId]);
     return rows[0];
   }
 
-  async clear(conversationId) {
+  async clear(conversationId, userId) {
     const query = `
       UPDATE conversations
       SET is_deleted = true
-      WHERE conversation_id = $1;
+      WHERE user_id = $1 AND conversation_id = $2;
     `;
-    await pool.query(query, [conversationId]);
+    await pool.query(query, [userId, conversationId]);
     return;
   }
 }
