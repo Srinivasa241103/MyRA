@@ -15,7 +15,6 @@ import { sendOrSaveDraft } from "./nodes/sendOrSaveDraft.js";
 import { routeAfterParse } from "./edges/routeAfterParse.js";
 import { routeAfterCheck } from "./edges/routeAfterCheck.js";
 
-// ── Cancel handler ────────────────────────────────────────────────────────────
 const cancelEmail = async () => ({
   status: "cancelled",
   agentResponse: {
