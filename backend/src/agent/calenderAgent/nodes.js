@@ -51,8 +51,7 @@ const parseIntent = async (state) => {
     .join(", ");
 
   const extractionPrompt = `
-    Extract calendar event details from this user message: "${
-      state.userMessage
+    Extract calendar event details from this user message: "${state.userMessage
     }"
     Today's date is ${new Date().toISOString().split("T")[0]}.
     ${collectionHint}
@@ -267,9 +266,8 @@ const createCalendarEvent = async (state) => {
 
   const successMsg = `✅ Event "${title}" created for ${formatDate(
     date
-  )} at ${startTime}. ${
-    attendees.length > 0 ? `Invites sent to ${attendees.join(", ")}.` : ""
-  }`;
+  )} at ${startTime}. ${attendees.length > 0 ? `Invites sent to ${attendees.join(", ")}.` : ""
+    }`;
 
   return {
     responseToUser: successMsg,

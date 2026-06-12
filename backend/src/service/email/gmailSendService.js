@@ -161,4 +161,4 @@ const saveDraft = async ({
   }
 };
 
-export const gmailSendService = { sendEmail, saveDraft };
+export { sendEmail, saveDraft };
