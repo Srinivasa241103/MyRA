@@ -45,6 +45,12 @@ const approvalNode = (state) => {
         return { approvalStatus: "approved" };
     }
 
+    if (action === "cancel") {
+        return {
+            aborted: true,
+            messages: [new AIMessage("Okay - cancelled. Nothing was sent or saved. ")],
+        };
+    }
     return {
         approvalStatus: "rejected",
         previousDraft: currentDraft,

@@ -1,11 +1,12 @@
-import { StateSchema, ReducedValue, MessageValue } from "@langchain/langgraph";
+import { StateSchema, ReducedValue, MessagesValue } from "@langchain/langgraph";
 import { z } from "zod";
 
 export const emailAgentState = new StateSchema({
-    messages: MessageValue,
+    messages: MessagesValue,
 
     intent: z.string().nullable().default(null),
     mode: z.enum(["save_draft", "send"]).default("save_draft"),
+    userId: z.integer(),
 
     recipientQuery: z.string().nullable().default(null),
     recipientCandidates: z.array(z.any()).default(() => []),
@@ -43,4 +44,6 @@ export const emailAgentState = new StateSchema({
     approvalStatus: z
         .enum(["pending", "approved", "rejected"])
         .default("pending"),
+
+    aborted: z.boolean().default(false),
 })

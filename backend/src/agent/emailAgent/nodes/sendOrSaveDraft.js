@@ -1,4 +1,4 @@
-import { gmailSendService } from "../../../service/email/gmailSendService.js";
+//import { gmailSendService } from "../../../service/email/gmailSendService.js";
 import { appendError, getLatestDraft } from "../state.js";
 
 /**

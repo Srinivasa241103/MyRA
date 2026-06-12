@@ -1,6 +1,8 @@
 // implement tools for the LLM brain to handle
 import { ChatAnthropic } from "@langchain/anthropic";
 import { tool } from "@langchain/core/tools";
+import { ToolMessage } from "@langchain/core/messages";
+import { Command } from "@langchain/langgraph";
 import { GoogleAuthService } from '../../service/oauth/googleOAuthService.js';
 import { google } from "googleapis";
 import RecipientRepository from "../../database/recipientRepository.js";
@@ -18,7 +20,6 @@ const llm = new ChatAnthropic({
 
 const authService = new GoogleAuthService();
 const recipientRepo = new RecipientRepository();
-const logger = logger();
 
 const getGmailClient = async () => {
     const userId = parseInt(process.env.SYNC_USER_ID, 10);
@@ -33,10 +34,11 @@ const draftMail = tool(async ({
     recipient: { name = '', email = '' } = {},
     threadContent = "",
     previousDraft: { subject: prevSubject = '', body: prevBody = '' } = {},
-    feedBack = ""
-}) => {
+    feedback = ""
+}, config) => {
     logger.info("draft_email tool has been invoked \n drafting email......");
-    const isRevision = Boolean(mode === "reply");;
+    // A revision is driven by feedback on a prior draft — independent of new/reply mode.
+    const isRevision = Boolean(feedback || prevBody);
 
     const recipientLine = name
         ? `${name}${email ? ` <${email}>` : ""}`
@@ -47,7 +49,7 @@ const draftMail = tool(async ({
         : "";
 
     const revisionBlock = isRevision
-        ? `\nPREVIOUS DRAFT:\nSubject: ${prevSubject}\n${prevBody}\n\nUSER FEEDBACK ON THE PREVIOUS DRAFT:\n${feedBack}\n\nRevise the draft above to address this feedback.`
+        ? `\nPREVIOUS DRAFT:\nSubject: ${prevSubject}\n${prevBody}\n\nUSER FEEDBACK ON THE PREVIOUS DRAFT:\n${feedback}\n\nRevise the draft above to address this feedback.`
         : "";
 
     const systemPrompt = `You are an assistant drafting an email on behalf of the user.
@@ -79,10 +81,23 @@ const draftMail = tool(async ({
         throw new Error(`Failed to parse draft JSON from model output: ${cleaned.slice(0, 200)}`);
     }
 
-    return {
-        subject: draft.subject,
-        body: draft.body,
-    };
+    const currentDraft = { subject: draft.subject, body: draft.body };
+
+    // Write the draft into graph state and reset the approval gate to "pending"
+    // (so routeAfterTool sends control to the approval node — including on re-drafts).
+    // A ToolMessage is required so the AI tool_call has a matching tool response.
+    return new Command({
+        update: {
+            currentDraft,
+            approvalStatus: "pending",
+            messages: [
+                new ToolMessage({
+                    content: `Draft ready for approval.\nSubject: ${currentDraft.subject}\n\n${currentDraft.body}`,
+                    tool_call_id: config.toolCall.id,
+                }),
+            ],
+        },
+    });
 }, {
     name: "draft_email",
     description: "Create an Email draft based on the given input for the user.",
@@ -116,115 +131,74 @@ const draftMail = tool(async ({
     }),
 });
 
-const fetchRecipientMailId = tool(async ({
-    recipientName,
-    userId
-}) => {
-    // call the DB function for getting the recipient list 
-    const recipientList = await recipientRepo.getRelavantRecipient(recipientName, userId);
+const fetchRecipientMailId = tool(async ({ recipientName }, config) => {
+    // userId is supplied by the runtime, not the LLM — same source as getGmailClient.
+    const userId = parseInt(process.env.SYNC_USER_ID, 10);
+
+    // NOTE: getRelavantRecipient(userId, userName) — order matters.
+    const recipientList = await recipientRepo.getRelavantRecipient(userId, recipientName);
     const cleanedList = recipientList.map(item => ({
         name: item.name,
         email: item.email,
     }));
 
-    return cleanedList;
+    // Exactly one match -> resolve directly, no human pick needed.
+    if (cleanedList.length === 1) {
+        const [recipient] = cleanedList;
+        return new Command({
+            update: {
+                resolvedRecipient: recipient,
+                recipientCandidates: [],
+                pendingSelection: null,
+                messages: [
+                    new ToolMessage({
+                        content: `Resolved recipient: ${recipient.name} <${recipient.email}>`,
+                        tool_call_id: config.toolCall.id,
+                    }),
+                ],
+            },
+        });
+    }
+
+    // Zero or multiple -> hand to the selection node for a human pick
+    // (zero candidates lets the user type a full address in the selection prompt).
+    return new Command({
+        update: {
+            recipientCandidates: cleanedList,
+            pendingSelection: "recipient",
+            messages: [
+                new ToolMessage({
+                    content: cleanedList.length
+                        ? `Found ${cleanedList.length} matching contacts; awaiting user selection.`
+                        : `No contacts matched "${recipientName}"; awaiting a full email address from the user.`,
+                    tool_call_id: config.toolCall.id,
+                }),
+            ],
+        },
+    });
 }, {
     name: "fetch_recipient_mailId_list",
-    description: "Fetches the recipient name and mail ID from the user's contact list based on the user input for recipient name and the userId",
-    schema: z.object.apply({
+    description: "Looks up candidate contacts for a recipient name from the user's address book. The user is identified by the runtime, so only pass the recipient name.",
+    schema: z.object({
         recipientName: z.string().describe("Recipient name to search in the user's contacts"),
-        userId: z.integer().describe("User ID"),
     }),
 });
 
-const retrieveReplyMailThread = tool(({ }) => { }, {
+// TODO(reply-flow): not implemented. Must search for the target thread and write
+// replyCandidates + pendingSelection="replyTarget" (or threadId/threadContent on a
+// single match) via a Command, mirroring fetchRecipientMailId. Until then the reply
+// path is non-functional.
+const retrieveReplyMailThread = tool(async ({ emailId }, config) => {
+    return new ToolMessage({
+        content: "retrieve_reply_mail_thread is not implemented yet.",
+        tool_call_id: config.toolCall.id,
+    });
+}, {
     name: "retrieve_reply_mail_thread",
-    description: "Retrieves the reply mail thread from the user's contacts based on the user input for recipient name",
-    schema: z.object.apply({
+    description: "Retrieves the reply mail thread to respond to, based on the user's description of the email.",
+    schema: z.object({
         emailId: z.string().describe("Email ID"),
     }),
-});
-
-const sendMail = tool(async ({
-    to,
-    cc = [],
-    bcc = [],
-    subject,
-    body,
-    threadId = null,
-    inReplyTo = null,
-    references = null,
-}) => {
-    try {
-        if (!to || to.length === 0) {
-            throw new Error("Cannot send email: no recipients specified");
-        }
-
-        const gmail = await getGmailClient();
-        const raw = buildRawEmail({
-            to,
-            cc,
-            bcc,
-            subject,
-            body,
-            inReplyTo,
-            references,
-        });
-
-        const requestBody = { raw };
-        if (threadId) requestBody.threadId = threadId;
-
-        const response = await gmail.users.messages.send({
-            userId: "me",
-            requestBody,
-        });
-
-        return {
-            success: true,
-            messageId: response.data.id,
-            threadId: response.data.threadId,
-        };
-    } catch (err) {
-        console.error("[gmailSendService.sendEmail] Error:", err.message);
-
-        const status =
-            err.code || err.status || (err.response && err.response.status);
-        return {
-            success: false,
-            error: err.message,
-            errorCode: status,
-            retryable: status === 429 || status === 500 || status === 503,
-        };
-    }
-}, {
-    name: "send_email",
-    description: "Sends an email to the specified recipient.",
-    schema: z.object({
-        to: z.array(z.string())
-            .optional()
-            .describe("Array of recipient email addresses"),
-        cc: z.array(z.string())
-            .optional()
-            .describe("Array of CC email addresses"),
-        bcc: z.array(z.string())
-            .optional()
-            .describe("Array of BCC email addresses"),
-        subject: z.string()
-            .optional()
-            .describe("Email subject"),
-        body: z.string()
-            .optional()
-            .describe("Email body"),
-        threadId: z.string()
-            .optional()
-            .describe("Thread ID for threading"),
-        inReplyTo: z.string()
-            .optional()
-            .describe("In-reply-to header"),
-        references: z.string()
-            .optional()
-            .describe("References header"),
-    })
 });
 
 const presentToUser = tool(async ({
@@ -333,85 +307,10 @@ const logEmail = tool(async ({ }) => { }, {
     })
 });
 
-const saveDraft = tool(async ({
-    to,
-    cc = [],
-    bcc = [],
-    subject,
-    body,
-    threadId = null,
-    inReplyTo = null,
-    references = null,
-}) => {
-    try {
-        const gmail = await getGmailClient();
-        const raw = buildRawEmail({
-            to,
-            cc,
-            bcc,
-            subject,
-            body,
-            inReplyTo,
-            references,
-        });
 
-        const requestBody = {
-            message: { raw },
-        };
-        if (threadId) requestBody.message.threadId = threadId;
-
-        const response = await gmail.users.drafts.create({
-            userId: "me",
-            requestBody,
-        });
-
-        return {
-            success: true,
-            draftId: response.data.id,
-            messageId: response.data.message && response.data.message.id,
-        };
-    } catch (err) {
-        console.error("[gmailSendService.saveDraft] Error:", err.message);
-
-        const status =
-            err.code || err.status || (err.response && err.response.status);
-        return {
-            success: false,
-            error: err.message,
-            errorCode: status,
-            retryable: status === 429 || status === 500 || status === 503,
-        };
-    }
-}, {
-    name: "save_draft",
-    description: "Saves the email as a draft.",
-    schema: z.object({
-        to: z.array(z.string())
-            .optional()
-            .describe("Array of recipient email addresses"),
-        cc: z.array(z.string())
-            .optional()
-            .describe("Array of CC email addresses"),
-        bcc: z.array(z.string())
-            .optional()
-            .describe("Array of BCC email addresses"),
-        subject: z.string()
-            .optional()
-            .describe("Email subject"),
-        body: z.string()
-            .optional()
-            .describe("Email body"),
-        threadId: z.string()
-            .optional()
-            .describe("Thread ID for threading"),
-        inReplyTo: z.string()
-            .optional()
-            .describe("In-reply-to header"),
-        references: z.string()
-            .optional()
-            .describe("References header"),
-    })
-});
-
-const tools = [draftMail, fetchRecipientMailId, logEmail, presentToUser, sendMail, retrieveReplyMailThread];
+// Only planning/info tools are bound to the LLM. Sending, saving, draft approval,
+// and recipient selection are handled by dedicated graph nodes (sendNode,
+// approvalNode, selectionNode) so the model cannot perform irreversible or
+// human-gated actions on its own.
+const tools = [draftMail, fetchRecipientMailId, retrieveReplyMailThread, presentToUser];
 export { tools };

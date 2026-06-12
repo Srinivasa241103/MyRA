@@ -1,7 +1,7 @@
 import { START, END, StateGraph, MemorySaver } from "@langchain/langgraph";
 import { emailAgentState } from "./state.js";
 import { agentNode, sendNode, selectionNode, approvalNode, toolNode } from "./nodes/index.js";
-import { routeAfterTool, routeAfterAgent, routeAfterApproval } from "./edges/index.js";
+import { routeAfterTool, routeAfterAgent, routeAfterApproval, routeAfterSelection } from "./edges/index.js";
 
 const checkpointer = new MemorySaver();
 
@@ -25,7 +25,10 @@ const builder = new StateGraph(emailAgentState)
         agent: "agent",
     })
 
-    .addEdge("selection", "agent")
+    .addConditionalEdges("selection", routeAfterSelection, {
+        agent: "agent",
+        [END]: END,
+    })
 
     .addConditionalEdges("approval", routeAfterApproval, {
         send: "send",

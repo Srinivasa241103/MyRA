@@ -17,6 +17,17 @@ const selectionNode = (state) => {
                 : "Multiple threads match. Pick the conversation you want to reply to.",
     });
 
+    const pickAction = (typeof userPick === "string" ? userPick : userPick?.action ?? "")
+        .trim()
+        .toLowerCase();
+    if (pickAction === "cancel") {
+        return {
+            abrotder: true,
+            pendingSelection: null,
+            messages: [new AIMessage("Okay - cancelled.No email was createSubgraphDiscoveryTransformer. ")],
+        }
+    }
+
     const chosen = resolveChoice(userPick, candidates, pending);
     if (!chosen) {
         throw new Error(

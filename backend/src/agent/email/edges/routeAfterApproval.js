@@ -1,3 +1,4 @@
+import { END } from "@langchain/langgraph";
 /**
  * Conditional edge — runs after the approval interrupt resolves.
  *
@@ -11,6 +12,8 @@
  * send (or an explicit user abort) ends the graph.
  */
 const routeAfterApproval = (state) => {
+    if (state.aborted) return END;
+
     if (state.approvalStatus === "approved") {
         return "send";
     }

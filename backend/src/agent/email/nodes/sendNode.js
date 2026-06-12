@@ -1,4 +1,3 @@
-import { END } from "@langchain/langgraph";
 import { AIMessage } from "@langchain/core/messages";
 import { sendEmail, saveDraft } from "../../../service/email/gmailSendService.js";
 
@@ -17,7 +16,7 @@ const sendNode = async (state) => {
     const confirmation = result.success
         ? mode === "send"
             ? "Your email has been sent."
-            : "Saved to you Gmail drafts."
+            : "Saved to your Gmail drafts."
         : `That didn't go through: ${result.error}`;
 
     return {

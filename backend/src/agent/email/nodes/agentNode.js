@@ -1,5 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { SystemMessage, AIMessage } from "@langchain/core/messages";
+import { SystemMessage } from "@langchain/core/messages";
 import { tools } from "../tools.js";
 
 const llm = new ChatOpenAI({
@@ -11,21 +11,34 @@ const plannerLLM = llm.bindTools(tools);
 const buildSystemPrompt = (state) => {
     const {
         intent,
+        mode,
         resolvedRecipient,
         threadId,
         currentDraft,
         pendingSelection,
         approvalStatus,
+        bodyHints,
     } = state;
 
-    const facts = [
+    const factLines = [
         `Intent: ${intent ?? "unknown"}`,
+        `Mode: ${mode}`,
         `Recipient resolved: ${resolvedRecipient ? resolvedRecipient.email : "not yet"}`,
         `Reply target identified: ${threadId ? "yes" : "not yet"}`,
         `Draft exists: ${currentDraft ? "yes" : "no"}`,
         `Awaiting user selection: ${pendingSelection ?? "none"}`,
         `Approval status: ${approvalStatus ?? "pending"}`,
-    ].join("\n");
+    ];
+
+    // After a rejection, surface the latest feedback so the planner can re-draft
+    // with it (the prior draft is already visible in the message history).
+    if (approvalStatus === "rejected" && bodyHints?.length) {
+        factLines.push(
+            `Regenerate the draft addressing this feedback: "${bodyHints[bodyHints.length - 1]}"`
+        );
+    }
+
+    const facts = factLines.join("\n");
 
     return new SystemMessage(
         [
@@ -34,21 +47,23 @@ const buildSystemPrompt = (state) => {
             "observing each result before deciding the next action.",
             "",
             "TOOLS AVAILABLE:",
-            "- fetchRecipientId: resolve a vague recipient name to candidate contacts.",
-            "- retrieveReplyMail: semantic search for the mail/thread to reply to.",
-            "- requestSelection: present candidates and pause for the user to pick one.",
-            "- draftEmail: write or revise the email body (first draft and regen).",
-            "- sendMail: send the email. RESTRICTED — only reachable after explicit",
-            "  human approval. Never call this on your own initiative.",
+            "- fetch_recipient_mailId_list: resolve a recipient name to a contact. If",
+            "  several match (or none), the system pauses for the user to pick or supply",
+            "  an address — you do NOT choose a candidate yourself.",
+            "- retrieve_reply_mail_thread: find the thread to reply to (sets reply context).",
+            "- draft_email: write or revise the email body (first draft and regen).",
+            "",
+            "Sending, saving, recipient selection, and draft approval are handled by the",
+            "system AFTER your tool calls — you have no send tool and cannot send mail.",
+            "Once a recipient is resolved and a draft is produced, your job is done; the",
+            "system presents the draft for approval and sends/saves on the user's behalf.",
             "",
             "HARD RULES:",
             "1. For a NEW mail, you must have a resolved recipient before drafting.",
             "2. For a REPLY, the reply target must be identified (IDs captured to state)",
             "   before drafting. Never invent or guess a thread/message id.",
-            "3. If a lookup returns multiple candidates, call requestSelection — never",
-            "   silently pick one yourself.",
-            "4. Do not re-run a resolution step that is already satisfied (see STATE).",
-            "5. Never call sendMail until approval status is 'approved'.",
+            "3. Do not re-run a resolution step that is already satisfied (see STATE).",
+            "4. Call exactly one tool per step; once recipient + draft exist, stop.",
             "",
             "CURRENT STATE:",
             facts,
