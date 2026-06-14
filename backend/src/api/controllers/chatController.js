@@ -499,8 +499,9 @@ class ChatController {
 
   async getConversations(req, res) {
     const limit = parseInt(req.query.limit) || 50;
+    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
     try {
-      const rows = await conversationRepo.getConversations(limit);
+      const rows = await conversationRepo.getConversations(limit, userId);
 
       const conversations = rows.map((row) => ({
         conversationId: row.conversation_id,
