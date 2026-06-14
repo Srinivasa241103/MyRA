@@ -104,6 +104,7 @@ class ChatController {
             user_message: message.trim(),
             assistant_message: assistantMessage,
             metadata: { mode: "email_agent", emailStatus: finalState.status },
+            userId,
           });
           logger.info("Saved email agent conversation to database", { conversationId: threadId });
         }
@@ -227,24 +228,29 @@ class ChatController {
 
       // ── General ───────────────────────────────────────────────────────────── 
 
-      const messages = [{
-        role: "system",
-        content: "Your are a helpful assistant and please answer the user questions in a simple and normal way",
-      }, {
-        role: "user",
-        content: message.trim()
-      }]
+      // Resolve once — used consistently for LLM call, DB save, and response
+      const threadId = conversationId ?? uuidv4();
 
-      const messageHistory = await ragMemoryService.loadHistory(conversationId, userId);
-      if (messageHistory.length > 0) {
-        messages.concat(messageHistory);
-      }
+      const messageHistory = await ragMemoryService.loadHistory(threadId, userId);
+
+      const messages = [
+        {
+          role: "system",
+          content: "You are a helpful assistant. Answer the user's questions in a simple and conversational way.",
+        },
+        ...messageHistory,
+        {
+          role: "user",
+          content: message.trim(),
+        },
+      ];
+
       const generalLLMResponse = await llmService.generateResponse(
         llmProvider,
         messages,
         userId,
-        conversationId ?? uuidv4()
-      )
+        threadId
+      );
 
       if (!generalLLMResponse.answer) {
         return res.status(500).json({
@@ -253,10 +259,18 @@ class ChatController {
         });
       }
 
+      await conversationRepo.saveChatConversation({
+        conversation_id: threadId,
+        user_message: message.trim(),
+        assistant_message: generalLLMResponse.answer,
+        metadata: { mode: "general_chat" },
+        userId,
+      });
+
       return res.json({
         success: true,
         queryId: uuidv4(),
-        conversationId: conversationId ?? uuidv4(),
+        conversationId: threadId,
         query: message.trim(),
         response: generalLLMResponse.answer,
         context: {
@@ -265,7 +279,7 @@ class ChatController {
           selectedDocuments: 0,
         },
         metadata: {},
-      })
+      });
 
     } catch (error) {
       logger.error("Chat controller error", { error: error.message });
