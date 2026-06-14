@@ -25,10 +25,10 @@ router.post("/message/stream", optionalAuth, (req, res) =>
 router.post("/conversation", (req, res) =>
   chatController.createConversation(req, res)
 );
-router.get("/conversations", (req, res) =>
+router.get("/conversations", optionalAuth, (req, res) =>
   chatController.getConversations(req, res)
 );
-router.get("/history/:conversationId", (req, res) =>
+router.get("/history/:conversationId", optionalAuth, (req, res) =>
   chatController.getHistory(req, res)
 );
 
