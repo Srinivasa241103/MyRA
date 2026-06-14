@@ -602,7 +602,6 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   padding: 12px 16px;
   border-radius: var(--radius-lg);
   font-size: 14px; line-height: 1.6;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 .myra-bubble.user {
@@ -1367,4 +1366,81 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   .myra-logo .word { font-size: 14px; }
   .myra-logo.sm .mark { width: 20px; height: 20px; }
   .myra-logo.sm .word { font-size: 12px; }
+}
+
+/* ── Markdown rendered inside AI bubbles ─────────────────────────────────── */
+.myra-markdown p {
+  margin: 0 0 8px 0;
+  line-height: 1.65;
+}
+.myra-markdown p:last-child {
+  margin-bottom: 0;
+}
+.myra-markdown h1,
+.myra-markdown h2,
+.myra-markdown h3 {
+  font-weight: 600;
+  margin: 12px 0 6px 0;
+  color: var(--text-2);
+}
+.myra-markdown h1 { font-size: 16px; }
+.myra-markdown h2 { font-size: 14px; }
+.myra-markdown h3 { font-size: 13px; }
+.myra-markdown ul,
+.myra-markdown ol {
+  margin: 6px 0 8px 0;
+  padding-left: 20px;
+}
+.myra-markdown li {
+  margin-bottom: 4px;
+  line-height: 1.55;
+}
+.myra-markdown strong {
+  font-weight: 600;
+  color: var(--text-2);
+}
+.myra-markdown em {
+  font-style: italic;
+}
+.myra-markdown code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.myra-markdown pre {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.myra-markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.myra-markdown blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 8px 0;
+  padding: 4px 12px;
+  color: var(--text-soft);
+  font-style: italic;
+}
+.myra-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+.myra-markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.myra-markdown a:hover {
+  color: var(--accent-hover);
 }

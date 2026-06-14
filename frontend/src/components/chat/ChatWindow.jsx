@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import TypingIndicator from "./TypingIndicator";
 import { useChatStore } from "../../store/chatStore";
 import { useAuthStore } from "../../store/authStore";
@@ -243,7 +244,11 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
 
   return (
     <div className="myra-bubble assistant myra-fade-in" style={msg.isError ? { borderColor: "rgba(160,48,48,.3)", background: "rgba(160,48,48,.06)" } : {}}>
-      {msg.text && <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>}
+      {msg.text && (
+        <div className="myra-markdown">
+          <ReactMarkdown>{msg.text}</ReactMarkdown>
+        </div>
+      )}
 
       {/* Source pills */}
       {msg.mode !== "agent" && msg.mode !== "email_agent" && msg.context?.selectedDocuments > 0 && (
