@@ -1,7 +1,10 @@
-import LLMService from "../RAG/query/llmService.js";
+
 import { logger } from "../utils/logger.js";
+import { ChatOpenAI } from "@langchain/openai";
+import LLMService from "../RAG/query/llmService.js";
 
 const llm = new LLMService();
+
 
 const SYSTEM_PROMPT = `You are an intent classifier. Classify the user message into exactly one of these categories:
 - calendar_agent: The user wants to CREATE, SCHEDULE, ADD, UPDATE, MODIFY, DELETE, or CANCEL a calendar event
@@ -28,7 +31,7 @@ export async function routeIntent(message, conversationId = null, userId = null)
       { role: "user", content: message },
     ];
     const response = await llm.generateResponse(
-      "Anthropic",
+      "OpenAI",
       messages,
       userId ?? parseInt(process.env.SYNC_USER_ID, 10),
       conversationId ?? "intent_router",

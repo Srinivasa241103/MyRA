@@ -4,6 +4,9 @@ import { tools } from "../tools.js";
 
 const llm = new ChatOpenAI({
     model: process.env.OPENAI_PLANNER_MODEL,
+    temperature: 0.4,
+    maxTokens: 8000,
+    maxOutputTokens: 8000
 });
 
 const plannerLLM = llm.bindTools(tools);

@@ -6,7 +6,7 @@ export const emailAgentState = new StateSchema({
 
     intent: z.string().nullable().default(null),
     mode: z.enum(["save_draft", "send"]).default("save_draft"),
-    userId: z.integer(),
+    userId: z.number(),
 
     recipientQuery: z.string().nullable().default(null),
     recipientCandidates: z.array(z.any()).default(() => []),
