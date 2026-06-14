@@ -21,11 +21,13 @@ export default class SyncController {
 
   async syncGmail(req, res) {
     try {
-      const { userId, syncType = "incremental" } = req.body;
+      const { userId, syncType = "incremental", sinceDate = null, untilDate = null } = req.body;
       if (!userId) {
         return res.status(400).json({
           success: false,
           message: "userId is required",
+          sinceDate: null,
+          untilDate: null
         });
       }
       logger.info(`Starting ${syncType} Gmail sync for user ${userId}`);
@@ -57,6 +59,8 @@ export default class SyncController {
       const {
         userId,
         syncType = "incremental",
+        sinceDate = null,
+        untilDate = null,
       } = req.body;
 
       if (!userId) {

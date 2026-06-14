@@ -37,9 +37,9 @@ export class StatsRepository {
                     SUM(output_cost) AS totaloutputcost
                   FROM llm_usage_logs
                   WHERE created_at >= NOW() - INTERVAL '${days} days'
-                  AND user_id = $2
+                  AND user_id = $1
                   GROUP BY provider, model`;
-    const result = await getPool().query(query, [days, userId]);
+    const result = await getPool().query(query, [userId]);
     return result.rows;
   }
 

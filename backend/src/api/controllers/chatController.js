@@ -2,18 +2,20 @@ import ConversationRepository from "../../database/conversationsRepo.js";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../../utils/logger.js";
 import RagChain from "../../RAG/ragService.js";
-import RagMemoryService from "../../RAG/query/memoryService.js";
+import LLMService from "../../RAG/query/llmService.js";
+import MemoryService from "../../RAG/query/memoryService.js";
 
 import { routeIntent } from "../../agent/intentRouter.js";
 import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
 import {
   invokeEmailAgent,
   hasActiveEmailSession,
-} from "../../agent/emailAgent/index.js";
+} from "../../agent/email/index.js";
 
 const conversationRepo = new ConversationRepository();
 const ragChainService = new RagChain();
-const ragMemoryService = new RagMemoryService();
+const ragMemoryService = new MemoryService();
+const llmService = new LLMService();
 
 // Statuses that mean the email session is fully finished
 const EMAIL_TERMINAL_STATUSES = ["sent", "saved_draft", "cancelled", "idle"];
@@ -194,32 +196,77 @@ class ChatController {
       // }
 
       // ── Default RAG ──────────────────────────────────────────────────────────
-      const result = await ragChainService.chat({
-        userMessage: message.trim(),
-        conversationId,
-        userId,
-        llmProvider,
-      });
+      if (handler === 'rag') {
+        const result = await ragChainService.chat({
+          userMessage: message.trim(),
+          conversationId,
+          userId,
+          llmProvider,
+        });
 
-      if (!result.success) {
-        return res.status(500).json(result);
+        if (!result.success) {
+          return res.status(500).json(result);
+        }
+
+        return res.json({
+          success: true,
+          queryId: uuidv4(),
+          conversationId: result.conversationId,
+          query: message.trim(),
+          response: result.response,
+          context: {
+            documentsUsed: result.sourcedDocuments,
+            totalDocuments: result.sourcedDocuments.length,
+            selectedDocuments: result.sourcedDocuments.length,
+          },
+          metadata: {
+            duration: result?.duration,
+          }
+        })
+      }
+
+      // ── General ───────────────────────────────────────────────────────────── 
+
+      const messages = [{
+        role: "system",
+        content: "Your are a helpful assistant and please answer the user questions in a simple and normal way",
+      }, {
+        role: "user",
+        content: message.trim()
+      }]
+
+      const messageHistory = await ragMemoryService.loadHistory(conversationId, userId);
+      if (messageHistory.length > 0) {
+        messages.concat(messageHistory);
+      }
+      const generalLLMResponse = await llmService.generateResponse(
+        llmProvider,
+        messages,
+        userId,
+        conversationId ?? uuidv4()
+      )
+
+      if (!generalLLMResponse.answer) {
+        return res.status(500).json({
+          success: false,
+          error: "Failed to process message",
+        });
       }
 
       return res.json({
         success: true,
         queryId: uuidv4(),
-        conversationId: result.conversationId,
+        conversationId: conversationId ?? uuidv4(),
         query: message.trim(),
-        response: result.response,
+        response: generalLLMResponse.answer,
         context: {
-          documentsUsed: result.sourcedDocuments,
-          totalDocuments: result.sourcedDocuments.length,
-          selectedDocuments: result.sourcedDocuments.length,
+          documentsUsed: [],
+          totalDocuments: 0,
+          selectedDocuments: 0,
         },
-        metadata: {
-          duration: result?.duration,
-        },
-      });
+        metadata: {},
+      })
+
     } catch (error) {
       logger.error("Chat controller error", { error: error.message });
       return res.status(500).json({
