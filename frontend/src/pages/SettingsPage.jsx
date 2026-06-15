@@ -19,7 +19,6 @@ import { useAuthStore } from "../store/authStore";
 const SOURCES_DUMMY = [
   { id: "gmail",    name: "Gmail",          docs: 4218,  sync: "2m ago",  status: "connected" },
   { id: "gcal",     name: "Google Calendar",docs: 312,   sync: "5m ago",  status: "connected" },
-  { id: "notion",   name: "Notion",         docs: 891,   sync: "1h ago",  status: "disconnected" },
   { id: "drive",    name: "Google Drive",   docs: 2340,  sync: "15m ago", status: "disconnected" },
 ];
 
