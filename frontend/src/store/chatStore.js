@@ -48,7 +48,16 @@ export const useChatStore = create((set, get) => ({
         let messageEntry;
 
         if (result.mode === "email_agent") {
-          const { text: normText, emailResponse } = normalizeEmailResponse(result.response);
+          // The backend now sends the structured draft/selection payload as
+          // `emailResponse` (separate from the plain-text `response`).
+          // Fall back to normalizing result.response for older-style replies.
+          let normText, emailResponse;
+          if (result.emailResponse) {
+            normText = null;
+            emailResponse = result.emailResponse;
+          } else {
+            ({ text: normText, emailResponse } = normalizeEmailResponse(result.response));
+          }
           messageEntry = {
             role: "ai",
             text: normText,

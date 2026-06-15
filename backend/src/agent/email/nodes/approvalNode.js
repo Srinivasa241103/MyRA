@@ -1,5 +1,6 @@
 // backend/src/agent/email/nodes/approvalNode.js
 import { interrupt } from "@langchain/langgraph";
+import { AIMessage } from "@langchain/core/messages";
 
 /**
  * approvalNode — human-in-the-loop gate before an email is sent or saved.

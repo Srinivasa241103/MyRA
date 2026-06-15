@@ -1,4 +1,5 @@
 import { interrupt } from "@langchain/langgraph";
+import { AIMessage } from "@langchain/core/messages";
 
 const selectionNode = (state) => {
     const pending = state.pendingSelection;
@@ -22,9 +23,9 @@ const selectionNode = (state) => {
         .toLowerCase();
     if (pickAction === "cancel") {
         return {
-            abrotder: true,
+            aborted: true,
             pendingSelection: null,
-            messages: [new AIMessage("Okay - cancelled.No email was createSubgraphDiscoveryTransformer. ")],
+            messages: [new AIMessage("Okay — cancelled. No email was created.")],
         }
     }
 

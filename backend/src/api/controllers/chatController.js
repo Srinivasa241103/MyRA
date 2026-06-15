@@ -82,23 +82,26 @@ class ChatController {
       if (handler === "email_agent") {
         const threadId = conversationId ?? uuidv4();
 
+        // When agentActive is true and no intent is set, the user is responding
+        // to an interrupt (approve / pick / feedback). Pass their message as the
+        // resume value so Command({ resume }) is used internally.
+        // When intent IS set, this is the first turn of a new email session.
+        const isResumeTurn = !intent;
         const finalState = await invokeEmailAgent(
           message.trim(),
           threadId,
-          // Pass intent only on the first turn; subsequent turns read it from
-          // the checkpointed state.
           intent ?? null,
           userId,
+          isResumeTurn ? message.trim() : null,
         );
 
-        const emailSessionEnded = EMAIL_TERMINAL_STATUSES.includes(
-          finalState.status,
-        );
+        const emailSessionEnded = finalState.status === "complete";
 
         if (finalState.agentResponse) {
-          const assistantMessage = typeof finalState.agentResponse === "object"
-            ? JSON.stringify(finalState.agentResponse)
-            : finalState.agentResponse;
+          const assistantMessage =
+            typeof finalState.agentResponse === "object"
+              ? JSON.stringify(finalState.agentResponse)
+              : finalState.agentResponse;
           await conversationRepo.saveChatConversation({
             conversation_id: threadId,
             user_message: message.trim(),
@@ -115,6 +118,7 @@ class ChatController {
           conversationId: threadId,
           query: message.trim(),
           response: finalState.agentResponse,
+          emailResponse: finalState.emailResponse ?? null,
           mode: "email_agent",
           agentActive: !emailSessionEnded,
           emailStatus: finalState.status,

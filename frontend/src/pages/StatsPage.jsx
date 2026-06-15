@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
-import { statsApi, DUMMY } from "../api/stats";
+import { statsApi } from "../api/stats";
+
+const EMPTY_STATS = {
+  emails: [],
+  tokens: [],
+  reminders: [],
+  cost: [],
+  sessions: [],
+  calEvents: [],
+};
 
 export default function StatsScreen() {
   const [range, setRange] = useState("14d");
-  const [data, setData] = useState({
-    emails:    DUMMY.emails,
-    tokens:    DUMMY.tokens,
-    reminders: DUMMY.reminders,
-    cost:      DUMMY.cost,
-    sessions:  DUMMY.sessions,
-    calEvents: DUMMY.calEvents,
-  });
+  const [data, setData] = useState(EMPTY_STATS);
 
   useEffect(() => {
     statsApi.getAll(range).then(setData).catch(() => {});
@@ -18,16 +20,36 @@ export default function StatsScreen() {
 
   const { emails: EMAILS_14D, tokens: TOKENS, reminders: REMINDERS_7D, cost: COST_30D, sessions: CHAT_SESSIONS, calEvents: CAL_EVENTS } = data;
 
-  const labels14 = EMAILS_14D.map((_, i) => {
+  const hasEmails = EMAILS_14D.length > 0;
+  const hasTokens = TOKENS.length > 0;
+  const hasReminders = REMINDERS_7D.length > 0;
+  const hasCost = COST_30D.length > 0;
+  const hasSessions = CHAT_SESSIONS.length > 0;
+  const hasCalEvents = CAL_EVENTS.length > 0;
+  const hasAnyData =
+    hasEmails ||
+    hasTokens ||
+    hasReminders ||
+    hasCost ||
+    hasSessions ||
+    hasCalEvents;
+
+  const buildDayLabels = (values) => values.map((_, i) => {
     const d = new Date();
-    d.setDate(d.getDate() - (EMAILS_14D.length - 1 - i));
+    d.setDate(d.getDate() - (values.length - 1 - i));
     return d.getDate();
   });
+  const emailLabels = buildDayLabels(EMAILS_14D);
+  const sessionLabels = buildDayLabels(CHAT_SESSIONS);
+  const calendarLabels = buildDayLabels(CAL_EVENTS);
 
   const totalTokens = TOKENS.reduce((s, t) => s + t.value, 0);
   const totalCost   = COST_30D.reduce((s, c) => s + c.spend, 0);
   const remindersSet  = REMINDERS_7D.reduce((s, r) => s + r.set, 0);
   const remindersDone = REMINDERS_7D.reduce((s, r) => s + r.done, 0);
+  const reminderCompletion = remindersSet > 0
+    ? Math.round((remindersDone / remindersSet) * 100)
+    : 0;
 
   return (
     <div className="myra-page-inner" style={{ paddingTop: 32, paddingBottom: 48 }}>
@@ -45,35 +67,50 @@ export default function StatsScreen() {
         </div>
       </div>
 
+      {!hasAnyData && (
+        <div className="myra-card" style={{ marginBottom: 16 }}>
+          <NoDataState />
+        </div>
+      )}
+
       {/* KPI tiles */}
       <div className="myra-stats-kpi-scroll">
-        <KpiTile
-          label="Emails received"
-          value={EMAILS_14D.reduce((s, v) => s + v, 0)}
-          delta="+8% wk/wk"
-          up
-          trend={EMAILS_14D}
-        />
-        <KpiTile
-          label="Tokens used"
-          value={(totalTokens / 1000).toFixed(0) + "K"}
-          delta="3 providers"
-          trend={[210,280,240,320,290,350,410,380,460,510,480,540,590,620]}
-        />
-        <KpiTile
-          label="Reminders"
-          value={`${remindersDone}/${remindersSet}`}
-          delta={Math.round(remindersDone / remindersSet * 100) + "% complete"}
-          up
-          trend={REMINDERS_7D.map((r) => r.done)}
-        />
-        <KpiTile
-          label="Spend (30d)"
-          value={"₹" + totalCost.toFixed(2)}
-          delta="−₹2.18 vs prev"
-          up
-          trend={[2.1,1.8,2.4,2.0,2.6,2.3,2.1,1.9,2.5,2.2,1.7,1.9,2.0,2.0]}
-        />
+        {hasEmails ? (
+          <KpiTile
+            label="Emails received"
+            value={EMAILS_14D.reduce((s, v) => s + v, 0)}
+            trend={EMAILS_14D.length >= 10 ? EMAILS_14D : null}
+          />
+        ) : (
+          <KpiEmptyTile label="Emails received" />
+        )}
+        {hasTokens ? (
+          <KpiTile
+            label="Tokens used"
+            value={(totalTokens / 1000).toFixed(0) + "K"}
+          />
+        ) : (
+          <KpiEmptyTile label="Tokens used" />
+        )}
+        {hasReminders ? (
+          <KpiTile
+            label="Reminders"
+            value={`${remindersDone}/${remindersSet}`}
+            delta={`${reminderCompletion}% complete`}
+            up
+            trend={REMINDERS_7D.map((r) => r.done)}
+          />
+        ) : (
+          <KpiEmptyTile label="Reminders" />
+        )}
+        {hasCost ? (
+          <KpiTile
+            label="Spend"
+            value={"₹" + totalCost.toFixed(2)}
+          />
+        ) : (
+          <KpiEmptyTile label="Spend" />
+        )}
       </div>
 
       {/* Big charts */}
@@ -84,9 +121,17 @@ export default function StatsScreen() {
               <h3>Emails received</h3>
               <span className="muted" style={{ fontSize: 12 }}>Per day · last 14 days</span>
             </div>
-            <span className="myra-badge accent">avg {Math.round(EMAILS_14D.reduce((s, v) => s + v, 0) / 14)}/day</span>
+            {hasEmails && (
+              <span className="myra-badge accent">
+                avg {Math.round(EMAILS_14D.reduce((s, v) => s + v, 0) / EMAILS_14D.length)}/day
+              </span>
+            )}
           </div>
-          <BarChart values={EMAILS_14D} labels={labels14} h={180} />
+          {hasEmails ? (
+            <BarChart values={EMAILS_14D} labels={emailLabels} h={180} />
+          ) : (
+            <NoDataState />
+          )}
         </div>
 
         <div className="myra-card">
@@ -94,18 +139,22 @@ export default function StatsScreen() {
             <h3>Tokens by model</h3>
             <span className="muted" style={{ fontSize: 12 }}>30 days</span>
           </div>
-          <div className="myra-donut-legend">
-            <Donut data={TOKENS} centerLabel="TOTAL" centerValue={(totalTokens / 1e6).toFixed(2) + "M"} size={140} />
-            <div className="myra-donut-legend-list">
-              {TOKENS.map((t) => (
-                <div key={t.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 12 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: t.color, flexShrink: 0 }} />
-                  <span style={{ flex: 1, color: "var(--text-2)" }}>{t.name}</span>
-                  <span className="muted mono">{(t.value / 1e3).toFixed(0)}K</span>
-                </div>
-              ))}
+          {hasTokens ? (
+            <div className="myra-donut-legend">
+              <Donut data={TOKENS} centerLabel="TOTAL" centerValue={(totalTokens / 1e6).toFixed(2) + "M"} size={140} />
+              <div className="myra-donut-legend-list">
+                {TOKENS.map((t) => (
+                  <div key={t.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 12 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: t.color, flexShrink: 0 }} />
+                    <span style={{ flex: 1, color: "var(--text-2)" }}>{t.name}</span>
+                    <span className="muted mono">{(t.value / 1e3).toFixed(0)}K</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <NoDataState />
+          )}
         </div>
       </div>
 
@@ -115,18 +164,26 @@ export default function StatsScreen() {
         <div className="myra-card">
           <div className="myra-card-header">
             <h3>Reminders set vs finished</h3>
-            <span className="myra-badge success">{Math.round(remindersDone / remindersSet * 100)}%</span>
+            {hasReminders && (
+              <span className="myra-badge success">{reminderCompletion}%</span>
+            )}
           </div>
-          <GroupedBars
-            groups={REMINDERS_7D}
-            keys={["set", "done"]}
-            colors={["#D4A96A", "#7A4A2E"]}
-            h={170}
-          />
-          <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 11 }}>
-            <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#D4A96A", marginRight: 6, borderRadius: 2 }} />Set</span>
-            <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#7A4A2E", marginRight: 6, borderRadius: 2 }} />Done</span>
-          </div>
+          {hasReminders ? (
+            <>
+              <GroupedBars
+                groups={REMINDERS_7D}
+                keys={["set", "done"]}
+                colors={["#D4A96A", "#7A4A2E"]}
+                h={170}
+              />
+              <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 11 }}>
+                <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#D4A96A", marginRight: 6, borderRadius: 2 }} />Set</span>
+                <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#7A4A2E", marginRight: 6, borderRadius: 2 }} />Done</span>
+              </div>
+            </>
+          ) : (
+            <NoDataState />
+          )}
         </div>
 
         {/* Calendar events */}
@@ -135,13 +192,14 @@ export default function StatsScreen() {
             <h3>Calendar events</h3>
             <span className="muted" style={{ fontSize: 12 }}>handled by agent</span>
           </div>
-          <div className="myra-grid-2-tight" style={{ marginBottom: 12 }}>
-            {[["Created","34"],["Rescheduled","11"],["Cancelled","3"],["Conflicts caught","7"]].map(([label, value]) => (
-              <SubKpi key={label} label={label} value={value} />
-            ))}
-          </div>
-          <div className="myra-label" style={{ marginBottom: 6 }}>Per day</div>
-          <LineChart values={CAL_EVENTS} labels={labels14} h={90} />
+          {hasCalEvents ? (
+            <>
+              <div className="myra-label" style={{ marginBottom: 6 }}>Per day</div>
+              <LineChart values={CAL_EVENTS} labels={calendarLabels} h={90} />
+            </>
+          ) : (
+            <NoDataState />
+          )}
         </div>
 
         {/* Cost by provider */}
@@ -150,20 +208,26 @@ export default function StatsScreen() {
             <h3>Cost by provider</h3>
             <span className="muted" style={{ fontSize: 12 }}>Last 30 days</span>
           </div>
-          {COST_30D.map((c) => (
-            <HBarRow
-              key={c.provider}
-              label={c.provider}
-              value={c.spend}
-              max={Math.max(...COST_30D.map((x) => x.spend)) || 1}
-              fmt={(v) => "₹" + v.toFixed(2)}
-            />
-          ))}
-          <div className="myra-divider" style={{ margin: "12px 0" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-            <span className="muted">Total</span>
-            <strong style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>₹{totalCost.toFixed(2)}</strong>
-          </div>
+          {hasCost ? (
+            <>
+              {COST_30D.map((c) => (
+                <HBarRow
+                  key={c.provider}
+                  label={c.provider}
+                  value={c.spend}
+                  max={Math.max(...COST_30D.map((x) => x.spend)) || 1}
+                  fmt={(v) => "₹" + v.toFixed(2)}
+                />
+              ))}
+              <div className="myra-divider" style={{ margin: "12px 0" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span className="muted">Total</span>
+                <strong style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>₹{totalCost.toFixed(2)}</strong>
+              </div>
+            </>
+          ) : (
+            <NoDataState />
+          )}
         </div>
       </div>
 
@@ -172,17 +236,8 @@ export default function StatsScreen() {
         <div className="myra-card">
           <div className="myra-card-header">
             <h3>Documents indexed</h3>
-            <button className="myra-btn ghost sm">Sync now <ZapIcon /></button>
           </div>
-          <HBarRow label="Gmail"    value={4218} max={4500} />
-          <HBarRow label="Drive"    value={2340} max={4500} />
-          <HBarRow label="Notion"   value={891}  max={4500} color="#C9845A" />
-          <HBarRow label="Calendar" value={312}  max={4500} color="#D4A96A" />
-          <div className="myra-divider" style={{ margin: "12px 0" }} />
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-            <span className="muted">Total chunks in vector store</span>
-            <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>54,318</span>
-          </div>
+          <NoDataState />
         </div>
 
         <div className="myra-card">
@@ -190,12 +245,11 @@ export default function StatsScreen() {
             <h3>Chat sessions</h3>
             <span className="muted" style={{ fontSize: 12 }}>Per day</span>
           </div>
-          <BarChart values={CHAT_SESSIONS} labels={labels14} h={140} color="#C9845A" />
-          <div className="myra-grid-3-tight" style={{ marginTop: 12 }}>
-            <SubKpi label="Sessions"  value="91" />
-            <SubKpi label="Avg turns" value="6.4" />
-            <SubKpi label="Avg time"  value="3m 42s" />
-          </div>
+          {hasSessions ? (
+            <BarChart values={CHAT_SESSIONS} labels={sessionLabels} h={140} color="#C9845A" />
+          ) : (
+            <NoDataState />
+          )}
         </div>
       </div>
     </div>
@@ -300,19 +354,27 @@ function Donut({ data, size = 160, thickness = 22, centerLabel, centerValue }) {
   const r = (size - thickness) / 2;
   const c = size / 2;
   const circ = 2 * Math.PI * r;
-  let acc = 0;
+  const segments = data.map((d, i) => {
+    const previousTotal = data
+      .slice(0, i)
+      .reduce((sum, item) => sum + item.value, 0);
+
+    return {
+      ...d,
+      dashLength: total > 0 ? (d.value / total) * circ : 0,
+      dashOffset: total > 0 ? -((previousTotal / total) * circ) : 0,
+    };
+  });
+
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
       <circle cx={c} cy={c} r={r} fill="none" stroke="var(--bg-2)" strokeWidth={thickness} />
-      {data.map((d, i) => {
-        const len = (d.value / total) * circ;
-        const dash = `${len} ${circ - len}`;
-        const off = -acc;
-        acc += len;
+      {segments.map((d, i) => {
+        const dash = `${d.dashLength} ${circ - d.dashLength}`;
         return (
           <circle key={i} cx={c} cy={c} r={r} fill="none"
             stroke={d.color} strokeWidth={thickness}
-            strokeDasharray={dash} strokeDashoffset={off}
+            strokeDasharray={dash} strokeDashoffset={d.dashOffset}
             transform={`rotate(-90 ${c} ${c})`}
             strokeLinecap="butt"
           />
@@ -365,15 +427,28 @@ function KpiTile({ label, value, delta, up, trend }) {
   );
 }
 
-function SubKpi({ label, value }) {
+function KpiEmptyTile({ label }) {
   return (
-    <div style={{ background: "var(--bg-2)", borderRadius: 8, padding: "8px 10px" }}>
-      <div className="myra-label" style={{ fontSize: 10, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-2)" }}>{value}</div>
+    <div className="myra-stat-tile">
+      <div className="myra-label">{label}</div>
+      <div className="stat-value" style={{ fontSize: 18 }}>No data to show</div>
     </div>
   );
 }
 
-function ZapIcon() {
-  return <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>;
+function NoDataState() {
+  return (
+    <div
+      style={{
+        minHeight: 120,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--text-muted)",
+        fontSize: 14,
+      }}
+    >
+      No data to show
+    </div>
+  );
 }
