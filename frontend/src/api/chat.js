@@ -7,16 +7,45 @@ const authHeaders = () => {
 };
 
 export const chatApi = {
-  sendMessage: async (message, conversationId = null, confirmationStatus = null, agentActive = false) => {
+  sendMessage: async (
+    message,
+    conversationId = null,
+    confirmationStatus = null,
+    agentActive = false,
+    activeAgentMode = null,
+  ) => {
     const response = await fetch(`${API_BASE_URL}/chat/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       credentials: "include",
-      body: JSON.stringify({ message, conversationId, confirmationStatus, agentActive }),
+      body: JSON.stringify({
+        message,
+        conversationId,
+        confirmationStatus,
+        agentActive,
+        activeAgentMode,
+      }),
     });
 
     if (!response.ok) {
-      throw new Error(`Chat request failed: ${response.status}`);
+      const data = await response.json().catch(() => ({}));
+      const error = new Error(data.error || `Chat request failed: ${response.status}`);
+      error.data = data;
+      throw error;
+    }
+
+    return response.json();
+  },
+
+  getEmailStatus: async (conversationId) => {
+    const response = await fetch(`${API_BASE_URL}/chat/email-status/${conversationId}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to read email status: ${response.status}`);
     }
 
     return response.json();

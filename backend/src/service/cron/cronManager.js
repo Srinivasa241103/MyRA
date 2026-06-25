@@ -1,15 +1,9 @@
-import EmbeddingCronJob from "./embeddingCron.js";
-import GmailSyncCronJob from "./gmailSyncCron.js";
-import CalendarSyncCronJob from "./calendarSyncCron.js";
 import CredsAlertCronJob from "./credsAlertCron.js";
 import { logger } from "../../utils/logger.js";
 
 export default class CronManager {
   constructor() {
     this.jobs = {
-      embedding: new EmbeddingCronJob(),
-      gmailSync: new GmailSyncCronJob(),
-      calendarSync: new CalendarSyncCronJob(),
       credsAlert: new CredsAlertCronJob(),
     };
   }

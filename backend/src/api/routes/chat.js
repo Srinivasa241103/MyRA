@@ -10,7 +10,10 @@ function optionalAuth(req, res, next) {
     try {
       req.user = jwt.verify(header.substring(7), process.env.JWT_SECRET);
     } catch {
-      // invalid token — continue without user context
+      return res.status(401).json({
+        success: false,
+        error: "Your session has expired. Please sign in again.",
+      });
     }
   }
   next();
@@ -30,6 +33,9 @@ router.get("/conversations", optionalAuth, (req, res) =>
 );
 router.get("/history/:conversationId", optionalAuth, (req, res) =>
   chatController.getHistory(req, res)
+);
+router.get("/email-status/:conversationId", optionalAuth, (req, res) =>
+  chatController.getEmailStatus(req, res)
 );
 
 export default router;

@@ -7,7 +7,7 @@ import { useAuthStore } from "../../store/authStore";
 // ── ChatWindow — exact MyRA design replica ───────────────────────────────────
 
 function ChatWindow({ onNavigate, onToggleSidebar }) {
-  const { messages, isTyping, sendMessage, pendingConfirmation, confirmAction, conversationId, clearPendingMessage } = useChatStore();
+  const { messages, isTyping, sendMessage, pendingConfirmation, confirmAction, clearPendingMessage, agentActive } = useChatStore();
   const { user } = useAuthStore();
   const [draft, setDraft] = useState("");
   const scrollRef = useRef(null);
@@ -20,7 +20,7 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
       clearPendingMessage();
       sendMessage(pendingMessage);
     }
-  }, []);
+  }, [clearPendingMessage, sendMessage]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -190,12 +190,12 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
           <div className="myra-bubble system">{todayLabel}</div>
 
           {(() => {
-            // Index of the last draft_approval card — only that one gets live buttons
-            const lastDraftIdx = messages.reduce((last, m, i) =>
-              (m.mode === "email_agent" && m.emailResponse?.type === "draft_approval") ? i : last, -1);
+            const interactiveTypes = ["recipient_choice", "draft_approval", "pending_send"];
+            const lastInteractiveIdx = messages.reduce((last, m, i) =>
+              (m.mode === "email_agent" && interactiveTypes.includes(m.emailResponse?.type)) ? i : last, -1);
             return messages.map((msg, idx) => {
-              const readonly = msg.isHistorical ||
-                (msg.mode === "email_agent" && msg.emailResponse?.type === "draft_approval" && idx !== lastDraftIdx);
+              const readonly = (msg.isHistorical && !agentActive) ||
+                (msg.mode === "email_agent" && interactiveTypes.includes(msg.emailResponse?.type) && idx !== lastInteractiveIdx);
               return <MessageTurn key={idx} msg={msg} setDraft={setDraft} readonly={readonly} />;
             });
           })()}
@@ -238,8 +238,16 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
   }
 
   // Email agent: draft approval card
+  if (msg.mode === "email_agent" && msg.emailResponse?.type === "recipient_choice") {
+    return <RecipientChoiceCard data={msg.emailResponse} readonly={readonly} />;
+  }
+
   if (msg.mode === "email_agent" && msg.emailResponse?.type === "draft_approval") {
     return <DraftApprovalCard data={msg.emailResponse} setDraft={setDraft} readonly={readonly} />;
+  }
+
+  if (msg.mode === "email_agent" && msg.emailResponse?.type === "pending_send") {
+    return <PendingSendCard data={msg.emailResponse} readonly={readonly} />;
   }
 
   return (
@@ -279,11 +287,162 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
   );
 }
 
+function EmailAgentCard({ children }) {
+  return (
+    <div className="myra-fade-in" style={{ alignSelf: "flex-start", width: "100%", maxWidth: 580 }}>
+      <div style={{
+        border: "1px solid var(--border-strong)",
+        borderRadius: 10,
+        overflow: "hidden",
+        background: "var(--bg-2)",
+      }}>
+        {children}
+      </div>
+      <div style={{ marginTop: 6 }}>
+        <span className="myra-badge accent" style={{ background: "rgba(59,130,246,.12)", color: "#2563eb" }}>
+          <MailSmIcon /> Email Agent
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RecipientChoiceCard({ data, readonly = false }) {
+  const { sendMessage, isTyping } = useChatStore();
+  const [email, setEmail] = useState("");
+  const candidates = data.candidates ?? [];
+
+  const submitEmail = () => {
+    const value = email.trim();
+    if (value) sendMessage(value);
+  };
+
+  return (
+    <EmailAgentCard>
+      <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
+        <strong style={{ fontSize: 14, color: "var(--text-2)" }}>Choose recipient</strong>
+        <p style={{ margin: "5px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+          {data.prompt}
+        </p>
+      </div>
+
+      {candidates.length > 0 && (
+        <div style={{ padding: "10px 14px", display: "grid", gap: 8 }}>
+          {candidates.map((candidate, index) => (
+            <button
+              key={`${candidate.email}-${index}`}
+              className="myra-btn secondary sm"
+              disabled={readonly || isTyping}
+              onClick={() => sendMessage(String(index + 1))}
+              style={{ justifyContent: "flex-start" }}
+            >
+              {candidate.name || "Recipient"} &lt;{candidate.email}&gt;
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
+        <input
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") submitEmail();
+          }}
+          disabled={readonly || isTyping}
+          placeholder={data.placeholder || "name@example.com"}
+          type="email"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: "1px solid var(--border-strong)",
+            borderRadius: 8,
+            padding: "8px 10px",
+            background: "var(--bg-1)",
+            color: "var(--text-2)",
+          }}
+        />
+        <button
+          className="myra-btn primary sm"
+          disabled={readonly || isTyping || !email.trim()}
+          onClick={submitEmail}
+        >
+          Use email
+        </button>
+        <button
+          className="myra-btn ghost sm"
+          disabled={readonly || isTyping}
+          onClick={() => sendMessage("cancel")}
+        >
+          Cancel
+        </button>
+      </div>
+    </EmailAgentCard>
+  );
+}
+
+function PendingSendCard({ data, readonly = false }) {
+  const { sendMessage, syncEmailStatus, isTyping } = useChatStore();
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, Date.parse(data.deadline) - Date.now())
+  );
+  const status = data.status ?? "pending_revoke";
+  const terminal = ["sent", "revoked", "cancelled", "failed"].includes(status);
+
+  useEffect(() => {
+    if (readonly || terminal) return undefined;
+
+    const refresh = () => {
+      setRemaining(Math.max(0, Date.parse(data.deadline) - Date.now()));
+      syncEmailStatus().catch(() => {});
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 750);
+    return () => window.clearInterval(interval);
+  }, [data.deadline, readonly, syncEmailStatus, terminal]);
+
+  const seconds = Math.max(0, Math.ceil(remaining / 1000));
+  const canRevoke = !readonly && !terminal && remaining > 0 && !isTyping;
+
+  return (
+    <EmailAgentCard>
+      <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
+        <strong style={{ fontSize: 14, color: "var(--text-2)" }}>
+          {status === "sent" ? "Email sent" : status === "revoked" ? "Send revoked" : "Email pending"}
+        </strong>
+        <p style={{ margin: "5px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+          {terminal
+            ? `Status: ${status}`
+            : remaining > 0
+              ? `Sending in ${seconds} second${seconds === 1 ? "" : "s"}.`
+              : "Sending now…"}
+        </p>
+      </div>
+
+      <div style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-2)" }}>
+        <div>To: {data.recipient?.name ? `${data.recipient.name} <${data.recipient.email}>` : data.recipient?.email}</div>
+        <div style={{ marginTop: 4 }}>Subject: {data.draft?.subject}</div>
+      </div>
+
+      <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
+        <button
+          className="myra-btn secondary sm"
+          disabled={!canRevoke}
+          onClick={() => sendMessage("revoke")}
+        >
+          <XIcon /> Revoke send
+        </button>
+      </div>
+    </EmailAgentCard>
+  );
+}
+
 // ── DraftApprovalCard — rendered when email agent returns a draft ─────────────
 
 function DraftApprovalCard({ data, setDraft, readonly = false }) {
-  const { sendMessage } = useChatStore();
-  const { draft, meta, instructions } = data;
+  const { sendMessage, isTyping } = useChatStore();
+  const { draft, meta = {}, instructions } = data;
 
   const cardStyle = {
     border: "1px solid var(--border-strong)",
@@ -339,7 +498,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
             </span>
           </div>
           <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            v{draft.version} · {draft.source}
+            v{draft.version} · {draft.source || "agent"}
           </span>
         </div>
 
@@ -364,24 +523,28 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
             <>
               <button
                 className="myra-btn primary sm"
+                disabled={isTyping}
                 onClick={() => sendMessage("approve")}
               >
                 <CheckIcon /> Approve
               </button>
               <button
                 className="myra-btn secondary sm"
+                disabled={isTyping}
                 onClick={() => { setDraft("Edit: "); }}
               >
                 <EditIcon /> Edit
               </button>
               <button
                 className="myra-btn secondary sm"
+                disabled={isTyping}
                 onClick={() => sendMessage("regenerate")}
               >
                 <RefreshIcon /> Regenerate
               </button>
               <button
                 className="myra-btn ghost sm"
+                disabled={isTyping}
                 onClick={() => sendMessage("cancel")}
                 style={{ color: "var(--text-muted)" }}
               >

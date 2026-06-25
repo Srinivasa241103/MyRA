@@ -11,12 +11,10 @@ const normalizeEmailResponse = (response) => {
   if (typeof response === "string") {
     return { text: response, emailResponse: null };
   }
-  if (response.type === "draft_approval") {
-    // Full card — keep as emailResponse; text is the instructions line
+  if (["draft_approval", "recipient_choice", "pending_send"].includes(response.type)) {
     return { text: null, emailResponse: response };
   }
-  // success, cancelled, error — all have a message field
-  return { text: response.message ?? "Done.", emailResponse: null };
+  return { text: response.message ?? response.prompt ?? "Done.", emailResponse: null };
 };
 
 export const useChatStore = create((set, get) => ({
@@ -25,6 +23,7 @@ export const useChatStore = create((set, get) => ({
   conversationId: null,
   pendingConfirmation: false,
   agentActive: false,
+  activeAgentMode: null,
   error: null,
   pendingMessage: null,
 
@@ -33,7 +32,8 @@ export const useChatStore = create((set, get) => ({
   conversationsError: null,
 
   sendMessage: async (text, confirmationStatus = null) => {
-    const { conversationId, agentActive } = get();
+    const { conversationId, agentActive, activeAgentMode, isTyping } = get();
+    if (isTyping) return;
 
     set((state) => ({
       messages: [...state.messages, { role: "user", text }],
@@ -42,7 +42,13 @@ export const useChatStore = create((set, get) => ({
     }));
 
     try {
-      const result = await chatApi.sendMessage(text, conversationId, confirmationStatus, agentActive);
+      const result = await chatApi.sendMessage(
+        text,
+        conversationId,
+        confirmationStatus,
+        agentActive,
+        activeAgentMode,
+      );
 
       if (result.success) {
         let messageEntry;
@@ -83,6 +89,7 @@ export const useChatStore = create((set, get) => ({
           conversationId: result.conversationId,
           pendingConfirmation: result.pendingConfirmation ?? false,
           agentActive: result.agentActive ?? false,
+          activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
         }));
 
         get().loadConversations();
@@ -99,7 +106,8 @@ export const useChatStore = create((set, get) => ({
           isTyping: false,
           error: result.error,
           pendingConfirmation: false,
-          agentActive: false,
+          agentActive: result.agentActive ?? false,
+          activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
         }));
       }
     } catch (error) {
@@ -108,16 +116,65 @@ export const useChatStore = create((set, get) => ({
           ...state.messages,
           {
             role: "ai",
-            text: "Something went wrong. Please try again.",
+            text: error.message || "Something went wrong. Please try again.",
             isError: true,
           },
         ],
         isTyping: false,
         error: error.message,
         pendingConfirmation: false,
-        agentActive: false,
+        conversationId: error.data?.conversationId ?? state.conversationId,
+        agentActive: error.data?.agentActive ?? state.agentActive,
+        activeAgentMode: error.data?.agentActive
+          ? (error.data?.mode ?? state.activeAgentMode)
+          : null,
       }));
     }
+  },
+
+  syncEmailStatus: async () => {
+    const { conversationId } = get();
+    if (!conversationId) return null;
+
+    const status = await chatApi.getEmailStatus(conversationId);
+
+    set((state) => {
+      const messages = state.messages.map((message) => {
+        if (message.emailResponse?.type !== "pending_send") return message;
+        return {
+          ...message,
+          emailStatus: status.emailStatus,
+          emailResponse: {
+            ...message.emailResponse,
+            status: status.emailStatus,
+            deadline: status.revokeDeadline ?? message.emailResponse.deadline,
+          },
+        };
+      });
+
+      const terminal = ["sent", "revoked", "cancelled", "failed"].includes(status.emailStatus);
+      const hasNotice = messages.some(message =>
+        message.emailStatusNotice === status.emailStatus
+      );
+
+      if (terminal && status.response && !hasNotice) {
+        messages.push({
+          role: "ai",
+          text: status.response,
+          mode: "email_agent",
+          emailStatus: status.emailStatus,
+          emailStatusNotice: status.emailStatus,
+        });
+      }
+
+      return {
+        messages,
+        agentActive: status.active,
+        activeAgentMode: status.active ? "email_agent" : null,
+      };
+    });
+
+    return status;
   },
 
   confirmAction: async (status) => {
@@ -159,8 +216,45 @@ export const useChatStore = create((set, get) => ({
         return [{ role: "user", text: entry.user_message, isHistorical: true }, aiMsg];
       });
 
-      set({ messages, conversationId, isTyping: false });
-    } catch (error) {
+      const emailStatus = await chatApi.getEmailStatus(conversationId)
+        .catch(() => null);
+
+      if (emailStatus?.interrupt) {
+        const lastEmailResponse = [...messages]
+          .reverse()
+          .find(message => message.emailResponse)?.emailResponse;
+
+        if (lastEmailResponse?.type !== emailStatus.interrupt.type) {
+          messages.push({
+            role: "ai",
+            text: null,
+            emailResponse: emailStatus.interrupt,
+            emailStatus: emailStatus.emailStatus,
+            mode: "email_agent",
+          });
+        }
+      } else if (
+        ["sent", "revoked", "cancelled", "failed"].includes(emailStatus?.emailStatus)
+        && emailStatus?.response
+        && !messages.some(message => message.text === emailStatus.response)
+      ) {
+        messages.push({
+          role: "ai",
+          text: emailStatus.response,
+          emailStatus: emailStatus.emailStatus,
+          emailStatusNotice: emailStatus.emailStatus,
+          mode: "email_agent",
+        });
+      }
+
+      set({
+        messages,
+        conversationId,
+        isTyping: false,
+        agentActive: emailStatus?.active ?? false,
+        activeAgentMode: emailStatus?.active ? "email_agent" : null,
+      });
+    } catch {
       set({
         isTyping: false,
         error: "Failed to load conversation.",
@@ -175,6 +269,7 @@ export const useChatStore = create((set, get) => ({
       conversationId: null,
       pendingConfirmation: false,
       agentActive: false,
+      activeAgentMode: null,
       error: null,
       pendingMessage: null,
     }),
@@ -186,6 +281,7 @@ export const useChatStore = create((set, get) => ({
       conversationId: null,
       pendingConfirmation: false,
       agentActive: false,
+      activeAgentMode: null,
       error: null,
       pendingMessage: text,
     }),

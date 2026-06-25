@@ -8,17 +8,15 @@ import MemoryService from "../../RAG/query/memoryService.js";
 import { routeIntent } from "../../agent/intentRouter.js";
 import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
 import {
+  getEmailSessionStatus,
   invokeEmailAgent,
   hasActiveEmailSession,
-} from "../../agent/email/index.js";
+} from "../../agent/emailAgent/index.js";
 
 const conversationRepo = new ConversationRepository();
 const ragChainService = new RagChain();
 const ragMemoryService = new MemoryService();
 const llmService = new LLMService();
-
-// Statuses that mean the email session is fully finished
-const EMAIL_TERMINAL_STATUSES = ["sent", "saved_draft", "cancelled", "idle"];
 
 class ChatController {
   async _resolveHandler(
@@ -26,17 +24,28 @@ class ChatController {
     conversationId,
     confirmationStatus,
     agentActive,
+    activeAgentMode,
     userId,
   ) {
-    if (confirmationStatus || agentActive) {
+    if (confirmationStatus) {
+      return { handler: "agent", confirmationStatus };
+    }
+
+    if (agentActive) {
       if (conversationId) {
-        const emailActive = await hasActiveEmailSession(conversationId);
+        const emailActive = await hasActiveEmailSession(conversationId, userId);
         if (emailActive) {
           return { handler: "email_agent" };
         }
       }
-      // No active email session — fall through to calendar agent (existing behaviour)
-      return { handler: "agent", confirmationStatus };
+
+      if (activeAgentMode === "agent") {
+        return { handler: "agent" };
+      }
+
+      if (activeAgentMode === "email_agent" && conversationId) {
+        return { handler: "email_agent_status" };
+      }
     }
 
     const intent = await routeIntent(message, conversationId, userId);
@@ -47,15 +56,21 @@ class ChatController {
     if (intent === "email_draft")
       return { handler: "email_agent", intent: "email_draft" };
     if (intent === "email_reply")
-      return { handler: "email_agent", intent: "email_reply" };
+      return { handler: "email_reply_unavailable", intent };
     if (intent === "email_read") return { handler: "rag", intent };
     if (intent === "rag") return { handler: "rag", intent };
     return { handler: "Normal", intent: "general" }
   }
 
   async sendMessage(req, res) {
-    const { message, conversationId, llmProvider, confirmationStatus, agentActive } =
-      req.body;
+    const {
+      message,
+      conversationId,
+      llmProvider,
+      confirmationStatus,
+      agentActive,
+      activeAgentMode,
+    } = req.body;
     const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
 
     if (!message || typeof message !== "string" || !message.trim()) {
@@ -75,6 +90,7 @@ class ChatController {
         conversationId,
         confirmationStatus,
         agentActive,
+        activeAgentMode,
         userId,
       );
 
@@ -87,13 +103,34 @@ class ChatController {
         // resume value so Command({ resume }) is used internally.
         // When intent IS set, this is the first turn of a new email session.
         const isResumeTurn = !intent;
-        const finalState = await invokeEmailAgent(
-          message.trim(),
-          threadId,
-          intent ?? null,
-          userId,
-          isResumeTurn ? message.trim() : null,
-        );
+        let finalState;
+        try {
+          finalState = await invokeEmailAgent(
+            message.trim(),
+            threadId,
+            intent ?? null,
+            userId,
+            isResumeTurn ? message.trim() : null,
+          );
+        } catch (error) {
+          logger.error("Email agent execution failed", {
+            error: error.message,
+            conversationId: threadId,
+            userId,
+          });
+
+          const session = await getEmailSessionStatus(threadId, userId)
+            .catch(() => null);
+
+          return res.status(500).json({
+            success: false,
+            error: "The email workflow could not continue. Please try again.",
+            conversationId: threadId,
+            mode: "email_agent",
+            agentActive: session?.active ?? false,
+            emailStatus: session?.emailStatus ?? "failed",
+          });
+        }
 
         const emailSessionEnded = finalState.status === "complete";
 
@@ -106,7 +143,7 @@ class ChatController {
             conversation_id: threadId,
             user_message: message.trim(),
             assistant_message: assistantMessage,
-            metadata: { mode: "email_agent", emailStatus: finalState.status },
+            metadata: { mode: "email_agent", emailStatus: finalState.emailStatus },
             userId,
           });
           logger.info("Saved email agent conversation to database", { conversationId: threadId });
@@ -121,7 +158,71 @@ class ChatController {
           emailResponse: finalState.emailResponse ?? null,
           mode: "email_agent",
           agentActive: !emailSessionEnded,
-          emailStatus: finalState.status,
+          emailStatus: finalState.emailStatus,
+          context: {
+            documentsUsed: [],
+            totalDocuments: 0,
+            selectedDocuments: 0,
+          },
+          metadata: {},
+        });
+      }
+
+      if (handler === "email_reply_unavailable") {
+        const threadId = conversationId ?? uuidv4();
+        const response = "Secure reply drafting is not available yet because the original email thread cannot be verified. Please ask me to compose a new email and include the recipient and the message you want to send.";
+
+        await conversationRepo.saveChatConversation({
+          conversation_id: threadId,
+          user_message: message.trim(),
+          assistant_message: response,
+          metadata: { mode: "email_agent", emailStatus: "not_started" },
+          userId,
+        });
+
+        return res.json({
+          success: true,
+          queryId: uuidv4(),
+          conversationId: threadId,
+          query: message.trim(),
+          response,
+          emailResponse: null,
+          mode: "email_agent",
+          agentActive: false,
+          emailStatus: "not_started",
+          context: {
+            documentsUsed: [],
+            totalDocuments: 0,
+            selectedDocuments: 0,
+          },
+          metadata: {},
+        });
+      }
+
+      if (handler === "email_agent_status") {
+        const session = await getEmailSessionStatus(conversationId, userId);
+        const emailStatus = session.emailStatus ?? "not_started";
+
+        const response = emailStatus === "sent"
+          ? "The email has already been sent, so it can no longer be revoked."
+          : emailStatus === "revoked"
+            ? "The email send was already revoked. Nothing was sent."
+            : emailStatus === "cancelled"
+              ? session.response || "The email workflow was cancelled. Nothing was sent."
+            : emailStatus === "failed"
+              ? session.response || "The email was not sent because sending failed."
+              : session.response || "There is no active email send to revoke.";
+
+        return res.json({
+          success: true,
+          queryId: uuidv4(),
+          conversationId,
+          query: message.trim(),
+          response,
+          emailResponse: null,
+          mode: "email_agent",
+          agentActive: session.active,
+          emailStatus,
           context: {
             documentsUsed: [],
             totalDocuments: 0,
@@ -290,6 +391,33 @@ class ChatController {
       return res.status(500).json({
         success: false,
         error: "Failed to process message",
+      });
+    }
+  }
+
+  async getEmailStatus(req, res) {
+    const { conversationId } = req.params;
+    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+
+    if (!conversationId) {
+      return res.status(400).json({
+        success: false,
+        error: "Conversation ID is required",
+      });
+    }
+
+    try {
+      const status = await getEmailSessionStatus(conversationId, userId);
+      return res.json({ success: true, conversationId, ...status });
+    } catch (error) {
+      logger.error("Failed to read email session status", {
+        error: error.message,
+        conversationId,
+        userId,
+      });
+      return res.status(500).json({
+        success: false,
+        error: "Failed to read email status",
       });
     }
   }

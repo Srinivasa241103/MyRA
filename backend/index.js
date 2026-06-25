@@ -1,7 +1,5 @@
 import "./src/config/env.js";
 import { logger } from "./src/utils/logger.js";
-import CronManager from "./src/service/cron/cronManager.js";
-const cronManager = new CronManager();
 import socketServer from "./src/service/websocket/sockeService.js";
 
 import app from "./src/app.js";
@@ -20,12 +18,6 @@ connectToDB()
       socketServer.initialize(server);
       logger.info("WebSocket server attached to HTTP server");
 
-      try {
-        cronManager.startAll();
-        logger.info("Cron jobs initialized successfully");
-      } catch (error) {
-        logger.error("Failed to start cron jobs", error);
-      }
     });
   })
   .catch((err) => {
@@ -35,7 +27,6 @@ connectToDB()
 
 process.on("SIGTERM", () => {
   logger.info("SIGTERM received, shutting down gracefully");
-  cronManager.stopAll();
 
   if (server) {
     server.close(() => {
@@ -49,7 +40,6 @@ process.on("SIGTERM", () => {
 
 process.on("SIGINT", () => {
   logger.info("SIGINT received, shutting down gracefully");
-  cronManager.stopAll();
 
   if (server) {
     server.close(() => {
