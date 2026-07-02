@@ -1444,3 +1444,13 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
 .myra-markdown a:hover {
   color: var(--accent-hover);
 }
+.typing-cursor {
+  animation: blink 1s infinite;
+  font-weight: 300;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
