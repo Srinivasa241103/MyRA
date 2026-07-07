@@ -7,8 +7,12 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "node test/test-setup.js",
-    "start": "nodemon index.js"
+    "dev": "tsx watch index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "start:legacy": "nodemon index.js",
+    "test": "node test/test-setup.js"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
@@ -39,5 +43,15 @@
     "stopword": "^3.1.5",
     "uuid": "^13.0.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.1.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/passport": "^1.0.17",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3"
   }
 }
