@@ -51,8 +51,8 @@ export function buildCredsAlertEmail({
   const start = periodStart || new Date(now.getFullYear(), now.getMonth(), 1);
   const end = periodEnd || new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-  const totalDays = Math.ceil((end - start) / 86400000);
-  const daysElapsed = Math.max(Math.ceil((now - start) / 86400000), 1);
+  const totalDays = Math.ceil((end.getTime() - start.getTime()) / 86400000);
+  const daysElapsed = Math.max(Math.ceil((now.getTime() - start.getTime()) / 86400000), 1);
   const daysLeft = Math.max(totalDays - daysElapsed, 0);
   const dailyAverage = used / daysElapsed;
   const projected = dailyAverage * totalDays;
@@ -63,8 +63,7 @@ export function buildCredsAlertEmail({
   )}% of monthly budget`;
 
   const fmt = (n, digits = 2) =>
-    `${unit === "$" ? "$" : ""}${n.toFixed(digits)}${
-      unit !== "$" ? ` ${unit}` : ""
+    `${unit === "$" ? "$" : ""}${n.toFixed(digits)}${unit !== "$" ? ` ${unit}` : ""
     }`;
 
   const html = `
@@ -98,20 +97,18 @@ export function buildCredsAlertEmail({
             <td style="padding:28px 32px 8px 32px;">
               <div style="font-size:14px;color:#6b7280;margin-bottom:8px;">Current usage</div>
               <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
-                <span style="font-size:28px;font-weight:700;color:${
-                  level.color
-                };">${fmt(used)}</span>
+                <span style="font-size:28px;font-weight:700;color:${level.color
+    };">${fmt(used)}</span>
                 <span style="font-size:14px;color:#6b7280;">of ${fmt(
-                  budget
-                )}</span>
+      budget
+    )}</span>
               </div>
               <div style="background:#e5e7eb;border-radius:999px;height:10px;overflow:hidden;">
-                <div style="background:${
-                  level.color
-                };height:100%;width:${Math.min(
-    percent,
-    100
-  )}%;border-radius:999px;"></div>
+                <div style="background:${level.color
+    };height:100%;width:${Math.min(
+      percent,
+      100
+    )}%;border-radius:999px;"></div>
               </div>
             </td>
           </tr>
@@ -121,18 +118,16 @@ export function buildCredsAlertEmail({
             <td style="padding:24px 32px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td width="50%" style="padding:12px;background:${
-                    level.bg
-                  };border-radius:8px;">
+                  <td width="50%" style="padding:12px;background:${level.bg
+    };border-radius:8px;">
                     <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Remaining</div>
                     <div style="font-size:18px;font-weight:600;color:#111827;margin-top:4px;">${fmt(
-                      remaining
-                    )}</div>
+      remaining
+    )}</div>
                   </td>
                   <td width="12"></td>
-                  <td width="50%" style="padding:12px;background:${
-                    level.bg
-                  };border-radius:8px;">
+                  <td width="50%" style="padding:12px;background:${level.bg
+    };border-radius:8px;">
                     <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Days left in period</div>
                     <div style="font-size:18px;font-weight:600;color:#111827;margin-top:4px;">${daysLeft} days</div>
                   </td>
@@ -142,20 +137,19 @@ export function buildCredsAlertEmail({
                   <td width="50%" style="padding:12px;background:#f9fafb;border-radius:8px;">
                     <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Daily average</div>
                     <div style="font-size:18px;font-weight:600;color:#111827;margin-top:4px;">${fmt(
-                      dailyAverage
-                    )}</div>
+      dailyAverage
+    )}</div>
                   </td>
                   <td width="12"></td>
                   <td width="50%" style="padding:12px;background:#f9fafb;border-radius:8px;">
                     <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Projected month-end</div>
-                    <div style="font-size:18px;font-weight:600;color:${
-                      projectedPct > 100 ? "#dc2626" : "#111827"
-                    };margin-top:4px;">
+                    <div style="font-size:18px;font-weight:600;color:${projectedPct > 100 ? "#dc2626" : "#111827"
+    };margin-top:4px;">
                       ${fmt(
-                        projected
-                      )} <span style="font-size:13px;font-weight:500;color:#6b7280;">(${projectedPct.toFixed(
-    0
-  )}%)</span>
+      projected
+    )} <span style="font-size:13px;font-weight:500;color:#6b7280;">(${projectedPct.toFixed(
+      0
+    )}%)</span>
                     </div>
                   </td>
                 </tr>
@@ -166,14 +160,11 @@ export function buildCredsAlertEmail({
           <!-- Recommendation -->
           <tr>
             <td style="padding:8px 32px 28px 32px;">
-              <div style="border-left:3px solid ${
-                level.color
-              };padding:12px 16px;background:${
-    level.bg
-  };border-radius:0 8px 8px 0;">
-                <div style="font-size:13px;font-weight:600;color:${
-                  level.color
-                };text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">
+              <div style="border-left:3px solid ${level.color
+    };padding:12px 16px;background:${level.bg
+    };border-radius:0 8px 8px 0;">
+                <div style="font-size:13px;font-weight:600;color:${level.color
+    };text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">
                   Recommendation
                 </div>
                 <div style="font-size:14px;color:#374151;line-height:1.6;">
