@@ -3,13 +3,22 @@ import ReactMarkdown from "react-markdown";
 import TypingIndicator from "./TypingIndicator";
 import { useChatStore } from "../../store/chatStore";
 import { useAuthStore } from "../../store/authStore";
+import { useVoiceRecorder } from "../../hooks/useVoiceRecorder";
 
 // ── ChatWindow — exact MyRA design replica ───────────────────────────────────
 
 function ChatWindow({ onNavigate, onToggleSidebar }) {
-  const { messages, isTyping, sendMessage, pendingConfirmation, confirmAction, clearPendingMessage, agentActive } = useChatStore();
+  const { messages, isTyping, sendMessage, sendVoiceMessage, pendingConfirmation, confirmAction, clearPendingMessage, agentActive } = useChatStore();
   const { user } = useAuthStore();
   const [draft, setDraft] = useState("");
+  const [voiceError, setVoiceError] = useState(null);
+  const {
+    isSupported: voiceSupported,
+    isRecording: voiceRecording,
+    durationMs: voiceDurationMs,
+    startRecording: startVoiceRecording,
+    stopRecording: stopVoiceRecording,
+  } = useVoiceRecorder();
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   const firstName = user?.name?.split(" ")[0] || "there";
@@ -69,6 +78,25 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
     t.style.height = "auto";
     t.style.height = Math.min(t.scrollHeight, 120) + "px";
     setDraft(t.value);
+  };
+
+  const handleVoiceToggle = () => {
+    if (voiceRecording) {
+      stopVoiceRecording();
+      return;
+    }
+
+    setVoiceError(null);
+
+    startVoiceRecording({ maxDurationMs: 30000 })
+      .then((recording) => {
+        if (recording?.blob) {
+          sendVoiceMessage(recording);
+        }
+      })
+      .catch((error) => {
+        setVoiceError(error.message || "Could not record audio.");
+      });
   };
 
   const getInitials = (name) => {
@@ -160,6 +188,11 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
               pendingConfirmation={pendingConfirmation}
               onConfirm={() => confirmAction("confirmed")}
               onReject={() => confirmAction("rejected")}
+              voiceSupported={voiceSupported}
+              voiceRecording={voiceRecording}
+              voiceDurationMs={voiceDurationMs}
+              voiceError={voiceError}
+              onVoiceToggle={handleVoiceToggle}
             />
           </div>
         </div>
@@ -246,6 +279,11 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
         pendingConfirmation={pendingConfirmation}
         onConfirm={() => confirmAction("confirmed")}
         onReject={() => confirmAction("rejected")}
+        voiceSupported={voiceSupported}
+        voiceRecording={voiceRecording}
+        voiceDurationMs={voiceDurationMs}
+        voiceError={voiceError}
+        onVoiceToggle={handleVoiceToggle}
       />
     </div>
   );
@@ -257,6 +295,10 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
   const isUser = msg.role === "user";
 
   if (isUser) {
+    if (msg.type === "audio") {
+      return <AudioMessageBubble msg={msg} />;
+    }
+
     return (
       <div className="myra-bubble user myra-fade-in">
         {msg.text}
@@ -310,6 +352,66 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+function AudioMessageBubble({ msg }) {
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return undefined;
+
+    const handleTimeUpdate = () => {
+      if (!audio.duration) return;
+      setProgress(audio.currentTime / audio.duration);
+    };
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setProgress(0);
+    };
+
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("ended", handleEnded);
+    return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("ended", handleEnded);
+    };
+  }, []);
+
+  const togglePlayback = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (audio.paused) {
+      audio.play();
+      setIsPlaying(true);
+    } else {
+      audio.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  return (
+    <div className={"myra-audio-bubble myra-fade-in" + (msg.status === "error" ? " error" : "")}>
+      <audio ref={audioRef} src={msg.audioUrl} preload="metadata" />
+      <button className="myra-audio-play" onClick={togglePlayback} aria-label={isPlaying ? "Pause voice message" : "Play voice message"}>
+        {isPlaying ? <PauseIcon /> : <PlayIcon />}
+      </button>
+      <div className="myra-audio-body">
+        <div className="myra-audio-wave" style={{ "--voice-progress": progress }}>
+          {Array.from({ length: 24 }).map((_, index) => (
+            <span key={index} style={{ height: `${waveHeight(index)}px` }} />
+          ))}
+        </div>
+        <div className="myra-audio-meta">
+          <span>{formatAudioDuration(msg.durationMs)}</span>
+          <span>{msg.status === "sending" ? "Sending..." : msg.status === "error" ? "Not sent" : "Voice message"}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -421,7 +523,7 @@ function PendingSendCard({ data, readonly = false }) {
 
     const refresh = () => {
       setRemaining(Math.max(0, Date.parse(data.deadline) - Date.now()));
-      syncEmailStatus().catch(() => {});
+      syncEmailStatus().catch(() => { });
     };
 
     refresh();
@@ -600,7 +702,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
 
 // ── Composer — the input area at bottom ─────────────────────────────────────
 
-function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject }) {
+function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle }) {
   if (pendingConfirmation) {
     return (
       <div className="myra-composer">
@@ -640,7 +742,20 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
             style={{ minHeight: "24px" }}
           />
           <div className="myra-composer-tools">
-            <button className="myra-btn ghost icon sm" aria-label="Voice input">
+            <button
+              className={
+                "myra-btn ghost icon sm" +
+                (voiceRecording ? " voice-recording" : "")
+              }
+              aria-label={voiceRecording ? "Stop voice recording" : "Voice input"}
+              onClick={onVoiceToggle}
+              disabled={!voiceSupported}
+              title={
+                voiceSupported
+                  ? "Record voice message"
+                  : "Voice recording is not supported"
+              }
+            >
               <MicIcon />
             </button>
             <button
@@ -667,9 +782,27 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
           </div>
           <span className="myra-composer-hint-text">Enter to send · Shift+Enter newline</span>
         </div>
+        {(voiceRecording || voiceError) && (
+          <div className={"myra-voice-status" + (voiceError ? " error" : "")}>
+            {voiceError || `Recording voice ${formatAudioDuration(voiceDurationMs)}`}
+          </div>
+        )}
+
       </div>
     </div>
   );
+}
+
+function formatAudioDuration(ms = 0) {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function waveHeight(index) {
+  const pattern = [10, 16, 22, 14, 28, 20, 12, 24, 18, 30, 16, 22];
+  return pattern[index % pattern.length];
 }
 
 
@@ -703,6 +836,12 @@ function PaperclipIcon() {
 }
 function MicIcon() {
   return <svg width={16} height={16} viewBox="0 0 24 24" {...IC}><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10a7 7 0 0 1-14 0M12 19v3" /></svg>;
+}
+function PlayIcon() {
+  return <svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>;
+}
+function PauseIcon() {
+  return <svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>;
 }
 function SendIcon() {
   return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;

@@ -17,6 +17,44 @@ const normalizeEmailResponse = (response) => {
   return { text: response.message ?? response.prompt ?? "Done.", emailResponse: null };
 };
 
+const createLocalId = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const normalizeAssistantMessage = (result) => {
+  if (result.mode === "email_agent") {
+    let normText;
+    let emailResponse;
+    if (result.emailResponse) {
+      normText = null;
+      emailResponse = result.emailResponse;
+    } else {
+      ({ text: normText, emailResponse } = normalizeEmailResponse(result.response));
+    }
+    return {
+      role: "ai",
+      text: normText,
+      emailResponse,
+      emailStatus: result.emailStatus ?? null,
+      mode: result.mode,
+      context: result.context,
+      metadata: result.metadata,
+    };
+  }
+
+  const response = result.response;
+  const text = typeof response === "object" && response !== null
+    ? response.message ?? response.text ?? JSON.stringify(response)
+    : response;
+
+  return {
+    role: "ai",
+    text,
+    mode: result.mode ?? response?.type ?? null,
+    context: result.context,
+    metadata: result.metadata,
+  };
+};
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   isTyping: false,
@@ -120,6 +158,88 @@ export const useChatStore = create((set, get) => ({
             isError: true,
           },
         ],
+        isTyping: false,
+        error: error.message,
+        pendingConfirmation: false,
+        conversationId: error.data?.conversationId ?? state.conversationId,
+        agentActive: error.data?.agentActive ?? state.agentActive,
+        activeAgentMode: error.data?.agentActive
+          ? (error.data?.mode ?? state.activeAgentMode)
+          : null,
+      }));
+    }
+  },
+
+  sendVoiceMessage: async ({ blob, audioUrl, durationMs, mimeType, wakeWord = null }) => {
+    const { conversationId, isTyping } = get();
+    if (isTyping) return;
+
+    const localId = createLocalId();
+
+    set((state) => ({
+      messages: [
+        ...state.messages,
+        {
+          id: localId,
+          role: "user",
+          type: "audio",
+          audioUrl,
+          durationMs,
+          mimeType,
+          status: "sending",
+        },
+      ],
+      isTyping: true,
+      error: null,
+    }));
+
+    try {
+      const result = await chatApi.sendVoiceMessage({
+        audio: blob,
+        conversationId,
+        durationMs,
+        wakeWord,
+      });
+
+      if (result.success) {
+        const messageEntry = normalizeAssistantMessage(result);
+
+        set((state) => ({
+          messages: [
+            ...state.messages.map((message) =>
+              message.id === localId ? { ...message, status: "sent" } : message
+            ),
+            messageEntry,
+          ],
+          isTyping: false,
+          conversationId: result.conversationId ?? state.conversationId,
+          pendingConfirmation: result.pendingConfirmation ?? false,
+          agentActive: result.agentActive ?? false,
+          activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
+        }));
+
+        get().loadConversations();
+      } else {
+        set((state) => ({
+          messages: state.messages.map((message) =>
+            message.id === localId
+              ? { ...message, status: "error", error: result.error || "Voice request failed." }
+              : message
+          ),
+          isTyping: false,
+          error: result.error,
+          pendingConfirmation: false,
+          agentActive: result.agentActive ?? false,
+          activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
+        }));
+      }
+    } catch (error) {
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          message.id === localId
+            ? { ...message, status: "error", error: error.message }
+            : message
+        ),
         isTyping: false,
         error: error.message,
         pendingConfirmation: false,

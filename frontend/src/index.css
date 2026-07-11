@@ -626,6 +626,62 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
 .myra-bubble .src-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .myra-bubble-time { font-size: 11px; margin-top: 6px; opacity: .65; }
 
+.myra-audio-bubble {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(320px, 78%);
+  padding: 10px 12px;
+  border-radius: 18px 18px 4px 18px;
+  background: var(--accent);
+  color: var(--bg-0);
+  box-shadow: var(--shadow-soft);
+}
+.myra-audio-bubble.error {
+  background: rgba(160,48,48,.14);
+  color: var(--text-2);
+  border: 1px solid rgba(160,48,48,.32);
+}
+.myra-audio-play {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--accent);
+  background: var(--bg-0);
+  cursor: pointer;
+}
+.myra-audio-body {
+  flex: 1;
+  min-width: 0;
+}
+.myra-audio-wave {
+  --voice-progress: 0;
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  overflow: hidden;
+}
+.myra-audio-wave span {
+  display: block;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--bg-0) 72%, transparent);
+  opacity: .65;
+}
+.myra-audio-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  opacity: .78;
+}
+
 /* Typing indicator */
 .myra-typing-dots { display: flex; gap: 5px; align-items: center; padding: 4px 0; }
 .myra-typing-dots span {
@@ -679,6 +735,152 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
 }
 
 /* ── Confirmation card ── */
+.myra-btn.voice-recording {
+  background: rgba(160,48,48,.12);
+  color: var(--danger);
+  box-shadow: 0 0 0 4px rgba(160,48,48,.08);
+}
+.myra-voice-status {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--accent);
+  text-align: right;
+}
+.myra-voice-status.error {
+  color: var(--danger);
+}
+
+.myra-voice-activation {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.myra-voice-activation-main {
+  pointer-events: auto;
+  height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+.myra-voice-activation[data-active="true"] .myra-voice-activation-main {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+}
+.myra-voice-activation-listening {
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border-strong));
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-soft);
+}
+.myra-voice-activation-listening.recording {
+  color: var(--danger);
+  border-color: rgba(160,48,48,.38);
+  box-shadow: 0 0 0 5px rgba(160,48,48,.08), var(--shadow-soft);
+  animation: myra-recording-pulse 1s ease-in-out infinite;
+}
+.myra-voice-activation-state,
+.myra-voice-activation-error {
+  max-width: 240px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  background: var(--bg-2);
+  color: var(--text-muted);
+  box-shadow: var(--shadow-soft);
+}
+.myra-voice-activation-error {
+  color: var(--danger);
+  border-color: rgba(160,48,48,.28);
+}
+.myra-voice-simulate-toggle {
+  pointer-events: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+.myra-voice-simulate-panel {
+  pointer-events: auto;
+  width: min(320px, calc(100vw - 24px));
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-2);
+  box-shadow: var(--shadow-soft);
+}
+.myra-voice-simulate-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.myra-voice-simulate-input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--bg-1);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+}
+.myra-voice-simulate-btn {
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--bg-0);
+  background: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.myra-voice-simulate-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+@keyframes myra-recording-pulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+
 .myra-confirm-card {
   background: var(--parchment);
   border: 1px solid var(--border-strong);
@@ -976,6 +1178,21 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   }
 
   .myra-bubble.user { max-width: 85%; }
+  .myra-audio-bubble { width: min(280px, 86%); }
+  .myra-voice-activation {
+    right: 12px;
+    bottom: 12px;
+  }
+  .myra-voice-activation-main {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .myra-voice-activation-listening {
+    height: 34px;
+    padding: 0 11px;
+    font-size: 11px;
+  }
 
   /* Chat topbar — hide rename/trash on small screens */
   .myra-chat-topbar .myra-btn.secondary {

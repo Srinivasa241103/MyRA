@@ -7,6 +7,7 @@ import HomePage from "./pages/HomePage";
 import StatsPage from "./pages/StatsPage";
 import SettingsPage from "./pages/SettingsPage";
 import Sidebar from "./components/layout/Sidebar";
+import MyraVoiceActivation from "./components/voice/MyraVoiceActivation";
 import { useAuthStore } from "./store/authStore";
 import { authApi } from "./api/auth";
 
@@ -118,7 +119,12 @@ function App() {
 
   // Profile page — no sidebar, no topnav
   if (currentPage === "profile") {
-    return <div className="myra-app" data-theme={theme}>{renderPage()}</div>;
+    return (
+      <div className="myra-app" data-theme={theme}>
+        {renderPage()}
+        <MyraVoiceActivation currentPage={currentPage} onNavigate={handleNavigate} />
+      </div>
+    );
   }
 
   // Pages with top nav but no sidebar
@@ -129,6 +135,7 @@ function App() {
         <div className="myra-page" style={{ flex: 1 }}>
           {renderPage()}
         </div>
+        <MyraVoiceActivation currentPage={currentPage} onNavigate={handleNavigate} />
       </div>
     );
   }
@@ -169,6 +176,7 @@ function App() {
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
         {renderPage()}
       </div>
+      <MyraVoiceActivation currentPage={currentPage} onNavigate={handleNavigate} />
     </div>
   );
 }
