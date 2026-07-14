@@ -1,9 +1,10 @@
 import Embedding from "../ingestion/embeddingsProvider.js";
-import ChunkRepository from "../../database/chunkRepository.js";
 import { logger } from "../../utils/logger.js";
+import { getVectorStore } from "../vectorStores/vectorStoreFactory.js";
+
 export default class Retriever {
     constructor() {
-        this.chunkRepo = new ChunkRepository();
+        this.vectorStore = getVectorStore();
         this.embed = new Embedding();
     }
 
@@ -19,7 +20,17 @@ export default class Retriever {
             const queryEmbedding = await this.embed.embedQuery(query);
 
             logger.info(`Retrieveing relavant Documents for user: ${userId} with query: ${query}`);
-            const topKChunks = await this.chunkRepo.searchByEmbedding(queryEmbedding, userId, options);
+            const topKChunks = await this.vectorStore.search({
+                queryEmbedding,
+                userId,
+                topK: options.topK,
+                filters: {
+                    sourceType: options.sourceType ?? null,
+                    occurredAfter: options.occurredAfter ?? null,
+                    occurredBefore: options.occurredBefore ?? null,
+                    metadata: options.metadata,
+                },
+            });
 
             if (!topKChunks || topKChunks.length === 0) {
                 logger.info("No relevant chunks found")

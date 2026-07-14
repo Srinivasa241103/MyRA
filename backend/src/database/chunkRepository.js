@@ -1,38 +1,49 @@
-import { pool } from "../config/dbConfig.js";
+import { getPool } from "../config/dbConfig.js";
 
 export default class ChunkRepository {
-    async insertChunks(document_id, chunks) {
-        if (!chunks || chunks.length === 0) return [];
+    async insertChunks(document_id, chunks, options = {}) {
+        if (!chunks || chunks.length === 0) {
+            await getPool().query(
+                `DELETE FROM document_chunks
+                 WHERE document_id = $1`,
+                [document_id]
+            );
+            return [];
+        }
 
-        const values = [];
+        const values = [document_id];
         const place_holders = chunks.map((chunk, idx) => {
-            const base = idx * 5;
+            const base = idx * 5 + 2;
 
             values.push(
-                document_id,
                 chunk.content,
                 chunk.chunk_index,
                 // pgvector expects a "[v1,v2,...]" string cast to ::vector
                 `[${chunk.embedding.join(",")}]`,
-                chunk.source_type
+                chunk.source_type,
+                chunk.occurred_at ?? options.occurredAt ?? null
             );
 
-            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}::vector, $${base + 5})`;
+            return `($1, $${base}, $${base + 1}, $${base + 2}::vector, $${base + 3}, $${base + 4})`;
         });
 
-        const query = `INSERT INTO document_chunks
-                        (document_id, content, chunk_index, embedding, source_type)
+        const query = `WITH deleted AS (
+                            DELETE FROM document_chunks
+                            WHERE document_id = $1
+                        )
+                        INSERT INTO document_chunks
+                        (document_id, content, chunk_index, embedding, source_type, occurred_at)
                         VALUES ${place_holders.join(", ")}
                         RETURNING *`;
 
-        const result = await pool.query(query, values);
+        const result = await getPool().query(query, values);
         return result.rows;
     }
 
     async deleteChunksByDocumentId(document_id) {
         const query = `DELETE FROM document_chunks dc
                         WHERE dc.document_id = $1`;
-        const result = await pool.query(query, [document_id]);
+        const result = await getPool().query(query, [document_id]);
         return result.rows[0];
     }
 
@@ -79,7 +90,7 @@ export default class ChunkRepository {
             k,
         ]
 
-        const result = await pool.query(query, values);
+        const result = await getPool().query(query, values);
 
         return result.rows.map((row) => ({
             chunk_id: row.chunk_id,
