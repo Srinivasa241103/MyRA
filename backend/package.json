@@ -10,6 +10,8 @@
     "dev": "tsx watch index.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate:chroma": "tsx scripts/migratePgvectorToChroma.ts",
+    "migrate:chroma:dry-run": "tsx scripts/migratePgvectorToChroma.ts --dry-run",
     "start": "node dist/index.js",
     "start:legacy": "nodemon index.js",
     "test": "node test/test-setup.js"
@@ -25,6 +27,7 @@
     "@langchain/openai": "^1.4.7",
     "@langchain/textsplitters": "^1.0.1",
     "axios": "^1.16.1",
+    "chromadb": "^3.5.0",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
