@@ -18,12 +18,18 @@ import { mapDocumentChunksToVectorRecords } from "./vectorRecordMapper.js";
 
 const DEFAULT_CHROMA_HOST = "localhost";
 const DEFAULT_CHROMA_PORT = 8000;
+const DEFAULT_CHROMA_CLOUD_HOST = "api.trychroma.com";
+const DEFAULT_CHROMA_CLOUD_PORT = 443;
 const DEFAULT_COLLECTION = "myra_chunks_v1";
 const SCHEMA_VERSION = "v1";
 
 function envBoolean(value: string | undefined, defaultValue = false): boolean {
   if (value === undefined) return defaultValue;
   return ["1", "true", "yes"].includes(value.trim().toLowerCase());
+}
+
+function buildBaseUrl(host: string, port: number, ssl: boolean): string {
+  return `${ssl ? "https" : "http"}://${host}:${port}`;
 }
 
 function requiredEnv(name: string): string {
@@ -147,46 +153,110 @@ function metadataString(metadata: Metadata | null, key: string): string | null {
 export default class ChromaVectorStore extends VectorStore {
   private readonly client: ChromaClient;
   private readonly collectionName: string;
+  private readonly baseUrl: string;
+  private readonly headers: Record<string, string> | undefined;
   private collectionPromise: Promise<Collection> | null = null;
 
   constructor() {
     super();
 
     this.collectionName = process.env.CHROMA_COLLECTION || DEFAULT_COLLECTION;
-    this.client = process.env.CHROMA_API_KEY
-      ? new CloudClient({
-          apiKey: process.env.CHROMA_API_KEY,
-          tenant: requiredEnv("CHROMA_TENANT"),
-          database: requiredEnv("CHROMA_DATABASE"),
-          host: process.env.CHROMA_HOST,
-          port: process.env.CHROMA_PORT ? Number(process.env.CHROMA_PORT) : undefined,
-        })
-      : new ChromaClient({
-          host: process.env.CHROMA_HOST || DEFAULT_CHROMA_HOST,
-          port: process.env.CHROMA_PORT
-            ? Number(process.env.CHROMA_PORT)
-            : DEFAULT_CHROMA_PORT,
-          ssl: envBoolean(process.env.CHROMA_SSL),
-          tenant: process.env.CHROMA_TENANT,
-          database: process.env.CHROMA_DATABASE,
-        });
+
+    if (process.env.CHROMA_API_KEY) {
+      const host = process.env.CHROMA_HOST || DEFAULT_CHROMA_CLOUD_HOST;
+      const port = process.env.CHROMA_PORT
+        ? Number(process.env.CHROMA_PORT)
+        : DEFAULT_CHROMA_CLOUD_PORT;
+
+      this.baseUrl = buildBaseUrl(host, port, true);
+      this.headers = { "x-chroma-token": process.env.CHROMA_API_KEY };
+      this.client = new CloudClient({
+        apiKey: process.env.CHROMA_API_KEY,
+        tenant: requiredEnv("CHROMA_TENANT"),
+        database: requiredEnv("CHROMA_DATABASE"),
+        host,
+        port,
+      });
+      return;
+    }
+
+    const host = process.env.CHROMA_HOST || DEFAULT_CHROMA_HOST;
+    const port = process.env.CHROMA_PORT
+      ? Number(process.env.CHROMA_PORT)
+      : DEFAULT_CHROMA_PORT;
+    const ssl = envBoolean(process.env.CHROMA_SSL);
+
+    this.baseUrl = buildBaseUrl(host, port, ssl);
+    this.headers = undefined;
+    this.client = new ChromaClient({
+      host,
+      port,
+      ssl,
+      tenant: process.env.CHROMA_TENANT,
+      database: process.env.CHROMA_DATABASE,
+    });
   }
 
-  private getCollection(): Promise<Collection> {
-    if (!this.collectionPromise) {
-      this.collectionPromise = this.client.getOrCreateCollection({
+  private async createOrFetchCollectionId(): Promise<string> {
+    const { tenant, database } = await this.client._path();
+    const url = [
+      this.baseUrl,
+      "api/v2/tenants",
+      encodeURIComponent(tenant),
+      "databases",
+      encodeURIComponent(database),
+      "collections",
+    ].join("/");
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(this.headers ?? {}),
+      },
+      body: JSON.stringify({
         name: this.collectionName,
         configuration: {
           hnsw: {
             space: "cosine",
+          },
+          embedding_function: {
+            type: "legacy",
           },
         },
         metadata: {
           schema_version: SCHEMA_VERSION,
           embedding_source: "precomputed",
         },
-        embeddingFunction: null,
-      });
+        get_or_create: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `Failed to create or fetch Chroma collection "${this.collectionName}" (${response.status}): ${body}`,
+      );
+    }
+
+    const collection = await response.json() as { id?: unknown };
+    if (typeof collection.id !== "string" || !collection.id) {
+      throw new Error(
+        `Chroma collection "${this.collectionName}" response did not include an id`,
+      );
+    }
+
+    return collection.id;
+  }
+
+  private async initializeCollection(): Promise<Collection> {
+    const collectionId = await this.createOrFetchCollectionId();
+    return this.client.collection(collectionId);
+  }
+
+  private getCollection(): Promise<Collection> {
+    if (!this.collectionPromise) {
+      this.collectionPromise = this.initializeCollection();
     }
 
     return this.collectionPromise;
