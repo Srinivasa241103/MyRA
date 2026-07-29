@@ -4,8 +4,10 @@ import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import HomePage from "./pages/HomePage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import StatsPage from "./pages/StatsPage";
 import SettingsPage from "./pages/SettingsPage";
+import TermsOfServicePage from "./pages/TermsOfServicePage";
 import Sidebar from "./components/layout/Sidebar";
 import MyraVoiceActivation from "./components/voice/MyraVoiceActivation";
 import { useAuthStore } from "./store/authStore";
@@ -21,6 +23,8 @@ const PATH_TO_PAGE = {
   "/settings":      "settings",
   "/profile":       "profile",
   "/login":         "login",
+  "/privacy":       "privacy",
+  "/terms":         "terms",
   "/auth/callback": "auth-callback",
 };
 const PAGE_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_PAGE).map(([k, v]) => [v, k]));
@@ -99,8 +103,10 @@ function App() {
       case "login":         return <LoginPage onNavigate={handleNavigate} theme={theme} onThemeChange={setTheme} />;
       case "profile":       return <ProfilePage onNavigate={handleNavigate} />;
       case "home":          return <HomePage onNavigate={handleNavigate} />;
+      case "privacy":       return <PrivacyPolicyPage onNavigate={handleNavigate} />;
       case "stats":         return <StatsPage onNavigate={handleNavigate} />;
       case "settings":      return <SettingsPage theme={theme} onThemeChange={setTheme} />;
+      case "terms":         return <TermsOfServicePage onNavigate={handleNavigate} />;
       case "chat":
       default:
         return (
@@ -128,7 +134,7 @@ function App() {
   }
 
   // Pages with top nav but no sidebar
-  if (currentPage === "home" || currentPage === "stats" || currentPage === "settings") {
+  if (currentPage === "home" || currentPage === "stats" || currentPage === "settings" || currentPage === "privacy" || currentPage === "terms") {
     return (
       <div className="myra-app" data-theme={theme} style={{ display: "flex", flexDirection: "column" }}>
         <TopNav currentPage={currentPage} onNavigate={handleNavigate} />
@@ -194,6 +200,8 @@ function TopNav({ currentPage, onNavigate }) {
     { id: "home",     label: "Home" },
     { id: "chat",     label: "Chat" },
     { id: "stats",    label: "Stats" },
+    { id: "privacy",  label: "Privacy" },
+    { id: "terms",    label: "Terms" },
     { id: "profile",  label: "Profile" },
     { id: "settings", label: "Settings" },
   ];

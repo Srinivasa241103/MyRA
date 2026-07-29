@@ -70,7 +70,31 @@ function HomePage({ onNavigate }) {
 
       {/* ── Heading ── */}
       <div style={{ marginBottom: 36 }}>
-        <div className="myra-label" style={{ marginBottom: 8 }}>{greeting}, {firstName}</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+          <div className="myra-label">{greeting}, {firstName}</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <a
+              className="myra-btn ghost sm"
+              href="/privacy"
+              onClick={(event) => {
+                event.preventDefault();
+                onNavigate("privacy");
+              }}
+            >
+              Privacy Policy
+            </a>
+            <a
+              className="myra-btn ghost sm"
+              href="/terms"
+              onClick={(event) => {
+                event.preventDefault();
+                onNavigate("terms");
+              }}
+            >
+              Terms
+            </a>
+          </div>
+        </div>
         <h1 className="display xl" style={{ marginBottom: 10 }}>
           What can I retrieve for you today?
         </h1>
@@ -104,6 +128,28 @@ function HomePage({ onNavigate }) {
           <span className="myra-source-pill"><FileIconTiny />Notes</span>
           <span className="myra-source-pill"><PaperclipIcon />Attach</span>
         </div>
+        <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+          MyRA uses connected Google data only to provide your requested assistant features.{" "}
+          <a
+            href="/privacy"
+            onClick={(event) => {
+              event.preventDefault();
+              onNavigate("privacy");
+            }}
+          >
+            Read the Privacy Policy
+          </a>{" "}
+          and{" "}
+          <a
+            href="/terms"
+            onClick={(event) => {
+              event.preventDefault();
+              onNavigate("terms");
+            }}
+          >
+            Terms of Service
+          </a>.
+        </p>
       </div>
 
       {/* ── Suggestions ── */}

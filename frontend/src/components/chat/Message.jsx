@@ -1,13 +1,5 @@
-import { useAuthStore } from "../../store/authStore";
-
 function Message({ role, text, isError, context, mode }) {
   const isUser = role === "user";
-  const { user } = useAuthStore();
-
-  const getInitials = (name) => {
-    if (!name) return "ME";
-    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-  };
 
   const formatTime = (date) =>
     date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
