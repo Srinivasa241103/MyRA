@@ -292,7 +292,7 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
 
 // ── Conversation item ────────────────────────────────────────────────────────
 
-function ConversationItem({ chat, isActive, iconOnly, onSelect }) {
+function ConversationItem({ chat, isActive, onSelect }) {
   return (
     <button
       className={"myra-sidebar-item" + (isActive ? " active" : "")}

@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import { authApi } from "../api/auth";
 import { useAuthStore } from "../store/authStore";
 
+function getErrorMessage(errorCode) {
+  const messages = {
+    access_denied: "Access was denied. Please try again.",
+    missing_code: "Authorization code is missing.",
+    auth_failed: "Authentication failed. Please try again.",
+  };
+  return messages[errorCode] || "An error occurred during authentication.";
+}
+
 function AuthCallbackPage({ onNavigate }) {
   const [status, setStatus] = useState("processing");
   const [error, setError] = useState(null);
@@ -46,15 +55,6 @@ function AuthCallbackPage({ onNavigate }) {
 
     handleCallback();
   }, [setUser, onNavigate]);
-
-  const getErrorMessage = (errorCode) => {
-    const messages = {
-      access_denied: "Access was denied. Please try again.",
-      missing_code: "Authorization code is missing.",
-      auth_failed: "Authentication failed. Please try again.",
-    };
-    return messages[errorCode] || "An error occurred during authentication.";
-  };
 
   return (
     <div

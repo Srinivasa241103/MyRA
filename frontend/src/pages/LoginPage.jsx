@@ -12,7 +12,7 @@ function LoginPage({ onNavigate, theme = "warm", onThemeChange = () => {} }) {
     setError(null);
     try {
       await authApi.loginWithGoogle();
-    } catch (err) {
+    } catch {
       setError("Failed to connect to Google. Please try again.");
       setIsLoading(false);
     }

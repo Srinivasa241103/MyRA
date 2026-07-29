@@ -177,8 +177,8 @@ export default function SettingsPage({ theme = "warm", onThemeChange = () => {} 
             <div className="myra-card">
               <h3 style={{ marginBottom: 16 }}>Privacy</h3>
               <ToggleRow
-                label="Train on my data"
-                desc="Used only to improve your personal RAG index."
+                label="Index connected data"
+                desc="Used only to power your personal retrieval and requested assistant features."
                 on={true}
                 onClick={() => {}}
               />
