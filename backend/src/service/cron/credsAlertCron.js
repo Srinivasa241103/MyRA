@@ -21,7 +21,7 @@ export default class CredsAlertCronJob {
   constructor() {
     this.isRunning = false;
     this.task = null;
-    this.schedule = process.env.CREDS_ALERT_CRON_SCHEDULE || "* * * * *";
+    this.schedule = process.env.CREDS_ALERT_CRON_SCHEDULE || "0 9 * * *";
   }
 
   start() {

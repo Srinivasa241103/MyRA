@@ -14,7 +14,7 @@
     "migrate:chroma:dry-run": "tsx scripts/migratePgvectorToChroma.ts --dry-run",
     "start": "node dist/index.js",
     "start:legacy": "nodemon index.js",
-    "test": "node test/test-setup.js"
+    "test": "tsx test/test-setup.js"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",

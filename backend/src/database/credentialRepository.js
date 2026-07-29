@@ -334,6 +334,33 @@ export class CredentialRepository {
   }
 
   /**
+   * Find active users who have credentials for any of the provided sources.
+   * @param {string[]} sources
+   * @returns {Promise<Array<{user_id: string|number, sources: string[]}>>}
+   */
+  async findUsersWithSources(sources = []) {
+    if (!Array.isArray(sources) || sources.length === 0) {
+      return [];
+    }
+
+    const query = `
+      SELECT
+        c.user_id,
+        ARRAY_AGG(DISTINCT c.source) AS sources
+      FROM api_credentials c
+      JOIN users u ON u.id = c.user_id
+      WHERE c.source = ANY($1::text[])
+        AND (u.status IS NULL OR u.status = 'active')
+      GROUP BY c.user_id
+      ORDER BY c.user_id`;
+
+    const values = [sources];
+    const { rows } = await pool.query(query, values);
+
+    return rows;
+  }
+
+  /**
    * Get user credentials by user ID and source
    * @param {string} userId
    * @param {string} source

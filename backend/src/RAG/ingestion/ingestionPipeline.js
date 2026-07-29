@@ -16,6 +16,12 @@ const SOURCES = {
         normalizer: GoogleCalendarNormalizer
     }
 }
+
+const SYNC_LOG_SOURCE_BY_INGESTION_SOURCE = {
+    gmail: 'gmail',
+    calendar: 'google_calendar'
+};
+
 export default class IngestionPipeline {
     constructor() {
         this.syncRepo = new SyncLogRepository();
@@ -42,7 +48,8 @@ export default class IngestionPipeline {
             });
             response.fetched = data.length;
         } else {
-            const lastSyncLog = await this.syncRepo.getLastSuccessfulSync(sourceName, userId);
+            const syncLogSource = SYNC_LOG_SOURCE_BY_INGESTION_SOURCE[sourceName] || sourceName;
+            const lastSyncLog = await this.syncRepo.getLastSuccessfulSync(syncLogSource, userId);
             const since = lastSyncLog?.sync_completed_at || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
             data = await source.fetchNew(since);
             response.fetched = data.length;

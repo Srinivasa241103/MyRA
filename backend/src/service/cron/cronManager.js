@@ -1,9 +1,11 @@
 import CredsAlertCronJob from "./credsAlertCron.js";
+import GoogleWorkspaceSyncCronJob from "./googleWorkspaceSyncCron.js";
 import { logger } from "../../utils/logger.js";
 
 export default class CronManager {
   constructor() {
     this.jobs = {
+      googleWorkspaceSync: new GoogleWorkspaceSyncCronJob(),
       credsAlert: new CredsAlertCronJob(),
     };
   }
@@ -11,16 +13,10 @@ export default class CronManager {
   startAll() {
     logger.info("Starting all cron jobs");
     try {
-      if (process.env.ENABLE_EMBEDDING_CRON !== "false") {
-        this.jobs.embedding.start();
+      if (process.env.ENABLE_GOOGLE_WORKSPACE_SYNC_CRON !== "false") {
+        this.jobs.googleWorkspaceSync.start();
       }
-      if (process.env.ENABLE_GMAIL_SYNC_CRON !== "false") {
-        this.jobs.gmailSync.start();
-      }
-      if (process.env.ENABLE_CALENDAR_SYNC_CRON !== "false") {
-        this.jobs.calendarSync.start();
-      }
-      if (process.env.ENABLE_CREDS_ALERT_CRON !== "false") {
+      if (process.env.ENABLE_CREDS_ALERT_CRON === "true") {
         this.jobs.credsAlert.start();
       }
     } catch (error) {
@@ -36,12 +32,9 @@ export default class CronManager {
   }
 
   getAllStatus() {
-    return {
-      embedding: this.jobs.embedding.getStatus(),
-      gmailSync: this.jobs.gmailSync.getStatus(),
-      calendarSync: this.jobs.calendarSync.getStatus(),
-      credsAlert: this.jobs.credsAlert.getStatus(),
-    };
+    return Object.fromEntries(
+      Object.entries(this.jobs).map(([name, job]) => [name, job.getStatus()])
+    );
   }
 
   async triggerJob(jobName) {

@@ -200,7 +200,6 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
               voiceError={voiceError}
               onVoiceToggle={handleVoiceToggle}
               selectedModelId={selectedModelId}
-              selectedModelOption={selectedModelOption}
               onModelChange={setSelectedModelId}
             />
           </div>
@@ -294,7 +293,6 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
         voiceError={voiceError}
         onVoiceToggle={handleVoiceToggle}
         selectedModelId={selectedModelId}
-        selectedModelOption={selectedModelOption}
         onModelChange={setSelectedModelId}
       />
     </div>
@@ -714,7 +712,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
 
 // ── Composer — the input area at bottom ─────────────────────────────────────
 
-function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle, selectedModelId, selectedModelOption, onModelChange }) {
+function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle, selectedModelId, onModelChange }) {
   if (pendingConfirmation) {
     return (
       <div className="myra-composer">
@@ -788,25 +786,19 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
             <span className="myra-source-pill" style={{ cursor: "default" }}>
               <span className="dot" />All sources
             </span>
-            {draft.trim() ? (
-              <label className="myra-model-select" aria-label="Select chat model">
-                <SparklesSmIcon />
-                <select
-                  value={selectedModelId}
-                  onChange={(event) => onModelChange(event.target.value)}
-                >
-                  {LLM_MODEL_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label} - {option.detail}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <span className="myra-source-pill myra-source-pill--model" style={{ cursor: "default" }}>
-                <SparklesSmIcon /><span className="myra-source-pill-label">{selectedModelOption.detail}</span>
-              </span>
-            )}
+            <label className="myra-model-select" aria-label="Select chat model">
+              <SparklesSmIcon />
+              <select
+                value={selectedModelId}
+                onChange={(event) => onModelChange(event.target.value)}
+              >
+                {LLM_MODEL_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label} - {option.detail}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <span className="myra-composer-hint-text">Enter to send · Shift+Enter newline</span>
         </div>

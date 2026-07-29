@@ -4,9 +4,11 @@ import socketServer from "./src/service/websocket/sockeService.js";
 
 import app from "./src/app.js";
 import { connectToDB } from "./src/config/dbConfig.js";
+import CronManager from "./src/service/cron/cronManager.js";
 
 const PORT = process.env.PORT || 2020;
 let server;
+const cronManager = new CronManager();
 
 connectToDB()
   .then(() => {
@@ -18,6 +20,9 @@ connectToDB()
       socketServer.initialize(server);
       logger.info("WebSocket server attached to HTTP server");
 
+      if (process.env.ENABLE_CRON_JOBS !== "false") {
+        cronManager.startAll();
+      }
     });
   })
   .catch((err) => {
@@ -25,8 +30,10 @@ connectToDB()
     process.exit(1);
   });
 
-process.on("SIGTERM", () => {
-  logger.info("SIGTERM received, shutting down gracefully");
+const shutdown = (signal) => {
+  logger.info(`${signal} received, shutting down gracefully`);
+
+  cronManager.stopAll();
 
   if (server) {
     server.close(() => {
@@ -36,17 +43,7 @@ process.on("SIGTERM", () => {
   } else {
     process.exit(0);
   }
-});
+};
 
-process.on("SIGINT", () => {
-  logger.info("SIGINT received, shutting down gracefully");
-
-  if (server) {
-    server.close(() => {
-      logger.info("Server closed");
-      process.exit(0);
-    });
-  } else {
-    process.exit(0);
-  }
-});
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
