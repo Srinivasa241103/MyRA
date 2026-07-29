@@ -64,12 +64,13 @@ export const useChatStore = create((set, get) => ({
   activeAgentMode: null,
   error: null,
   pendingMessage: null,
+  pendingModelSelection: null,
 
   conversations: [],
   conversationsLoading: false,
   conversationsError: null,
 
-  sendMessage: async (text, confirmationStatus = null) => {
+  sendMessage: async (text, confirmationStatus = null, modelSelection = null) => {
     const { conversationId, agentActive, activeAgentMode, isTyping } = get();
     if (isTyping) return;
 
@@ -86,6 +87,7 @@ export const useChatStore = create((set, get) => ({
         confirmationStatus,
         agentActive,
         activeAgentMode,
+        modelSelection,
       );
 
       if (result.success) {
@@ -392,9 +394,10 @@ export const useChatStore = create((set, get) => ({
       activeAgentMode: null,
       error: null,
       pendingMessage: null,
+      pendingModelSelection: null,
     }),
 
-  startNewChat: (text = null) =>
+  startNewChat: (text = null, modelSelection = null) =>
     set({
       messages: [],
       isTyping: false,
@@ -404,7 +407,8 @@ export const useChatStore = create((set, get) => ({
       activeAgentMode: null,
       error: null,
       pendingMessage: text,
+      pendingModelSelection: modelSelection,
     }),
 
-  clearPendingMessage: () => set({ pendingMessage: null }),
+  clearPendingMessage: () => set({ pendingMessage: null, pendingModelSelection: null }),
 }));

@@ -13,6 +13,7 @@ export const chatApi = {
     confirmationStatus = null,
     agentActive = false,
     activeAgentMode = null,
+    modelSelection = null,
   ) => {
     const response = await fetch(`${API_BASE_URL}/chat/message`, {
       method: "POST",
@@ -24,6 +25,8 @@ export const chatApi = {
         confirmationStatus,
         agentActive,
         activeAgentMode,
+        llmProvider: modelSelection?.provider,
+        modelName: modelSelection?.modelName,
       }),
     });
 

@@ -3,6 +3,7 @@ import { useAuthStore } from "../store/authStore";
 import useSyncStore from "../store/syncStore";
 import { homeApi, DUMMY as HOME_DUMMY } from "../api/home";
 import { useChatStore } from "../store/chatStore";
+import { DEFAULT_LLM_MODEL_ID, LLM_MODEL_OPTIONS, getLlmModelOption } from "../constants/llmModels";
 
 const SUGGESTIONS = [
   { icon: "mail",     title: "What's important in my inbox today?", sub: "Triage unread emails" },
@@ -16,8 +17,10 @@ function HomePage({ onNavigate }) {
   const { gmail, calendar } = useSyncStore();
   const { startNewChat } = useChatStore();
   const textareaRef = useRef(null);
+  const [selectedModelId, setSelectedModelId] = useState(DEFAULT_LLM_MODEL_ID);
   const [upcomingEvents, setUpcomingEvents] = useState(HOME_DUMMY.upcomingEvents);
   const [dailySummary, setDailySummary] = useState(HOME_DUMMY.dailySummary);
+  const selectedModelOption = getLlmModelOption(selectedModelId);
 
   useEffect(() => {
     homeApi.getUpcomingEvents().then(setUpcomingEvents).catch(() => {});
@@ -34,12 +37,12 @@ function HomePage({ onNavigate }) {
   const handleSend = () => {
     const text = textareaRef.current?.value?.trim();
     if (!text) return;
-    startNewChat(text);
+    startNewChat(text, selectedModelOption);
     onNavigate("chat");
   };
 
   const handleSuggestionClick = (text) => {
-    startNewChat(text);
+    startNewChat(text, selectedModelOption);
     onNavigate("chat");
   };
 
@@ -123,6 +126,19 @@ function HomePage({ onNavigate }) {
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
           <span className="myra-source-pill"><span className="dot" />Use all sources</span>
+          <label className="myra-model-select" aria-label="Select chat model">
+            <SparklesIcon />
+            <select
+              value={selectedModelId}
+              onChange={(event) => setSelectedModelId(event.target.value)}
+            >
+              {LLM_MODEL_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label} - {option.detail}
+                </option>
+              ))}
+            </select>
+          </label>
           <span className="myra-source-pill"><MailIconTiny />Gmail</span>
           <span className="myra-source-pill"><CalendarIconTiny />Calendar</span>
           <span className="myra-source-pill"><FileIconTiny />Notes</span>

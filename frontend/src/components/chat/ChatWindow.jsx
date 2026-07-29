@@ -4,6 +4,7 @@ import TypingIndicator from "./TypingIndicator";
 import { useChatStore } from "../../store/chatStore";
 import { useAuthStore } from "../../store/authStore";
 import { useVoiceRecorder } from "../../hooks/useVoiceRecorder";
+import { DEFAULT_LLM_MODEL_ID, LLM_MODEL_OPTIONS, getLlmModelOption } from "../../constants/llmModels";
 
 // ── ChatWindow — exact MyRA design replica ───────────────────────────────────
 
@@ -11,6 +12,7 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
   const { messages, isTyping, sendMessage, sendVoiceMessage, pendingConfirmation, confirmAction, clearPendingMessage, agentActive } = useChatStore();
   const { user } = useAuthStore();
   const [draft, setDraft] = useState("");
+  const [selectedModelId, setSelectedModelId] = useState(DEFAULT_LLM_MODEL_ID);
   const [voiceError, setVoiceError] = useState(null);
   const {
     isSupported: voiceSupported,
@@ -26,15 +28,19 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
   const tagline = useMemo(() => {
     return TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
   }, []);
+  const selectedModelOption = useMemo(() => getLlmModelOption(selectedModelId), [selectedModelId]);
 
   // Send any message queued from the home page
   useEffect(() => {
-    const { pendingMessage } = useChatStore.getState();
+    const { pendingMessage, pendingModelSelection } = useChatStore.getState();
     if (pendingMessage) {
       clearPendingMessage();
-      sendMessage(pendingMessage);
+      if (pendingModelSelection?.id) {
+        setSelectedModelId(pendingModelSelection.id);
+      }
+      sendMessage(pendingMessage, null, pendingModelSelection ?? selectedModelOption);
     }
-  }, [clearPendingMessage, sendMessage]);
+  }, [clearPendingMessage, selectedModelOption, sendMessage]);
 
   useEffect(() => {
     let index = 0;
@@ -63,7 +69,7 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
     if (!text) return;
     setDraft("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    sendMessage(text);
+    sendMessage(text, null, selectedModelOption);
   };
 
   const handleKeyDown = (e) => {
@@ -193,6 +199,9 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
               voiceDurationMs={voiceDurationMs}
               voiceError={voiceError}
               onVoiceToggle={handleVoiceToggle}
+              selectedModelId={selectedModelId}
+              selectedModelOption={selectedModelOption}
+              onModelChange={setSelectedModelId}
             />
           </div>
         </div>
@@ -284,6 +293,9 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
         voiceDurationMs={voiceDurationMs}
         voiceError={voiceError}
         onVoiceToggle={handleVoiceToggle}
+        selectedModelId={selectedModelId}
+        selectedModelOption={selectedModelOption}
+        onModelChange={setSelectedModelId}
       />
     </div>
   );
@@ -702,7 +714,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
 
 // ── Composer — the input area at bottom ─────────────────────────────────────
 
-function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle }) {
+function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle, selectedModelId, selectedModelOption, onModelChange }) {
   if (pendingConfirmation) {
     return (
       <div className="myra-composer">
@@ -776,9 +788,25 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
             <span className="myra-source-pill" style={{ cursor: "default" }}>
               <span className="dot" />All sources
             </span>
-            <span className="myra-source-pill myra-source-pill--model" style={{ cursor: "default" }}>
-              <SparklesSmIcon /><span className="myra-source-pill-label">Claude Haiku 4.5</span>
-            </span>
+            {draft.trim() ? (
+              <label className="myra-model-select" aria-label="Select chat model">
+                <SparklesSmIcon />
+                <select
+                  value={selectedModelId}
+                  onChange={(event) => onModelChange(event.target.value)}
+                >
+                  {LLM_MODEL_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label} - {option.detail}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span className="myra-source-pill myra-source-pill--model" style={{ cursor: "default" }}>
+                <SparklesSmIcon /><span className="myra-source-pill-label">{selectedModelOption.detail}</span>
+              </span>
+            )}
           </div>
           <span className="myra-composer-hint-text">Enter to send · Shift+Enter newline</span>
         </div>

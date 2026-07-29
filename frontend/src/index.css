@@ -763,6 +763,35 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   gap: 8px;
   align-items: center;
 }
+.myra-model-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  min-width: 0;
+  padding: 0 8px 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.myra-model-select select {
+  max-width: 180px;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.myra-model-select select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 
 /* ── Confirmation card ── */
 .myra-btn.voice-recording {
@@ -1368,6 +1397,15 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 7.5rem;
+  }
+  .myra-model-select {
+    height: 28px;
+    min-height: 28px;
+    max-width: 100%;
+    flex-shrink: 0;
+  }
+  .myra-model-select select {
+    max-width: 10.5rem;
   }
 
   /* Top nav — mweb only */
