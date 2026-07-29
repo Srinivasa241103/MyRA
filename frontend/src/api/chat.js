@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:9000";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:2020";
 
 const authHeaders = () => {
   const token = localStorage.getItem("myra_auth_token");
@@ -91,6 +91,39 @@ export const chatApi = {
 
     if (!response.ok) {
       throw new Error(`Failed to fetch conversations: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  sendVoiceMessage: async ({
+    audio,
+    conversationId = null,
+    language = "en-IN",
+    durationMs = null,
+    wakeWord = null,
+  }) => {
+    const formData = new FormData();
+    const extension = audio.type?.includes("mp4") ? "mp4" : "webm";
+    formData.append("audio", audio, `command.${extension}`);
+    if (conversationId) formData.append("conversationId", conversationId);
+    if (language) formData.append("language", language);
+    if (durationMs !== null) formData.append("durationMs", String(durationMs));
+    if (wakeWord) formData.append("wakeWord", wakeWord);
+
+    const voicePath = import.meta.env.VITE_VOICE_CHAT_PATH || "/api/voice-chat";
+    const response = await fetch(`${API_BASE_URL}${voicePath}`, {
+      method: "POST",
+      headers: { ...authHeaders() },
+      credentials: "include",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const error = new Error(data.error || `Voice chat request failed: ${response.status}`);
+      error.data = data;
+      throw error;
     }
 
     return response.json();

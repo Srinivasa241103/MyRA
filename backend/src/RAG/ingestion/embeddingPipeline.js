@@ -1,13 +1,13 @@
 import { documentRepository } from "../../database/index.js";
-import { chunkRepository } from "../../database/index.js";
 import { chunkDocument } from "./chunker.js";
 import Embedding from "./embeddingsProvider.js";
 import { logger } from "../../utils/logger.js";
+import { getVectorStore } from "../vectorStores/vectorStoreFactory.js";
 
 export default class EmbeddingPipeline {
     constructor() {
         this.documentRepo = documentRepository;
-        this.chunkRepo = chunkRepository;
+        this.vectorStore = getVectorStore();
         this.embedder = new Embedding();
     }
 
@@ -46,7 +46,10 @@ export default class EmbeddingPipeline {
                     const embedChunks = await this.embedder.embedChunks(chunks);
 
                     //store each chunk and its embeddings
-                    await this.chunkRepo.insertChunks(doc.id, embedChunks);
+                    await this.vectorStore.upsertDocumentChunks({
+                        document: doc,
+                        chunks: embedChunks,
+                    });
                     await this.documentRepo.updateEmbedding(doc.document_id, userId);
                     response.success++;
 
