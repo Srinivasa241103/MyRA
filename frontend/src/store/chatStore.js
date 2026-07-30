@@ -376,11 +376,87 @@ export const useChatStore = create((set, get) => ({
         agentActive: emailStatus?.active ?? false,
         activeAgentMode: emailStatus?.active ? "email_agent" : null,
       });
-    } catch {
+    } catch (error) {
+      const chatMissing = error.status === 404;
       set({
+        ...(chatMissing
+          ? {
+            messages: [],
+            conversationId: null,
+            pendingConfirmation: false,
+            agentActive: false,
+            activeAgentMode: null,
+          }
+          : {}),
         isTyping: false,
-        error: "Failed to load conversation.",
+        error: error.message || "Failed to load conversation.",
       });
+    }
+  },
+
+  deleteConversation: async (targetConversationId = null) => {
+    const conversationId = targetConversationId ?? get().conversationId;
+
+    if (!conversationId) {
+      get().resetChat();
+      return { success: true };
+    }
+
+    try {
+      const result = await chatApi.deleteConversation(conversationId);
+
+      set((state) => {
+        const isActiveConversation = state.conversationId === conversationId;
+        return {
+          conversations: state.conversations.filter(
+            (conversation) => conversation.conversationId !== conversationId
+          ),
+          conversationsError: null,
+          ...(isActiveConversation
+            ? {
+              messages: [],
+              isTyping: false,
+              conversationId: null,
+              pendingConfirmation: false,
+              agentActive: false,
+              activeAgentMode: null,
+              error: null,
+              pendingMessage: null,
+              pendingModelSelection: null,
+            }
+            : {}),
+        };
+      });
+
+      return result;
+    } catch (error) {
+      if (error.status === 404) {
+        set((state) => {
+          const isActiveConversation = state.conversationId === conversationId;
+          return {
+            conversations: state.conversations.filter(
+              (conversation) => conversation.conversationId !== conversationId
+            ),
+            ...(isActiveConversation
+              ? {
+                messages: [],
+                isTyping: false,
+                conversationId: null,
+                pendingConfirmation: false,
+                agentActive: false,
+                activeAgentMode: null,
+                pendingMessage: null,
+                pendingModelSelection: null,
+              }
+              : {}),
+            error: error.message || "Chat does not exist",
+          };
+        });
+        return { success: false, error: error.message };
+      }
+
+      set({ error: error.message || "Failed to delete conversation." });
+      throw error;
     }
   },
 

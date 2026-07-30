@@ -6,11 +6,31 @@ export default class ConversationRepository {
       SELECT user_message, assistant_message, created_at
       FROM conversations
       WHERE conversation_id = $1 AND user_id = $2
-        AND (is_deleted = false OR is_deleted IS NULL)
+        AND is_deleted IS NULL
       ORDER BY created_at ASC
       LIMIT 20;`;
 
     return await pool.query(query, [conversationId, userId]);
+  }
+
+  async getConversationStatus(conversationId, userId) {
+    const query = `
+      SELECT
+        COUNT(*)::int AS total_count,
+        COUNT(*) FILTER (WHERE is_deleted IS NULL)::int AS active_count
+      FROM conversations
+      WHERE user_id = $1 AND conversation_id = $2;
+    `;
+
+    const { rows } = await pool.query(query, [userId, conversationId]);
+    const row = rows[0] ?? { total_count: 0, active_count: 0 };
+
+    return {
+      exists: row.total_count > 0,
+      active: row.active_count > 0,
+      totalCount: row.total_count,
+      activeCount: row.active_count,
+    };
   }
 
   async saveChatConversation({
@@ -40,13 +60,13 @@ export default class ConversationRepository {
           user_message AS title,
           created_at   AS started_at
         FROM conversations
-        WHERE (is_deleted = false OR is_deleted IS NULL) AND user_id = $2
+        WHERE is_deleted IS NULL AND user_id = $2
         ORDER BY conversation_id, created_at ASC
       ),
       last_activity AS (
         SELECT conversation_id, MAX(created_at) AS last_message_at
         FROM conversations
-        WHERE (is_deleted = false OR is_deleted IS NULL) AND user_id = $2  
+        WHERE is_deleted IS NULL AND user_id = $2  
         GROUP BY conversation_id
       )
       SELECT
@@ -71,6 +91,7 @@ export default class ConversationRepository {
         MAX(created_at) as last_message
       FROM conversations
       WHERE user_id = $1 AND conversation_id = $2
+        AND is_deleted IS NULL
     `;
 
     const { rows } = await pool.query(query, [userId, conversationId]);
@@ -81,9 +102,10 @@ export default class ConversationRepository {
     const query = `
       UPDATE conversations
       SET is_deleted = true
-      WHERE user_id = $1 AND conversation_id = $2;
+      WHERE user_id = $1 AND conversation_id = $2
+        AND is_deleted IS NULL;
     `;
-    await pool.query(query, [userId, conversationId]);
-    return;
+    const result = await pool.query(query, [userId, conversationId]);
+    return result.rowCount;
   }
 }

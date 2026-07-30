@@ -1,18 +1,28 @@
-import { ChatAnthropic } from "@langchain/anthropic";
 import {
   getGoogleCalendarClient,
   findFreeSlotsForDay,
 } from "../../service/sources/GoogleCalendarDataSource.js";
 import { logger } from "../../utils/logger.js";
+import LLMService, { resolveLLMSelection } from "../../RAG/query/llmService.js";
+import { LLM_INVOCATION_TYPES } from "../../utils/constants.js";
 
-const llm = new ChatAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  model: "claude-haiku-4-5-20251001",
-  maxTokens: 1024,
-});
+const llmService = new LLMService();
 
 // Fallback for scripts/cron jobs that don't go through the HTTP layer
 const DEFAULT_USER_ID = process.env.SYNC_USER_ID;
+
+function getLLMSelection(state, config) {
+  return resolveLLMSelection(
+    config?.configurable?.llmProvider ??
+    state.llmProvider ??
+    process.env.CALENDAR_AGENT_LLM_PROVIDER ??
+    "Anthropic",
+    config?.configurable?.model ??
+    state.model ??
+    process.env.CALENDAR_AGENT_MODEL ??
+    process.env.ANTHROPIC_CHAT_MODEL
+  );
+}
 
 function addOneHour(timeStr) {
   const [h, m] = timeStr.split(":").map(Number);
@@ -32,11 +42,12 @@ function formatDate(dateStr) {
   });
 }
 
-const parseIntent = async (state) => {
+const parseIntent = async (state, config) => {
   logger.info("[Agent] Node: parse_intent", {
     userMessage: state.userMessage,
     userId: state.userId,
   });
+  const llmSelection = getLLMSelection(state, config);
 
   // If we're mid-collection, tell the LLM which field the user is answering
   // so short replies like "6:00 pm" or "today" are interpreted correctly.
@@ -69,11 +80,22 @@ const parseIntent = async (state) => {
     }
     `;
 
-  const response = await llm.invoke(extractionPrompt);
+  const response = await llmService.generateResponse(
+    llmSelection.provider,
+    [{ role: "user", content: extractionPrompt }],
+    state.userId ?? DEFAULT_USER_ID,
+    config?.configurable?.thread_id ?? "calendar_agent",
+    {
+      model: llmSelection.model,
+      invocationType: LLM_INVOCATION_TYPES.CALENDAR_AGENT,
+      temperature: 0,
+      maxTokens: 1024,
+    }
+  );
 
   let extracted;
   try {
-    extracted = JSON.parse(response.content);
+    extracted = JSON.parse(response.answer);
   } catch {
     extracted = {};
   }
@@ -99,6 +121,8 @@ const parseIntent = async (state) => {
     eventDetails: newDetails,
     missingFields: missing,
     messages: [{ role: "user", content: state.userMessage }],
+    llmProvider: llmSelection.provider,
+    model: llmSelection.model,
   };
 };
 

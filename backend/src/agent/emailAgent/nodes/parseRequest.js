@@ -1,6 +1,9 @@
-import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import { isValidEmail } from "../tools.js";
+import LLMService from "../../../RAG/query/llmService.js";
+import { LLM_INVOCATION_TYPES } from "../../../utils/constants.js";
+
+const llmService = new LLMService();
 
 const parseRequestSchema = z.object({
     recipient_name: z.string().nullable(),
@@ -8,11 +11,6 @@ const parseRequestSchema = z.object({
     tone: z.string().nullable(),
     purpose: z.string().nullable(),
 });
-
-const parseModel = new ChatOpenAI({
-    model: process.env.OPENAI_LIGHT_MODEL,
-    temperature: 0,
-}).withStructuredOutput(parseRequestSchema);
 
 const normalizeOptionalText = (value) => {
     if (typeof value !== "string") return null;
@@ -23,12 +21,20 @@ const normalizeOptionalText = (value) => {
     return normalized;
 };
 
-const parseRequest = async (state) => {
+const parseRequest = async (state, config) => {
     const userPrompt = state.user_prompt.trim();
     const explicitEmail = userPrompt.match(/[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+/)?.[0]
         ?? null;
 
-    const response = await parseModel.invoke([
+    const response = await llmService.generateStructuredResponse({
+        llmProvider: state.llm_provider ?? config?.configurable?.llmProvider ?? "OpenAI",
+        model: state.llm_model ?? config?.configurable?.model ?? process.env.OPENAI_LIGHT_MODEL,
+        schema: parseRequestSchema,
+        userId: config?.configurable?.user_id ?? parseInt(process.env.SYNC_USER_ID, 10),
+        conversationId: config?.configurable?.thread_id ?? "email_agent_parse",
+        invocationType: LLM_INVOCATION_TYPES.EMAIL_AGENT,
+        temperature: 0,
+        messages: [
         {
             role: "system",
             content: `Extract email-writing details from the user's request.
@@ -45,9 +51,12 @@ Do not invent names, email addresses, or facts.`,
             role: "user",
             content: userPrompt,
         },
-    ]);
+        ],
+    });
 
     return {
+        llm_provider: state.llm_provider ?? config?.configurable?.llmProvider ?? "OpenAI",
+        llm_model: state.llm_model ?? config?.configurable?.model ?? process.env.OPENAI_LIGHT_MODEL,
         original_user_request: userPrompt,
         recipient_name: normalizeOptionalText(response.recipient_name),
         recipient_email_from_request: isValidEmail(response.recipient_email)

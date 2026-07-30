@@ -4,30 +4,26 @@ export const LLM_MODEL_OPTIONS = [
   {
     id: "anthropic-haiku",
     provider: "Anthropic",
-    modelName: "claude-haiku-4-5",
-    label: "Anthropic",
-    detail: "Claude Haiku 4.5",
+    model: "claude-haiku-4-5",
+    displayName: "Haiku 4.5",
   },
   {
     id: "openai-light",
     provider: "OpenAI",
-    modelName: "gpt-4.1-nano",
-    label: "OpenAI Light",
-    detail: "gpt-4.1-nano",
+    model: "gpt-4.1-nano",
+    displayName: "GPT 4.1 nano",
   },
   {
     id: "openai-medium",
     provider: "OpenAI",
-    modelName: "gpt-5.4-nano",
-    label: "OpenAI Medium",
-    detail: "gpt-5.4-nano",
+    model: "gpt-5.4-nano",
+    displayName: "GPT 5.4 nano",
   },
   {
     id: "openai-heavy",
     provider: "OpenAI",
-    modelName: "gpt-5.4-mini",
-    label: "OpenAI Heavy",
-    detail: "gpt-5.4-mini",
+    model: "gpt-5.4-mini",
+    displayName: "GPT 5.4 mini",
   },
 ];
 

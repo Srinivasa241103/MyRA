@@ -9,11 +9,23 @@ import { DEFAULT_LLM_MODEL_ID, LLM_MODEL_OPTIONS, getLlmModelOption } from "../.
 // ── ChatWindow — exact MyRA design replica ───────────────────────────────────
 
 function ChatWindow({ onNavigate, onToggleSidebar }) {
-  const { messages, isTyping, sendMessage, sendVoiceMessage, pendingConfirmation, confirmAction, clearPendingMessage, agentActive } = useChatStore();
+  const {
+    messages,
+    isTyping,
+    conversationId,
+    sendMessage,
+    sendVoiceMessage,
+    pendingConfirmation,
+    confirmAction,
+    clearPendingMessage,
+    agentActive,
+    deleteConversation,
+  } = useChatStore();
   const { user } = useAuthStore();
   const [draft, setDraft] = useState("");
   const [selectedModelId, setSelectedModelId] = useState(DEFAULT_LLM_MODEL_ID);
   const [voiceError, setVoiceError] = useState(null);
+  const [isDeletingChat, setIsDeletingChat] = useState(false);
   const {
     isSupported: voiceSupported,
     isRecording: voiceRecording,
@@ -70,6 +82,16 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
     setDraft("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     sendMessage(text, null, selectedModelOption);
+  };
+
+  const handleDeleteChat = async () => {
+    if (isDeletingChat) return;
+    setIsDeletingChat(true);
+    try {
+      await deleteConversation(conversationId);
+    } finally {
+      setIsDeletingChat(false);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -236,7 +258,12 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
           <button className="myra-btn secondary sm myra-chat-topbar-hide-sm">
             <EditIcon /> Rename
           </button>
-          <button className="myra-btn ghost sm icon myra-chat-topbar-hide-sm" aria-label="Delete chat">
+          <button
+            className="myra-btn ghost sm icon myra-chat-topbar-hide-sm"
+            aria-label={isDeletingChat ? "Deleting chat" : "Delete chat"}
+            onClick={handleDeleteChat}
+            disabled={isDeletingChat || isTyping}
+          >
             <TrashIcon />
           </button>
           <button
@@ -794,7 +821,7 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
               >
                 {LLM_MODEL_OPTIONS.map((option) => (
                   <option key={option.id} value={option.id}>
-                    {option.label} - {option.detail}
+                    {option.displayName}
                   </option>
                 ))}
               </select>

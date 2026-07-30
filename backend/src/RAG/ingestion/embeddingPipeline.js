@@ -43,7 +43,10 @@ export default class EmbeddingPipeline {
                     }
 
                     //embed the chunks
-                    const embedChunks = await this.embedder.embedChunks(chunks);
+                    const embedChunks = await this.embedder.embedChunks(chunks, {
+                        userId,
+                        conversationId: options.conversationId ?? `document_embedding:${doc.document_id}`,
+                    });
 
                     //store each chunk and its embeddings
                     await this.vectorStore.upsertDocumentChunks({

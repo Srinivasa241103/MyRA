@@ -2,8 +2,9 @@ import ConversationRepository from "../../database/conversationsRepo.js";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../../utils/logger.js";
 import RagChain from "../../RAG/ragService.js";
-import LLMService from "../../RAG/query/llmService.js";
+import LLMService, { resolveLLMSelection } from "../../RAG/query/llmService.js";
 import MemoryService from "../../RAG/query/memoryService.js";
+import { LLM_INVOCATION_TYPES } from "../../utils/constants.js";
 
 import { routeIntent } from "../../agent/intentRouter.js";
 import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
@@ -18,7 +19,44 @@ const ragChainService = new RagChain();
 const ragMemoryService = new MemoryService();
 const llmService = new LLMService();
 
+const CHAT_NOT_FOUND_RESPONSE = {
+  success: false,
+  error: "Chat does not exist",
+};
+
 class ChatController {
+  async _getConversationStatus(conversationId, userId) {
+    if (!conversationId) {
+      return { exists: false, active: false, totalCount: 0, activeCount: 0 };
+    }
+
+    return conversationRepo.getConversationStatus(conversationId, userId);
+  }
+
+  async _ensureReadableConversation(conversationId, userId, res) {
+    const status = await this._getConversationStatus(conversationId, userId);
+
+    if (!status.active) {
+      res.status(404).json(CHAT_NOT_FOUND_RESPONSE);
+      return false;
+    }
+
+    return true;
+  }
+
+  async _ensureWritableConversation(conversationId, userId, res) {
+    if (!conversationId) return true;
+
+    const status = await this._getConversationStatus(conversationId, userId);
+
+    // Preserve the existing first-message flow where a frontend may pass a
+    // freshly generated conversation id before any row exists.
+    if (!status.exists || status.active) return true;
+
+    res.status(404).json(CHAT_NOT_FOUND_RESPONSE);
+    return false;
+  }
+
   async _resolveHandler(
     message,
     conversationId,
@@ -26,6 +64,8 @@ class ChatController {
     agentActive,
     activeAgentMode,
     userId,
+    llmProvider,
+    model,
   ) {
     if (confirmationStatus) {
       return { handler: "agent", confirmationStatus };
@@ -48,18 +88,18 @@ class ChatController {
       }
     }
 
-    const intent = await routeIntent(message, conversationId, userId);
+    const intent = await routeIntent(message, conversationId, userId, llmProvider, model);
     logger.info("Intent routed", { intent, conversationId });
 
     if (intent === "calendar_agent") return { handler: "agent", intent };
-    if (intent === "calendar_rag") return { handler: "rag", intent };
+    if (intent === "calendar_rag") return { handler: "calendar_rag", intent };
     if (intent === "email_draft")
       return { handler: "email_agent", intent: "email_draft" };
     if (intent === "email_reply")
       return { handler: "email_reply_unavailable", intent };
     if (intent === "email_read") return { handler: "rag", intent };
     if (intent === "rag") return { handler: "rag", intent };
-    return { handler: "Normal", intent: "general" }
+    return { handler: "Normal", intent: "general" };
   }
 
   async sendMessage(req, res) {
@@ -67,6 +107,9 @@ class ChatController {
       message,
       conversationId,
       llmProvider,
+      provider,
+      model,
+      modelName,
       confirmationStatus,
       agentActive,
       activeAgentMode,
@@ -80,7 +123,20 @@ class ChatController {
       });
     }
 
+    let selectedLLM;
     try {
+      selectedLLM = resolveLLMSelection(provider ?? llmProvider, model ?? modelName);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    try {
+      const writable = await this._ensureWritableConversation(conversationId, userId, res);
+      if (!writable) return;
+
       const {
         handler,
         intent,
@@ -92,6 +148,8 @@ class ChatController {
         agentActive,
         activeAgentMode,
         userId,
+        selectedLLM.provider,
+        selectedLLM.model,
       );
 
       // ── Email agent ─────────────────────────────────────────────────────────
@@ -111,6 +169,8 @@ class ChatController {
             intent ?? null,
             userId,
             isResumeTurn ? message.trim() : null,
+            selectedLLM.provider,
+            selectedLLM.model,
           );
         } catch (error) {
           logger.error("Email agent execution failed", {
@@ -239,10 +299,17 @@ class ChatController {
         const threadId = conversationId ?? uuidv4();
 
         const agentInput = cs
-          ? { confirmationStatus: cs, userId }
+          ? {
+            confirmationStatus: cs,
+            userId,
+            llmProvider: selectedLLM.provider,
+            model: selectedLLM.model,
+          }
           : {
             userMessage: message.trim(),
             userId,
+            llmProvider: selectedLLM.provider,
+            model: selectedLLM.model,
             confirmationStatus: null,
             // Only reset eventDetails at the start of a new agent conversation.
             // Mid-collection turns must NOT send null or the checkpoint-persisted
@@ -251,7 +318,12 @@ class ChatController {
           };
 
         const agentResult = await calendarAgentGraph.invoke(agentInput, {
-          configurable: { thread_id: threadId },
+          configurable: {
+            thread_id: threadId,
+            user_id: userId,
+            llmProvider: selectedLLM.provider,
+            model: selectedLLM.model,
+          },
         });
 
         const agentDone =
@@ -278,28 +350,42 @@ class ChatController {
       }
 
       // ── Calendar RAG ─────────────────────────────────────────────────────────
-      // if (handler === "calendar_rag") {
-      //   const result = await calendarRagService.chat(
-      //     message.trim(),
-      //     conversationId,
-      //     userId,
-      //   );
-      //   if (!result.success) return res.status(500).json(result);
-      //   return res.json({
-      //     success: true,
-      //     queryId: uuidv4(),
-      //     conversationId: result.conversationId,
-      //     query: message.trim(),
-      //     response: result.response,
-      //     mode: "calendar_rag",
-      //     context: {
-      //       documentsUsed: result.sourceDocuments,
-      //       totalDocuments: result.sourceDocuments.length,
-      //       selectedDocuments: result.sourceDocuments.length,
-      //     },
-      //     metadata: { duration: result.duration },
-      //   });
-      // }
+      if (handler === "calendar_rag") {
+        const result = await ragChainService.chat({
+          userMessage: message.trim(),
+          conversationId,
+          userId,
+          llmProvider: selectedLLM.provider,
+          model: selectedLLM.model,
+          RetrieveOptions: {
+            sourceType: "calendar",
+          },
+        });
+
+        if (!result.success) {
+          return res.status(500).json(result);
+        }
+
+        return res.json({
+          success: true,
+          queryId: uuidv4(),
+          conversationId: result.conversationId,
+          query: message.trim(),
+          response: result.response,
+          mode: "calendar_rag",
+          context: {
+            documentsUsed: result.sourcedDocuments,
+            totalDocuments: result.sourcedDocuments.length,
+            selectedDocuments: result.sourcedDocuments.length,
+          },
+          metadata: {
+            duration: result?.duration,
+            provider: result.provider,
+            model: result.model,
+            sourceType: "calendar",
+          },
+        });
+      }
 
       // ── Default RAG ──────────────────────────────────────────────────────────
       if (handler === 'rag') {
@@ -307,7 +393,8 @@ class ChatController {
           userMessage: message.trim(),
           conversationId,
           userId,
-          llmProvider,
+          llmProvider: selectedLLM.provider,
+          model: selectedLLM.model,
         });
 
         if (!result.success) {
@@ -327,6 +414,8 @@ class ChatController {
           },
           metadata: {
             duration: result?.duration,
+            provider: result.provider,
+            model: result.model,
           }
         })
       }
@@ -351,10 +440,14 @@ class ChatController {
       ];
 
       const generalLLMResponse = await llmService.generateResponse(
-        llmProvider,
+        selectedLLM.provider,
         messages,
         userId,
-        threadId
+        threadId,
+        {
+          model: selectedLLM.model,
+          invocationType: LLM_INVOCATION_TYPES.GENERAL_CHAT,
+        }
       );
 
       if (!generalLLMResponse.answer) {
@@ -383,7 +476,10 @@ class ChatController {
           totalDocuments: 0,
           selectedDocuments: 0,
         },
-        metadata: {},
+        metadata: {
+          provider: generalLLMResponse.provider,
+          model: generalLLMResponse.model,
+        },
       });
 
     } catch (error) {
@@ -407,6 +503,9 @@ class ChatController {
     }
 
     try {
+      const readable = await this._ensureReadableConversation(conversationId, userId, res);
+      if (!readable) return;
+
       const status = await getEmailSessionStatus(conversationId, userId);
       return res.json({ success: true, conversationId, ...status });
     } catch (error) {
@@ -619,6 +718,9 @@ class ChatController {
     }
 
     try {
+      const readable = await this._ensureReadableConversation(conversationId, userId, res);
+      if (!readable) return;
+
       const messages = await ragMemoryService.loadHistory(conversationId, userId);
 
       // Map [{role,content},{role,content}...] pairs → [{user_message, assistant_message}]
@@ -683,6 +785,49 @@ class ChatController {
       return res.status(500).json({
         success: false,
         error: "Failed to create conversation",
+      });
+    }
+  }
+
+  async deleteConversation(req, res) {
+    const { conversationId } = req.params;
+    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+
+    if (!conversationId) {
+      return res.status(400).json({
+        success: false,
+        error: "Conversation ID is required",
+      });
+    }
+
+    try {
+      const deletedRows = await conversationRepo.clear(conversationId, userId);
+
+      if (!deletedRows) {
+        logger.warn("Delete conversation not found", {
+          conversationId,
+          userId,
+          hasAuthUser: Boolean(req.user),
+        });
+        return res.status(404).json(CHAT_NOT_FOUND_RESPONSE);
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          conversationId,
+          deleted: true,
+        },
+      });
+    } catch (error) {
+      logger.error("Delete conversation error", {
+        error: error.message,
+        conversationId,
+        userId,
+      });
+      return res.status(500).json({
+        success: false,
+        error: "Failed to delete conversation",
       });
     }
   }

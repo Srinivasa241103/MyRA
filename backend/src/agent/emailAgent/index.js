@@ -21,10 +21,17 @@ const runSerialized = async (threadId, operation) => {
     }
 };
 
-const getConfig = (conversationId, userId = null) => ({
+const getConfig = (
+    conversationId,
+    userId = null,
+    llmProvider = null,
+    model = null
+) => ({
     configurable: {
         thread_id: `secure_email_${userId ?? "anonymous"}_${conversationId}`,
         user_id: userId,
+        llmProvider,
+        model,
     },
 });
 
@@ -90,9 +97,11 @@ const invokeEmailAgent = async (
     conversationId,
     intent = null,
     userId = null,
-    resumeValue = null
+    resumeValue = null,
+    llmProvider = null,
+    model = null
 ) => {
-    const config = getConfig(conversationId, userId);
+    const config = getConfig(conversationId, userId, llmProvider, model);
     const threadId = config.configurable.thread_id;
     const isResume = resumeValue !== null && resumeValue !== undefined;
 
@@ -103,7 +112,11 @@ const invokeEmailAgent = async (
     return runSerialized(threadId, async () => {
         const input = isResume
             ? new Command({ resume: resumeValue })
-            : { user_prompt: userMessage };
+            : {
+                user_prompt: userMessage,
+                llm_provider: llmProvider,
+                llm_model: model,
+            };
 
         let finalState = null;
         for await (const event of await emailAgent.stream(input, {

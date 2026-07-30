@@ -4,12 +4,20 @@ import { logger } from "../../utils/logger.js";
 const RANGE_TO_DAYS = { "7d": 7, "14d": 14, "30d": 30, "90d": 90 };
 
 const MODEL_COLORS = {
+  "claude-haiku-4-5": "#7A4A2E",
   "claude-haiku-4-5-20251001": "#7A4A2E",
   "claude-3-5-sonnet-20241022": "#C9845A",
+  "gpt-4.1-nano": "#3A6A9A",
+  "gpt-5.4-nano": "#5C8A4A",
+  "gpt-5.4-mini": "#C96A2E",
+  "text-embedding-3-small": "#D4A96A",
+  "text-embedding-3-large": "#B4895A",
   "gemini-embedding-001": "#D4A96A",
 };
 
 const EMBEDDING_MODEL_PROVIDER = {
+  "text-embedding-3-small": "OpenAI",
+  "text-embedding-3-large": "OpenAI",
   "gemini-embedding-001": "Google",
 };
 const DEFAULT_COLOR = "#8C6A4A";

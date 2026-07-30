@@ -25,8 +25,8 @@ export const chatApi = {
         confirmationStatus,
         agentActive,
         activeAgentMode,
-        llmProvider: modelSelection?.provider,
-        modelName: modelSelection?.modelName,
+        provider: modelSelection?.provider,
+        model: modelSelection?.model,
       }),
     });
 
@@ -79,7 +79,11 @@ export const chatApi = {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch history: ${response.status}`);
+      const data = await response.json().catch(() => ({}));
+      const error = new Error(data.error || `Failed to fetch history: ${response.status}`);
+      error.data = data;
+      error.status = response.status;
+      throw error;
     }
 
     return response.json();
@@ -94,6 +98,24 @@ export const chatApi = {
 
     if (!response.ok) {
       throw new Error(`Failed to fetch conversations: ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  deleteConversation: async (conversationId) => {
+    const response = await fetch(`${API_BASE_URL}/chat/conversation/${conversationId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const error = new Error(data.error || `Failed to delete conversation: ${response.status}`);
+      error.data = data;
+      error.status = response.status;
+      throw error;
     }
 
     return response.json();

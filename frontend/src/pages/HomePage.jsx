@@ -134,7 +134,7 @@ function HomePage({ onNavigate }) {
             >
               {LLM_MODEL_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.label} - {option.detail}
+                  {option.displayName}
                 </option>
               ))}
             </select>

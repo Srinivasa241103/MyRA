@@ -28,6 +28,12 @@ router.post("/message/stream", optionalAuth, (req, res) =>
 router.post("/conversation", (req, res) =>
   chatController.createConversation(req, res)
 );
+router.delete("/conversation/:conversationId", optionalAuth, (req, res) =>
+  chatController.deleteConversation(req, res)
+);
+router.delete("/conversations/:conversationId", optionalAuth, (req, res) =>
+  chatController.deleteConversation(req, res)
+);
 router.get("/conversations", optionalAuth, (req, res) =>
   chatController.getConversations(req, res)
 );

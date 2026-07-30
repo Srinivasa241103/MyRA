@@ -1,19 +1,16 @@
-import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import RecipientRepository from "../../database/recipientRepository.js";
 import { sendEmail } from "../../service/email/gmailSendService.js";
+import LLMService from "../../RAG/query/llmService.js";
+import { LLM_INVOCATION_TYPES } from "../../utils/constants.js";
 
 const recipientRepo = new RecipientRepository();
+const llmService = new LLMService();
 
 const draftOutputSchema = z.object({
     subject: z.string().min(1),
     body: z.string().min(1),
 });
-
-const draftModel = new ChatOpenAI({
-    model: process.env.OPENAI_LIGHT_MODEL,
-    temperature: 0.3,
-}).withStructuredOutput(draftOutputSchema);
 
 const isValidEmail = (value) => {
     if (typeof value !== "string") return false;
@@ -43,6 +40,10 @@ const createEmailDraft = async ({
     recipient,
     previousDraft,
     feedback,
+    llmProvider,
+    model,
+    userId,
+    conversationId,
 }) => {
     const revisionContext = previousDraft
         ? `Previous draft:
@@ -54,7 +55,15 @@ Requested changes:
 ${feedback}`
         : "This is the first draft.";
 
-    return draftModel.invoke([
+    return llmService.generateStructuredResponse({
+        llmProvider: llmProvider ?? "OpenAI",
+        model: model ?? process.env.OPENAI_LIGHT_MODEL,
+        schema: draftOutputSchema,
+        userId,
+        conversationId,
+        invocationType: LLM_INVOCATION_TYPES.EMAIL_AGENT,
+        temperature: 0.3,
+        messages: [
         {
             role: "system",
             content: `Write a clear plain-text email for the user.
@@ -73,7 +82,8 @@ Recipient: ${recipient.name || recipient.email} <${recipient.email}>
 
 ${revisionContext}`,
         },
-    ]);
+        ],
+    });
 };
 
 const sendApprovedEmail = async ({

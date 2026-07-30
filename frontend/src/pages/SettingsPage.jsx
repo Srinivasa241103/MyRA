@@ -122,7 +122,7 @@ export default function SettingsPage({ theme = "warm", onThemeChange = () => {} 
           {tab === "models" && (
             <div className="myra-card">
               <h3 style={{ marginBottom: 16 }}>Models &amp; API</h3>
-              <SettingsField label="Default chat model" value="Claude Haiku 4.5" badge="Recommended" />
+              <SettingsField label="Default chat model" value="Haiku 4.5" badge="Recommended" />
               <SettingsField label="Embedding model" value="text-embedding-3-large" />
               <SettingsField label="Local fallback" value="Llama 3.1 (8B)" />
               <div className="myra-settings-row">

@@ -9,6 +9,16 @@ const calendarAgentState = {
     default: () => "",
   },
 
+  llmProvider: {
+    value: (x, y) => y ?? x,
+    default: () => null,
+  },
+
+  model: {
+    value: (x, y) => y ?? x,
+    default: () => null,
+  },
+
   eventDetails: {
     // null resets the whole object (new event flow); object merges incrementally
     value: (x, y) => (y === null ? { title: null, date: null, startTime: null, endTime: null, description: null, attendees: [], location: null } : { ...x, ...y }),

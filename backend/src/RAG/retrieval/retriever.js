@@ -79,7 +79,10 @@ export default class Retriever {
             });
 
             const vectorSearch = resolvedPlan.vectorSearch;
-            const queryEmbedding = await this.embed.embedQuery(vectorSearch.query);
+            const queryEmbedding = await this.embed.embedQuery(vectorSearch.query, {
+                userId,
+                conversationId: options.conversationId ?? "retrieval_embedding",
+            });
             const filters = buildSearchFilters(vectorSearch.filters, options);
 
             logger.info(`Retrieving relevant documents for user: ${userId} with query: ${query}`, {

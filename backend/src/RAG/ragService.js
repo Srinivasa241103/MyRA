@@ -14,6 +14,7 @@ export default class RagChain {
         conversationId = null,
         userId,
         llmProvider = 'OpenAI',
+        model = null,
         RetrieveOptions = {}
     }) {
         try {
@@ -34,6 +35,7 @@ export default class RagChain {
                 conversationId,
                 userId,
                 llmProvider,
+                model,
                 options: RetrieveOptions
             }
             const response = await this.querypipe.run(ragParams);
@@ -42,6 +44,8 @@ export default class RagChain {
                 success: true,
                 conversationId,
                 response: response.answer,
+                provider: response.provider,
+                model: response.model,
                 sourcedDocuments: response.sources.map((doc) => ({
                     content: doc.content,
                     source: doc.document.id,

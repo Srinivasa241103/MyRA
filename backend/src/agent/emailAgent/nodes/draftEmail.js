@@ -1,6 +1,6 @@
 import { createEmailDraft } from "../tools.js";
 
-const draftEmail = async (state) => {
+const draftEmail = async (state, config) => {
     if (!state.chosen_recipient) {
         throw new Error("Cannot draft email without a chosen recipient");
     }
@@ -12,6 +12,10 @@ const draftEmail = async (state) => {
         recipient: state.chosen_recipient,
         previousDraft: state.previous_draft,
         feedback: state.user_feedback,
+        llmProvider: state.llm_provider ?? config?.configurable?.llmProvider,
+        model: state.llm_model ?? config?.configurable?.model,
+        userId: config?.configurable?.user_id ?? parseInt(process.env.SYNC_USER_ID, 10),
+        conversationId: config?.configurable?.thread_id ?? "email_agent_draft",
     });
 
     const currentDraft = {

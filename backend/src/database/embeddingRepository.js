@@ -1,6 +1,9 @@
 import { pool } from "../config/dbConfig.js";
 import { logger } from "../utils/logger.js";
 
+const DEFAULT_EMBEDDING_MODEL =
+  process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
+
 class EmbeddingRepository {
   /**
    * Get documents that need embedding
@@ -43,7 +46,7 @@ class EmbeddingRepository {
     documentId,
     embedding,
     tokens,
-    model = "gemini-embedding-001"
+    model = DEFAULT_EMBEDDING_MODEL
   ) {
     const query = `
         UPDATE documents
@@ -92,7 +95,7 @@ class EmbeddingRepository {
   /**
    * Batch update embeddings (more efficient)
    */
-  async batchUpdateEmbeddings(updates, model = "gemini-embedding-001") {
+  async batchUpdateEmbeddings(updates, model = DEFAULT_EMBEDDING_MODEL) {
     const client = await pool.connect();
 
     try {

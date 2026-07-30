@@ -4,6 +4,7 @@ import MemoryService from "./memoryService.js";
 import LLMService from "./llmService.js";
 import { logger } from "../../utils/logger.js";
 import { buildPrompt } from "./prompts.js";
+import { LLM_INVOCATION_TYPES } from "../../utils/constants.js";
 
 export default class QueryPipeline {
     constructor() {
@@ -16,7 +17,8 @@ export default class QueryPipeline {
         query,
         conversationId,
         userId,
-        llmProvider = 'openAI',
+        llmProvider = 'OpenAI',
+        model = null,
         options = {}
     }) {
         try {
@@ -28,7 +30,10 @@ export default class QueryPipeline {
 
             const startTime = Date.now();
 
-            const retrievalResult = await this.retriever.retrieve(query, userId, options);
+            const retrievalResult = await this.retriever.retrieve(query, userId, {
+                ...options,
+                conversationId,
+            });
             logger.info(`Retrieved ${retrievalResult.length} chunks`);
 
             const context = buildContext(retrievalResult);
@@ -45,7 +50,16 @@ export default class QueryPipeline {
             }
             const messages = buildPrompt(buildPromptParams);
 
-            const llmResponse = await this.llmService.generateResponse(llmProvider, messages, userId, conversationId)
+            const llmResponse = await this.llmService.generateResponse(
+                llmProvider,
+                messages,
+                userId,
+                conversationId,
+                {
+                    model,
+                    invocationType: LLM_INVOCATION_TYPES.RAG_CHAT,
+                }
+            )
             const llmResponseTime = llmResponse.duration;
 
             await this.memoryService.saveConversation(userId, conversationId, query, llmResponse.answer,
@@ -55,6 +69,7 @@ export default class QueryPipeline {
                     retrievalDuration,
                     llmDuration: llmResponseTime,
                     llmProvider,
+                    llmModel: llmResponse.model,
                 });
 
             const totalDuration = Date.now() - startTime;
@@ -67,6 +82,7 @@ export default class QueryPipeline {
                 answer: llmResponse.answer,
                 sources: retrievalResult,
                 conversationId,
+                provider: llmResponse.provider,
                 model: llmResponse.model
             }
 

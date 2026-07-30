@@ -19,6 +19,8 @@ const appendValues = (current, incoming) => {
 
 const emailAgentState = new StateSchema({
     user_prompt: z.string().default(""),
+    llm_provider: z.string().nullable().default(null),
+    llm_model: z.string().nullable().default(null),
     original_user_request: z.string().default(""),
     purpose: z.string().nullable().default(null),
     tone: z.string().nullable().default(null),

@@ -4,16 +4,39 @@ import { calendarAgentGraph } from "../../agent/calenderAgent/graph.js";
 const router = express.Router();
 
 router.post("/agent/calender", async (req, res) => {
-  const { message, threadId, confirmationStatus } = req.body;
+  const {
+    message,
+    threadId,
+    confirmationStatus,
+    provider,
+    llmProvider,
+    model,
+    modelName,
+  } = req.body;
+  const selectedProvider = provider ?? llmProvider;
+  const selectedModel = model ?? modelName;
 
   try {
     const config = {
-      configurable: { thread_id: threadId },
+      configurable: {
+        thread_id: threadId,
+        llmProvider: selectedProvider,
+        model: selectedModel,
+      },
     };
 
     const input = confirmationStatus
-      ? { confirmationStatus, messages: [{ role: "user", content: message }] }
-      : { userMessage: message };
+      ? {
+        confirmationStatus,
+        messages: [{ role: "user", content: message }],
+        llmProvider: selectedProvider,
+        model: selectedModel,
+      }
+      : {
+        userMessage: message,
+        llmProvider: selectedProvider,
+        model: selectedModel,
+      };
 
     const result = await calendarAgentGraph.invoke(input, config);
 

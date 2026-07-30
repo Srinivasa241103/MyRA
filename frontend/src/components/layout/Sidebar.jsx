@@ -9,10 +9,11 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
   const { user, isAuthenticated, logout } = useAuthStore();
   const {
     conversations, conversationsLoading, conversationsError,
-    loadConversations, loadConversation, conversationId, resetChat,
+    loadConversations, loadConversation, conversationId, resetChat, deleteConversation,
   } = useChatStore();
   const { calendar, triggerCalendarSync } = useSyncStore();
   const profileMenuRef = useRef(null);
+  const [deletingConversationId, setDeletingConversationId] = useState(null);
 
   useEffect(() => {
     if (isAuthenticated) loadConversations();
@@ -55,6 +56,18 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
       await triggerCalendarSync(user.id, "incremental");
     } catch (error) {
       console.error("Calendar sync error:", error);
+    }
+  };
+
+  const handleDeleteConversation = async (targetConversationId) => {
+    if (!targetConversationId || deletingConversationId) return;
+    setDeletingConversationId(targetConversationId);
+    try {
+      await deleteConversation(targetConversationId);
+    } catch (error) {
+      console.error("Delete conversation error:", error);
+    } finally {
+      setDeletingConversationId(null);
     }
   };
 
@@ -183,6 +196,8 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
                       isActive={c.conversationId === conversationId}
                       iconOnly={iconOnly}
                       onSelect={() => { loadConversation(c.conversationId); onNavigate("chat"); }}
+                      onDelete={() => handleDeleteConversation(c.conversationId)}
+                      isDeleting={deletingConversationId === c.conversationId}
                     />
                   ))}
                 </>
@@ -197,6 +212,8 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
                       isActive={c.conversationId === conversationId}
                       iconOnly={iconOnly}
                       onSelect={() => { loadConversation(c.conversationId); onNavigate("chat"); }}
+                      onDelete={() => handleDeleteConversation(c.conversationId)}
+                      isDeleting={deletingConversationId === c.conversationId}
                     />
                   ))}
                 </>
@@ -211,6 +228,8 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
                       isActive={c.conversationId === conversationId}
                       iconOnly={iconOnly}
                       onSelect={() => { loadConversation(c.conversationId); onNavigate("chat"); }}
+                      onDelete={() => handleDeleteConversation(c.conversationId)}
+                      isDeleting={deletingConversationId === c.conversationId}
                     />
                   ))}
                 </>
@@ -292,16 +311,42 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
 
 // ── Conversation item ────────────────────────────────────────────────────────
 
-function ConversationItem({ chat, isActive, onSelect }) {
+function ConversationItem({ chat, isActive, iconOnly, onSelect, onDelete, isDeleting }) {
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect();
+    }
+  };
+
   return (
-    <button
-      className={"myra-sidebar-item" + (isActive ? " active" : "")}
+    <div
+      className={"myra-sidebar-item myra-sidebar-chat-item" + (isActive ? " active" : "")}
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={handleKeyDown}
       title={chat.title}
     >
       <ChatIcon />
       <span className="item-title">{chat.title}</span>
-    </button>
+      {!iconOnly && (
+        <button
+          className="myra-sidebar-chat-delete"
+          type="button"
+          aria-label={`Delete ${chat.title}`}
+          title="Delete chat"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          disabled={isDeleting}
+        >
+          {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -431,6 +476,17 @@ function SettingsNavIcon() {
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5M14 11v5" />
     </svg>
   );
 }

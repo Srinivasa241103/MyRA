@@ -66,7 +66,7 @@ export default class MemoryService {
 
     async getConversationHistory(conversationId, userId) {
         try {
-            const result = await this.conversationRepo.getHistory(conversationId, userId);
+            const result = await this.conversationRepo.getHistory(userId, conversationId);
             return result;
         } catch (error) {
             logger.error("Error getting conversation summary", {

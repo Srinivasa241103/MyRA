@@ -355,18 +355,184 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
+.myra-stats-reveal {
+  animation: myra-stats-reveal .42s cubic-bezier(.2,.8,.2,1) both;
+}
 .myra-donut-legend {
   display: flex;
   gap: 16px;
   align-items: center;
 }
 .myra-donut-legend-list { flex: 1; }
+.myra-stats-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
 .myra-hbar-row {
   display: grid;
   grid-template-columns: 100px 1fr 72px;
   align-items: center;
   gap: 12px;
   padding: 8px 0;
+}
+.myra-hbar-track {
+  height: 8px;
+  background: var(--bg-2);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.myra-hbar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--hbar-width, 0%);
+  border-radius: 4px;
+  animation: myra-hbar-grow .58s cubic-bezier(.2,.8,.2,1) both;
+}
+.myra-chart-svg {
+  display: block;
+  overflow: visible;
+}
+.myra-chart-bar {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: myra-bar-grow .58s cubic-bezier(.2,.8,.2,1) both;
+}
+.myra-chart-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: myra-line-draw .72s cubic-bezier(.2,.8,.2,1) both;
+}
+.myra-chart-area {
+  animation: myra-fade-rise .62s ease both;
+}
+.myra-chart-point {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: myra-point-pop .32s cubic-bezier(.2,.8,.2,1) both;
+}
+.myra-donut-svg {
+  flex-shrink: 0;
+  overflow: visible;
+}
+.myra-donut-segment {
+  stroke-dasharray: var(--dash-length) var(--dash-gap);
+  animation: myra-donut-draw .74s cubic-bezier(.2,.8,.2,1) both;
+}
+.myra-sparkline {
+  flex-shrink: 0;
+  overflow: visible;
+}
+.myra-chart-loading {
+  min-height: 150px;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+.myra-chart-loading.compact { min-height: 112px; }
+.myra-chart-loading.bars {
+  align-items: flex-end;
+  gap: 8px;
+  padding: 18px 4px 4px;
+}
+.myra-chart-loading.hbars {
+  min-height: 132px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
+.myra-chart-loading.line {
+  min-height: 112px;
+  align-items: center;
+}
+.myra-chart-loading.donut {
+  align-items: center;
+  gap: 18px;
+}
+.myra-skeleton-stack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.myra-skeleton-line,
+.myra-skeleton-bar,
+.myra-skeleton-hbar,
+.myra-skeleton-donut,
+.myra-skeleton-line-chart {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-2) 72%, var(--bg-0));
+}
+.myra-skeleton-line::after,
+.myra-skeleton-bar::after,
+.myra-skeleton-hbar::after,
+.myra-skeleton-donut::after,
+.myra-skeleton-line-chart::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-105%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.48), transparent);
+  animation: myra-shimmer 1.15s ease-in-out infinite;
+}
+:root[data-theme="dark"] .myra-skeleton-line::after,
+:root[data-theme="dark"] .myra-skeleton-bar::after,
+:root[data-theme="dark"] .myra-skeleton-hbar::after,
+:root[data-theme="dark"] .myra-skeleton-donut::after,
+:root[data-theme="dark"] .myra-skeleton-line-chart::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.13), transparent);
+}
+.myra-skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+}
+.myra-skeleton-line.sm { width: 42%; }
+.myra-skeleton-line.md { width: 62%; }
+.myra-skeleton-line.lg { width: 82%; }
+.myra-skeleton-line.xl {
+  width: 76%;
+  height: 30px;
+  border-radius: 8px;
+}
+.myra-skeleton-bar {
+  flex: 1;
+  min-width: 8px;
+  border-radius: 5px 5px 2px 2px;
+}
+.myra-skeleton-hbar {
+  height: 10px;
+  border-radius: 5px;
+}
+.myra-skeleton-donut {
+  width: 132px;
+  height: 132px;
+  flex: 0 0 132px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, var(--bg-1) 0 43%, transparent 44%),
+    conic-gradient(from 30deg, #2563EB, #10B981, #F59E0B, #EC4899, #2563EB);
+  opacity: .72;
+}
+.myra-skeleton-line-chart {
+  width: 100%;
+  height: 84px;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, transparent 0 18%, rgba(37,99,235,.28) 19% 21%, transparent 22% 42%, rgba(16,185,129,.28) 43% 45%, transparent 46% 70%, rgba(236,72,153,.28) 71% 73%, transparent 74%),
+    color-mix(in srgb, var(--bg-2) 72%, var(--bg-0));
+}
+.myra-no-data-state {
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
 /* ── Settings layout (desktop) ── */
@@ -595,12 +761,46 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
 .myra-sidebar-item:hover { background: var(--bg-2); }
 .myra-sidebar-item.active { background: var(--parchment); border-left-color: var(--accent); color: var(--accent); }
 .myra-sidebar-item .item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.myra-sidebar-chat-item {
+  position: relative;
+  padding-right: 8px;
+}
+.myra-sidebar-chat-delete {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateX(3px);
+  pointer-events: none;
+  transition: opacity .14s ease, transform .14s ease, background .14s ease, color .14s ease;
+}
+.myra-sidebar-chat-item:hover .myra-sidebar-chat-delete,
+.myra-sidebar-chat-item:focus-within .myra-sidebar-chat-delete {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+.myra-sidebar-chat-delete:hover {
+  background: rgba(160,48,48,.12);
+  color: var(--danger);
+}
+.myra-sidebar-chat-delete:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
 .myra-sidebar-footer { border-top: 1px solid var(--border); padding: 12px; flex-shrink: 0; }
 
 .myra-sidebar.icon-only .item-title,
 .myra-sidebar.icon-only .myra-sidebar-section-label,
 .myra-sidebar.icon-only .sidebar-newchat-text,
 .myra-sidebar.icon-only .sidebar-user-name { display: none; }
+.myra-sidebar.icon-only .myra-sidebar-chat-delete { display: none; }
 .myra-sidebar.icon-only .myra-sidebar-newchat .myra-btn { width: 40px; padding: 0; }
 .myra-sidebar.icon-only .myra-logo .word { display: none; }
 
@@ -1031,11 +1231,102 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   background: var(--bg-1); border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
+  min-height: 126px;
+  position: relative;
+  overflow: hidden;
+}
+.myra-stat-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--tile-accent, var(--accent));
+  opacity: .9;
 }
 .myra-stat-tile .stat-value { font-family: var(--font-display); font-size: 30px; font-weight: 700; color: var(--text-2); line-height: 1.1; }
 .myra-stat-tile .stat-delta { font-size: 12px; margin-top: 4px; color: var(--text-muted); }
 .myra-stat-tile .stat-delta.up { color: var(--success); }
 .myra-stat-tile .stat-delta.down { color: var(--danger); }
+.myra-stat-tile-loading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+
+@keyframes myra-stats-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes myra-shimmer {
+  100% {
+    transform: translateX(105%);
+  }
+}
+
+@keyframes myra-bar-grow {
+  from {
+    opacity: .45;
+    transform: scaleY(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes myra-line-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes myra-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes myra-point-pop {
+  from {
+    opacity: 0;
+    transform: scale(.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes myra-donut-draw {
+  from {
+    stroke-dasharray: 0 var(--circ);
+  }
+  to {
+    stroke-dasharray: var(--dash-length) var(--dash-gap);
+  }
+}
+
+@keyframes myra-hbar-grow {
+  from {
+    width: 0%;
+  }
+  to {
+    width: var(--hbar-width, 0%);
+  }
+}
 
 /* ── Progress bar ── */
 .myra-progress-bar {
