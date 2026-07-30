@@ -3,6 +3,19 @@ import { useAuthStore } from "../../store/authStore";
 import { useChatStore } from "../../store/chatStore";
 import useSyncStore from "../../store/syncStore";
 import { authApi } from "../../api/auth";
+import {
+  BarChart3,
+  CalendarDays,
+  Home,
+  LoaderCircle,
+  LogOut,
+  MessageCircle,
+  PanelLeft,
+  Plus,
+  Settings,
+  Trash2,
+  UserRound,
+} from "lucide-react";
 
 function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobile = false }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -17,7 +30,7 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
 
   useEffect(() => {
     if (isAuthenticated) loadConversations();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadConversations]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -93,8 +106,9 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
           className="myra-btn ghost icon sm"
           onClick={onToggle}
           title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+          aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
         >
-          <SidebarToggleIcon />
+          <PanelLeft size={16} strokeWidth={1.7} />
         </button>
       </div>
 
@@ -105,7 +119,7 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
           style={{ width: "100%" }}
           onClick={() => { resetChat(); onNavigate("chat"); }}
         >
-          <PlusIcon />
+          <Plus size={16} strokeWidth={1.7} />
           <span className="sidebar-newchat-text">New chat</span>
         </button>
       </div>
@@ -113,9 +127,9 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
       {/* Main nav links */}
       <div style={{ margin: "0 12px 4px" }}>
         {[
-          { id: "home",     label: "Home",     icon: <HomeIcon /> },
-          { id: "stats",    label: "Stats",    icon: <StatsIcon /> },
-          { id: "settings", label: "Settings", icon: <SettingsNavIcon /> },
+          { id: "home",  label: "Home",  icon: <Home size={16} strokeWidth={1.7} /> },
+          { id: "chat",  label: "Chat",  icon: <MessageCircle size={16} strokeWidth={1.7} /> },
+          { id: "stats", label: "Usage", icon: <BarChart3 size={16} strokeWidth={1.7} /> },
         ].map(({ id, label, icon }) => (
           <button
             key={id}
@@ -140,7 +154,9 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
             style={{ borderLeft: "none", marginLeft: 0, width: "100%" }}
             title={calendar.isSyncing ? "Syncing…" : "Sync Calendar"}
           >
-            {calendar.isSyncing ? <SpinnerIcon /> : <CalendarIcon />}
+            {calendar.isSyncing
+              ? <LoaderCircle className="myra-spin" size={16} strokeWidth={1.7} />
+              : <CalendarDays size={16} strokeWidth={1.7} />}
             <span className="item-title">
               {calendar.isSyncing
                 ? (calendar.syncMessage || "Syncing…")
@@ -261,6 +277,14 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
       {/* Footer with profile */}
       <div className="myra-sidebar-footer" ref={profileMenuRef} style={{ position: "relative" }}>
         <button
+          className={"myra-sidebar-item" + (currentPage === "settings" ? " active" : "")}
+          onClick={() => onNavigate("settings")}
+          title="Settings"
+        >
+          <Settings size={16} strokeWidth={1.7} />
+          {!iconOnly && <span className="item-title">Settings</span>}
+        </button>
+        <button
           className="myra-sidebar-item"
           style={{ borderLeft: "none", marginLeft: 0, width: "100%", padding: "0 10px" }}
           onClick={handleProfileClick}
@@ -269,7 +293,7 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
           <div className="myra-avatar sm" style={{ flexShrink: 0 }}>
             {isAuthenticated && user?.picture
               ? <img src={user.picture} alt={user.name || "Profile"} onError={(e) => { e.target.style.display = "none"; }} />
-              : <span>{isAuthenticated && user ? getInitials(user.name) : <UserIcon />}</span>}
+              : <span>{isAuthenticated && user ? getInitials(user.name) : <UserRound size={14} strokeWidth={1.7} />}</span>}
           </div>
           {!iconOnly && (
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -294,13 +318,13 @@ function Sidebar({ onNavigate, currentPage, isExpanded = true, onToggle, isMobil
               className="myra-profile-menu-item"
               onClick={() => { setShowProfileMenu(false); onNavigate("profile"); }}
             >
-              <SettingsIcon /> Settings &amp; Profile
+              <Settings size={16} strokeWidth={1.7} /> Settings &amp; Profile
             </button>
             <button
               className="myra-profile-menu-item danger"
               onClick={handleLogout}
             >
-              <LogoutIcon /> Log out
+              <LogOut size={16} strokeWidth={1.7} /> Log out
             </button>
           </div>
         )}
@@ -328,7 +352,7 @@ function ConversationItem({ chat, isActive, iconOnly, onSelect, onDelete, isDele
       onKeyDown={handleKeyDown}
       title={chat.title}
     >
-      <ChatIcon />
+      <MessageCircle size={16} strokeWidth={1.7} />
       <span className="item-title">{chat.title}</span>
       {!iconOnly && (
         <button
@@ -343,7 +367,9 @@ function ConversationItem({ chat, isActive, iconOnly, onSelect, onDelete, isDele
           onKeyDown={(event) => event.stopPropagation()}
           disabled={isDeleting}
         >
-          {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
+          {isDeleting
+            ? <LoaderCircle className="myra-spin" size={14} strokeWidth={1.8} />
+            : <Trash2 size={14} strokeWidth={1.8} />}
         </button>
       )}
     </div>
@@ -368,126 +394,12 @@ function groupConversations(conversations) {
   return { today, week, earlier };
 }
 
-// ── Icons ────────────────────────────────────────────────────────────────────
-
 function Logo() {
   return (
     <div className="myra-logo sm">
-      <span className="mark">
-        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 19V6l7 9 7-9v13" />
-          <circle cx="12" cy="20.5" r="1.2" fill="currentColor" stroke="none" />
-        </svg>
-      </span>
-      <span className="word">My<b>RA</b></span>
+      <span className="mark">M</span>
+      <span className="word">MyRA</span>
     </div>
-  );
-}
-
-function SidebarToggleIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function ChatIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.7-5.5A8 8 0 1 1 21 12z" />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
-    </svg>
-  );
-}
-
-function SpinnerIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      style={{ animation: "spin 0.8s linear infinite", flexShrink: 0 }}>
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </svg>
-  );
-}
-
-function UserIcon() {
-  return (
-    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-7 8-7s8 3 8 7" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-    </svg>
-  );
-}
-
-function LogoutIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-      <path d="m16 17 5-5-5-5" /><path d="M21 12H9" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-}
-
-function StatsIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <line x1="18" y1="20" x2="18" y2="10" />
-      <line x1="12" y1="20" x2="12" y2="4" />
-      <line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
-  );
-}
-
-function SettingsNavIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v5M14 11v5" />
-    </svg>
   );
 }
 

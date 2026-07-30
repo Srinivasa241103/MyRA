@@ -1,9 +1,19 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuthStore } from "../store/authStore";
 import { authApi } from "../api/auth";
 import { userApi } from "../api/user";
 import socketService from "../service/socketService";
 import useSyncStore from "../store/syncStore";
+import {
+  ArrowLeft,
+  CalendarDays,
+  FileText,
+  LoaderCircle,
+  LogOut,
+  Mail,
+  Music,
+  Save,
+} from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:2020";
 
@@ -106,6 +116,25 @@ function ProfilePage({ onNavigate }) {
     setSyncStarted, setSyncProgress, setSyncComplete, setSyncError, resetSync,
   } = useSyncStore();
 
+  const fetchSyncHistory = useCallback(async () => {
+    if (!user) return;
+    setIsLoadingHistory(true);
+    try {
+      const userId = user?.id || user?.sub || user?.email;
+      const response = await fetch(`${API_BASE_URL}/sync/history?userId=${userId}`, {
+        method: "GET", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      if (data.success) setSyncHistory(data.data.history);
+    } catch (error) {
+      console.error("Failed to fetch sync history:", error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [user]);
+
   // WebSocket listeners
   useEffect(() => {
     const userId = user?.id || user?.sub || user?.email;
@@ -156,32 +185,18 @@ function ProfilePage({ onNavigate }) {
       socket.off("sync:google_calendar:complete", onCalendarComplete);
       socket.off("sync:google_calendar:error", onCalendarError);
     };
-  }, [user]);
+  }, [fetchSyncHistory, setSyncComplete, setSyncError, setSyncProgress, user]);
 
   useEffect(() => {
     if (user) {
       setUserName(user.user_name || user.name || "");
+      fetchSyncHistory();
     }
-    fetchSyncHistory();
-  }, [user]);
+  }, [fetchSyncHistory, user]);
 
-  const fetchSyncHistory = async () => {
-    setIsLoadingHistory(true);
-    try {
-      const userId = user?.id || user?.sub || user?.email;
-      const response = await fetch(`${API_BASE_URL}/sync/history?userId=${userId}`, {
-        method: "GET", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      if (data.success) setSyncHistory(data.data.history);
-    } catch (error) {
-      console.error("Failed to fetch sync history:", error);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
+  useEffect(() => {
+    if (!user) onNavigate("login");
+  }, [onNavigate, user]);
 
   const handleGmailSync = async () => {
     setSyncStarted("gmail");
@@ -265,7 +280,6 @@ function ProfilePage({ onNavigate }) {
   };
 
   if (!user) {
-    onNavigate("login");
     return null;
   }
 
@@ -458,15 +472,16 @@ function ProfilePage({ onNavigate }) {
                 {syncHistory.map((item, idx) => (
                   <div
                     key={idx}
-                    style={{
-                      background: "var(--bg-2)", borderRadius: "var(--radius-md)",
-                      padding: "12px 14px", border: "1px solid var(--border)",
-                    }}
+                    className="myra-sync-history-row"
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 18 }}>
-                          {item.source === "gmail" ? "✉" : item.source === "google_calendar" ? "📅" : "📄"}
+                        <span style={{ color: "var(--color-accent)", display: "grid", placeItems: "center" }}>
+                          {item.source === "gmail"
+                            ? <Mail size={16} strokeWidth={1.7} />
+                            : item.source === "google_calendar"
+                            ? <CalendarDays size={16} strokeWidth={1.7} />
+                            : <FileText size={16} strokeWidth={1.7} />}
                         </span>
                         <div>
                           <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-2)" }}>
@@ -558,63 +573,31 @@ function Toggle({ on, onClick }) {
 // ── Icons ────────────────────────────────────────────────────────────────────
 
 function BackIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  );
+  return <ArrowLeft size={16} strokeWidth={1.7} />;
 }
 
 function SaveIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-      <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-    </svg>
-  );
+  return <Save size={14} strokeWidth={1.7} />;
 }
 
 function MailIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/>
-    </svg>
-  );
+  return <Mail size={18} strokeWidth={1.7} />;
 }
 
 function CalendarIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
-    </svg>
-  );
+  return <CalendarDays size={18} strokeWidth={1.7} />;
 }
 
 function MusicIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-    </svg>
-  );
+  return <Music size={18} strokeWidth={1.7} />;
 }
 
 function SpinnerIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      style={{ animation: "spin 0.8s linear infinite", marginRight: 4 }}>
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </svg>
-  );
+  return <LoaderCircle className="myra-spin" size={14} strokeWidth={1.7} />;
 }
 
 function LogoutIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-      <polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
-    </svg>
-  );
+  return <LogOut size={14} strokeWidth={1.7} />;
 }
 
 export default ProfilePage;

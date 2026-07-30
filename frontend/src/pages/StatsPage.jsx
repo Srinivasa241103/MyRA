@@ -13,14 +13,14 @@ const EMPTY_STATS = {
 const MIN_LOADING_MS = 520;
 
 const CHART_PALETTE = [
-  "#2563EB",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#06B6D4",
-  "#EC4899",
-  "#84CC16",
+  "var(--color-accent)",
+  "var(--color-accent-400)",
+  "var(--color-accent-2)",
+  "var(--color-info)",
+  "var(--color-warm)",
+  "var(--color-border-strong)",
+  "var(--color-accent-300)",
+  "var(--color-accent-2-300)",
 ];
 
 const RANGE_LABELS = {
@@ -103,14 +103,6 @@ export default function StatsScreen() {
   const hasCost = COST_30D.length > 0;
   const hasSessions = CHAT_SESSIONS.length > 0;
   const hasCalEvents = CAL_EVENTS.length > 0;
-  const hasAnyData =
-    hasEmails ||
-    hasTokens ||
-    hasReminders ||
-    hasCost ||
-    hasSessions ||
-    hasCalEvents;
-
   const buildDayLabels = (values) => values.map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (values.length - 1 - i));
@@ -143,8 +135,8 @@ export default function StatsScreen() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 className="display lg" style={{ marginBottom: 4 }}>Your activity</h1>
-          <p className="muted">{isLoading ? "Refreshing stats..." : "Last updated just now."}</p>
+          <h1 className="display lg" style={{ marginBottom: 4 }}>Usage</h1>
+          <p className="muted">{isLoading ? "Refreshing usage..." : `${rangeLabel} | all connected services`}</p>
         </div>
         <div className="myra-pills">
           {["7d", "14d", "30d", "90d"].map((r) => (
@@ -159,12 +151,6 @@ export default function StatsScreen() {
           ))}
         </div>
       </div>
-
-      {!isLoading && !hasAnyData && (
-        <div className="myra-card" style={{ marginBottom: 16 }}>
-          <NoDataState />
-        </div>
-      )}
 
       {/* KPI tiles */}
       <div className="myra-stats-kpi-scroll">
@@ -294,12 +280,12 @@ export default function StatsScreen() {
                 key={`reminders-${chartKey}`}
                 groups={REMINDERS_7D}
                 keys={["set", "done"]}
-                colors={["#2563EB", "#10B981"]}
+                colors={["var(--color-accent-2)", "var(--color-accent)"]}
                 h={170}
               />
               <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 11 }}>
-                <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#2563EB", marginRight: 6, borderRadius: 2 }} />Set</span>
-                <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#10B981", marginRight: 6, borderRadius: 2 }} />Done</span>
+                <span><span style={{ display: "inline-block", width: 8, height: 8, background: "var(--color-accent-2)", marginRight: 6, borderRadius: 2 }} />Set</span>
+                <span><span style={{ display: "inline-block", width: 8, height: 8, background: "var(--color-accent)", marginRight: 6, borderRadius: 2 }} />Done</span>
               </div>
             </>
           ) : (
@@ -318,7 +304,7 @@ export default function StatsScreen() {
           ) : hasCalEvents ? (
             <>
               <div className="myra-label" style={{ marginBottom: 6 }}>Per day</div>
-              <LineChart key={`calendar-line-${chartKey}`} values={CAL_EVENTS} labels={calendarLabels} h={90} color="#06B6D4" />
+              <LineChart key={`calendar-line-${chartKey}`} values={CAL_EVENTS} labels={calendarLabels} h={90} color="var(--color-info)" />
             </>
           ) : (
             <NoDataState />
@@ -640,7 +626,7 @@ function KpiEmptyTile({ label }) {
   return (
     <div className="myra-stat-tile myra-stats-reveal">
       <div className="myra-label">{label}</div>
-      <div className="stat-value" style={{ fontSize: 18 }}>No data to show</div>
+      <div className="stat-value" style={{ fontSize: 18 }}>No data yet</div>
     </div>
   );
 }
@@ -693,7 +679,7 @@ function ChartLoadingState({ variant = "bars", compact = false }) {
 function NoDataState() {
   return (
     <div className="myra-no-data-state">
-      No data to show
+      No data yet
     </div>
   );
 }

@@ -5,10 +5,28 @@ import { useChatStore } from "../../store/chatStore";
 import { useAuthStore } from "../../store/authStore";
 import { useVoiceRecorder } from "../../hooks/useVoiceRecorder";
 import { DEFAULT_LLM_MODEL_ID, LLM_MODEL_OPTIONS, getLlmModelOption } from "../../constants/llmModels";
+import {
+  CalendarDays,
+  Check,
+  Mail,
+  Mic,
+  Moon,
+  PanelLeft,
+  Paperclip,
+  Pause,
+  Pencil,
+  Play,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Sun,
+  Trash2,
+  X,
+} from "lucide-react";
 
 // ── ChatWindow — exact MyRA design replica ───────────────────────────────────
 
-function ChatWindow({ onNavigate, onToggleSidebar }) {
+function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChange = () => {} }) {
   const {
     messages,
     isTyping,
@@ -146,15 +164,22 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
                 <SidebarIcon />
               </button>
             )}
-            <button className="myra-btn ghost sm" onClick={() => onNavigate?.("home")} aria-label="Home">
-              <HomeIcon /><span className="myra-btn-text">Home</span>
-            </button>
             <div className="col" style={{ gap: 1 }}>
               <strong style={{ fontSize: 14, color: "var(--text-2)" }}>New chat</strong>
               <span className="muted" style={{ fontSize: 11 }}>Ask anything about your inbox, calendar, or notes</span>
             </div>
           </div>
           <div className="row gap-2" style={{ alignItems: "center" }}>
+            <span className="myra-badge model-badge">{selectedModelOption.displayName}</span>
+            <button
+              className="myra-btn ghost icon sm"
+              onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
+              aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
+            >
+              {theme === "dark"
+                ? <Sun size={17} strokeWidth={1.7} />
+                : <Moon size={17} strokeWidth={1.7} />}
+            </button>
             <button
               className="myra-avatar sm"
               onClick={() => onNavigate?.("profile")}
@@ -168,39 +193,11 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
         </div>
 
         {/* Empty state body */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px" }}>
-          <div style={{
-            width: 60, height: 60, borderRadius: "50%",
-            background: "var(--parchment)", border: "2px solid var(--border-strong)",
-            display: "grid", placeItems: "center", marginBottom: 20, color: "var(--accent)",
-          }}>
-            <MyraMarkIcon size={28} />
-          </div>
-          <h1
-            style={{
-              fontSize: 36,
-              fontWeight: 700,
-              color: "var(--text-2)",
-              marginBottom: 12,
-              textAlign: "center",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Hi, {firstName}..
-          </h1>
-
-          <p
-            style={{
-              fontSize: 16,
-              color: "var(--text-muted)",
-              textAlign: "center",
-              maxWidth: 650,
-              minHeight: 48,
-              marginBottom: 32,
-              lineHeight: 1.7,
-            }}
-          >
-            {displayTagline}
+        <div className="myra-chat-empty myra-glow">
+          <div className="myra-chat-empty-mark">M</div>
+          <h1 className="display">A new conversation</h1>
+          <p>
+            Hi, {firstName}. {displayTagline}
             <span className="typing-cursor">|</span>
           </p>
 
@@ -244,9 +241,6 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
               <SidebarIcon />
             </button>
           )}
-          <button className="myra-btn ghost sm" onClick={() => onNavigate?.("home")} aria-label="Home">
-            <HomeIcon /><span className="myra-btn-text">Home</span>
-          </button>
           <div className="col" style={{ gap: 1 }}>
             <strong style={{ fontSize: 14, color: "var(--text-2)" }}>{chatTitle}</strong>
             <span className="muted" style={{ fontSize: 11 }}>
@@ -254,7 +248,17 @@ function ChatWindow({ onNavigate, onToggleSidebar }) {
             </span>
           </div>
         </div>
-        <div className="row gap-2" style={{ alignItems: "center" }}>
+          <div className="row gap-2" style={{ alignItems: "center" }}>
+          <span className="myra-badge model-badge">{selectedModelOption.displayName}</span>
+          <button
+            className="myra-btn ghost icon sm"
+            onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
+            aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
+          >
+            {theme === "dark"
+              ? <Sun size={17} strokeWidth={1.7} />
+              : <Moon size={17} strokeWidth={1.7} />}
+          </button>
           <button className="myra-btn secondary sm myra-chat-topbar-hide-sm">
             <EditIcon /> Rename
           </button>
@@ -357,7 +361,7 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
   }
 
   return (
-    <div className="myra-bubble assistant myra-fade-in" style={msg.isError ? { borderColor: "rgba(160,48,48,.3)", background: "rgba(160,48,48,.06)" } : {}}>
+    <div className={"myra-bubble assistant myra-fade-in" + (msg.isError ? " error" : "")}>
       {msg.text && (
         <div className="myra-markdown">
           <ReactMarkdown>{msg.text}</ReactMarkdown>
@@ -384,7 +388,7 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
       )}
       {msg.mode === "email_agent" && (
         <div style={{ marginTop: 8 }}>
-          <span className="myra-badge accent" style={{ background: "rgba(59,130,246,.12)", color: "#2563eb" }}>
+          <span className="myra-badge warning">
             <MailSmIcon /> Email Agent
           </span>
         </div>
@@ -458,14 +462,14 @@ function EmailAgentCard({ children }) {
     <div className="myra-fade-in" style={{ alignSelf: "flex-start", width: "100%", maxWidth: 580 }}>
       <div style={{
         border: "1px solid var(--border-strong)",
-        borderRadius: 10,
+        borderRadius: "var(--radius-lg)",
         overflow: "hidden",
-        background: "var(--bg-2)",
+        background: "var(--color-elevated)",
       }}>
         {children}
       </div>
       <div style={{ marginTop: 6 }}>
-        <span className="myra-badge accent" style={{ background: "rgba(59,130,246,.12)", color: "#2563eb" }}>
+        <span className="myra-badge warning">
           <MailSmIcon /> Email Agent
         </span>
       </div>
@@ -522,9 +526,9 @@ function RecipientChoiceCard({ data, readonly = false }) {
             flex: 1,
             minWidth: 0,
             border: "1px solid var(--border-strong)",
-            borderRadius: 8,
+            borderRadius: "var(--radius-md)",
             padding: "8px 10px",
-            background: "var(--bg-1)",
+            background: "var(--color-elevated)",
             color: "var(--text-2)",
           }}
         />
@@ -612,9 +616,9 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
 
   const cardStyle = {
     border: "1px solid var(--border-strong)",
-    borderRadius: 10,
+    borderRadius: "var(--radius-lg)",
     overflow: "hidden",
-    background: "var(--bg-2)",
+    background: "var(--color-elevated)",
     marginBottom: 4,
     opacity: readonly ? 0.75 : 1,
   };
@@ -624,7 +628,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    background: "var(--parchment)",
+    background: "var(--color-surface)",
   };
   const bodyStyle = {
     padding: "12px 14px",
@@ -640,7 +644,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
     borderTop: "1px solid var(--border)",
     fontSize: 12,
     color: "var(--text-muted)",
-    background: "var(--bg-1)",
+    background: "var(--color-bg)",
   };
   const actionsStyle = {
     padding: "10px 14px",
@@ -649,7 +653,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
     gap: 8,
     flexWrap: "wrap",
     alignItems: "center",
-    background: "var(--bg-1)",
+    background: "var(--color-bg)",
   };
 
   return (
@@ -729,7 +733,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
       )}
 
       <div style={{ marginTop: 6 }}>
-        <span className="myra-badge accent" style={{ background: "rgba(59,130,246,.12)", color: "#2563eb" }}>
+        <span className="myra-badge warning">
           <MailSmIcon /> Email Agent
         </span>
       </div>
@@ -810,9 +814,6 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
         {/* Hint row */}
         <div className="myra-composer-hint">
           <div className="myra-composer-hint-pills">
-            <span className="myra-source-pill" style={{ cursor: "default" }}>
-              <span className="dot" />All sources
-            </span>
             <label className="myra-model-select" aria-label="Select chat model">
               <SparklesSmIcon />
               <select
@@ -826,6 +827,15 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
                 ))}
               </select>
             </label>
+            <span className="myra-source-pill" style={{ cursor: "default" }}>
+              <MailSmIcon />Gmail
+            </span>
+            <span className="myra-source-pill" style={{ cursor: "default" }}>
+              <CalendarSmIcon />Calendar
+            </span>
+            <span className="myra-source-pill" style={{ cursor: "default" }}>
+              <span className="dot" />All sources
+            </span>
           </div>
           <span className="myra-composer-hint-text">Enter to send · Shift+Enter newline</span>
         </div>
@@ -866,61 +876,46 @@ const TAGLINES = [
   "Ready when you are."
 ];
 
-// ── Icons ────────────────────────────────────────────────────────────────────
-const IC = { fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" };
-
 function SidebarIcon() {
-  return <svg width={16} height={16} viewBox="0 0 24 24" {...IC}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18" /></svg>;
+  return <PanelLeft size={16} strokeWidth={1.7} />;
 }
 function EditIcon() {
-  return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.1 2.1 0 1 1 3 3L12 15l-4 1 1-4z" /></svg>;
+  return <Pencil size={14} strokeWidth={1.7} />;
 }
 function TrashIcon() {
-  return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>;
+  return <Trash2 size={14} strokeWidth={1.7} />;
 }
 function PaperclipIcon() {
-  return <svg width={16} height={16} viewBox="0 0 24 24" {...IC}><path d="m21 12-9 9a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8" /></svg>;
+  return <Paperclip size={16} strokeWidth={1.7} />;
 }
 function MicIcon() {
-  return <svg width={16} height={16} viewBox="0 0 24 24" {...IC}><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10a7 7 0 0 1-14 0M12 19v3" /></svg>;
+  return <Mic size={16} strokeWidth={1.7} />;
 }
 function PlayIcon() {
-  return <svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>;
+  return <Play size={13} fill="currentColor" strokeWidth={1.7} />;
 }
 function PauseIcon() {
-  return <svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>;
+  return <Pause size={13} fill="currentColor" strokeWidth={1.7} />;
 }
 function SendIcon() {
-  return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;
+  return <Send size={14} strokeWidth={1.8} />;
 }
 function CheckIcon() {
-  return <svg width={13} height={13} viewBox="0 0 24 24" {...IC} strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>;
+  return <Check size={13} strokeWidth={2.2} />;
 }
 function XIcon() {
-  return <svg width={13} height={13} viewBox="0 0 24 24" {...IC} strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
+  return <X size={13} strokeWidth={2.2} />;
 }
 function CalendarSmIcon() {
-  return <svg width={10} height={10} viewBox="0 0 24 24" {...IC}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>;
+  return <CalendarDays size={12} strokeWidth={1.7} />;
 }
 function MailSmIcon() {
-  return <svg width={11} height={11} viewBox="0 0 24 24" {...IC}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 7 10 7 10-7" /></svg>;
+  return <Mail size={12} strokeWidth={1.7} />;
 }
 function RefreshIcon() {
-  return <svg width={13} height={13} viewBox="0 0 24 24" {...IC}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></svg>;
+  return <RefreshCw size={13} strokeWidth={1.7} />;
 }
 function SparklesSmIcon() {
-  return <svg width={12} height={12} viewBox="0 0 24 24" {...IC}><path d="M12 3v4M12 17v4M3 12h4M17 12h4" /><path d="m6 6 2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" /></svg>;
+  return <Sparkles size={12} strokeWidth={1.7} />;
 }
-function HomeIcon() {
-  return <svg width={14} height={14} viewBox="0 0 24 24" {...IC}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
-}
-function MyraMarkIcon({ size = 24 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 19V6l7 9 7-9v13" />
-      <circle cx="12" cy="20.5" r="1.2" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 export default ChatWindow;

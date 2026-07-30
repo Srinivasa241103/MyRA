@@ -12,6 +12,8 @@ import Sidebar from "./components/layout/Sidebar";
 import MyraVoiceActivation from "./components/voice/MyraVoiceActivation";
 import { useAuthStore } from "./store/authStore";
 import { authApi } from "./api/auth";
+import { Moon, PanelLeft, Sun } from "lucide-react";
+import { DEFAULT_LLM_MODEL_ID, getLlmModelOption } from "./constants/llmModels";
 
 const THEME_STORAGE_KEY = "myra-theme";
 
@@ -39,8 +41,9 @@ function App() {
   const [sidebarExpanded, setSidebarExpanded] = useState(!isMobile);
   const [theme, setTheme] = useState(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (storedTheme === "dark" || storedTheme === "warm") return storedTheme;
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "warm";
+    if (storedTheme === "dark") return "dark";
+    if (storedTheme === "light" || storedTheme === "warm") return "light";
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
   const { setUser, setLoading } = useAuthStore();
 
@@ -105,7 +108,7 @@ function App() {
       case "home":          return <HomePage onNavigate={handleNavigate} />;
       case "privacy":       return <PrivacyPolicyPage onNavigate={handleNavigate} />;
       case "stats":         return <StatsPage onNavigate={handleNavigate} />;
-      case "settings":      return <SettingsPage theme={theme} onThemeChange={setTheme} />;
+      case "settings":      return <SettingsPage theme={theme} onThemeChange={setTheme} onNavigate={handleNavigate} />;
       case "terms":         return <TermsOfServicePage onNavigate={handleNavigate} />;
       case "chat":
       default:
@@ -113,62 +116,29 @@ function App() {
           <ChatPage
             onNavigate={handleNavigate}
             onToggleSidebar={handleToggleSidebar}
+            theme={theme}
+            onThemeChange={setTheme}
           />
         );
     }
   };
 
-  // Full-screen pages (no sidebar, no topnav)
+  // Authentication stays outside the signed-in workspace shell.
   if (currentPage === "auth-callback" || currentPage === "login") {
     return <div className="myra-app" data-theme={theme}>{renderPage()}</div>;
   }
 
-  // Profile page — no sidebar, no topnav
-  if (currentPage === "profile") {
-    return (
-      <div className="myra-app" data-theme={theme}>
-        {renderPage()}
-        <MyraVoiceActivation currentPage={currentPage} onNavigate={handleNavigate} />
-      </div>
-    );
-  }
-
-  // Pages with top nav but no sidebar
-  if (currentPage === "home" || currentPage === "stats" || currentPage === "settings" || currentPage === "privacy" || currentPage === "terms") {
-    return (
-      <div className="myra-app" data-theme={theme} style={{ display: "flex", flexDirection: "column" }}>
-        <TopNav currentPage={currentPage} onNavigate={handleNavigate} />
-        <div className="myra-page" style={{ flex: 1 }}>
-          {renderPage()}
-        </div>
-        <MyraVoiceActivation currentPage={currentPage} onNavigate={handleNavigate} />
-      </div>
-    );
-  }
-
-  // Chat page — sidebar + chat
   return (
-    <div 
-      className="myra-app" 
-      data-theme={theme} 
-      style={{ display: "flex" }}
+    <div
+      className="myra-app myra-classic-shell"
+      data-theme={theme}
       data-mobile={isMobile}
     >
       {isMobile && (
-        <div 
-          onClick={() => setSidebarExpanded(false)} 
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            zIndex: 99,
-            opacity: sidebarExpanded ? 1 : 0,
-            pointerEvents: sidebarExpanded ? "auto" : "none",
-            transition: "opacity 0.3s ease",
-          }}
+        <button
+          className={"myra-sidebar-backdrop" + (sidebarExpanded ? " is-visible" : "")}
+          onClick={() => setSidebarExpanded(false)}
+          aria-label="Close navigation"
           aria-hidden="true"
         />
       )}
@@ -179,55 +149,72 @@ function App() {
         onToggle={handleToggleSidebar}
         isMobile={isMobile}
       />
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
-        {renderPage()}
-      </div>
+      <section className="myra-workspace">
+        {currentPage === "chat" ? (
+          renderPage()
+        ) : (
+          <>
+            <WorkspaceHeader
+              currentPage={currentPage}
+              onNavigate={handleNavigate}
+              onToggleSidebar={handleToggleSidebar}
+              theme={theme}
+              onThemeChange={setTheme}
+            />
+            <main className="myra-page">{renderPage()}</main>
+          </>
+        )}
+      </section>
       <MyraVoiceActivation currentPage={currentPage} onNavigate={handleNavigate} />
     </div>
   );
 }
 
-// ── Top nav (non-chat pages) ─────────────────────────────────────────────────
-function TopNav({ currentPage, onNavigate }) {
+function WorkspaceHeader({ currentPage, onNavigate, onToggleSidebar, theme, onThemeChange }) {
   const { user, isAuthenticated } = useAuthStore();
-
   const getInitials = (name) => {
     if (!name) return "U";
     return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   };
-
-  const navItems = [
-    { id: "home",     label: "Home" },
-    { id: "chat",     label: "Chat" },
-    { id: "stats",    label: "Stats" },
-    { id: "privacy",  label: "Privacy" },
-    { id: "terms",    label: "Terms" },
-    { id: "profile",  label: "Profile" },
-    { id: "settings", label: "Settings" },
-  ];
+  const pageMeta = {
+    home: ["Home", "Your workspace today"],
+    stats: ["Usage", "Activity across connected services"],
+    profile: ["Profile", "Account and connected sources"],
+    settings: ["Settings", "Models, security, privacy"],
+    privacy: ["Privacy Policy", "How MyRA handles your data"],
+    terms: ["Terms of Service", "The terms for using MyRA"],
+  };
+  const [title, subtitle] = pageMeta[currentPage] || pageMeta.home;
+  const defaultModel = getLlmModelOption(DEFAULT_LLM_MODEL_ID);
 
   return (
-    <nav className="myra-topnav">
-      <div className="row gap-6" style={{ alignItems: "center" }}>
+    <header className="myra-workspace-header">
+      <div className="myra-workspace-heading">
         <button
-          style={{ background: "transparent", border: 0, cursor: "pointer", padding: 0 }}
-          onClick={() => onNavigate("home")}
+          className="myra-btn ghost icon sm"
+          onClick={onToggleSidebar}
+          aria-label="Toggle navigation"
         >
-          <Logo />
+          <PanelLeft size={17} strokeWidth={1.7} />
         </button>
-        <div className="links">
-          {navItems.map((n) => (
-            <button
-              key={n.id}
-              className={"nav-link" + (currentPage === n.id ? " active" : "")}
-              onClick={() => onNavigate(n.id)}
-            >
-              {n.label}
-            </button>
-          ))}
+        <div>
+          <strong>{title}</strong>
+          <span>{subtitle}</span>
         </div>
       </div>
-      <div className="topnav-right">
+      <div className="myra-workspace-actions">
+        <span className="myra-badge model-badge">
+          {defaultModel.displayName}
+        </span>
+        <button
+          className="myra-btn ghost icon sm"
+          onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
+          aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
+        >
+          {theme === "dark"
+            ? <Sun size={17} strokeWidth={1.7} />
+            : <Moon size={17} strokeWidth={1.7} />}
+        </button>
         <button
           className="myra-avatar"
           onClick={() => onNavigate("profile")}
@@ -238,21 +225,7 @@ function TopNav({ currentPage, onNavigate }) {
             : getInitials(user?.name)}
         </button>
       </div>
-    </nav>
-  );
-}
-
-function Logo() {
-  return (
-    <div className="myra-logo">
-      <span className="mark" aria-hidden="true">
-        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 19V6l7 9 7-9v13" />
-          <circle cx="12" cy="20.5" r="1.2" fill="currentColor" stroke="none" />
-        </svg>
-      </span>
-      <span className="word">My<b>RA</b></span>
-    </div>
+    </header>
   );
 }
 

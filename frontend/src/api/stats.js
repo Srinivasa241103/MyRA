@@ -28,10 +28,16 @@ export const statsApi = {
    * Returns all stats in one response.
    */
   getAll: async (range = "14d") => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 4000);
     try {
       const res = await fetch(
         `${API_BASE_URL}/stats/all?range=${range}`,
-        { headers: getHeaders(), credentials: "include" }
+        {
+          headers: getHeaders(),
+          credentials: "include",
+          signal: controller.signal,
+        }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
@@ -47,6 +53,8 @@ export const statsApi = {
       };
     } catch {
       return { ...EMPTY_STATS };
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   },
 };

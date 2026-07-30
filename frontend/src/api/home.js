@@ -12,28 +12,31 @@ function getHeaders() {
 }
 
 async function safeFetch(url) {
-  const res = await fetch(url, { headers: getHeaders(), credentials: "include" });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 4000);
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: getHeaders(),
+      credentials: "include",
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   return data.data ?? data;
 }
 
-// ── Dummy data ────────────────────────────────────────────────────────────────
-
-export const DUMMY = {
+export const EMPTY_HOME_DATA = {
   dailySummary: {
     unreadEmails: null,
     remindersDue: null,
     meetings: null,
   },
-  upcomingEvents: [
-    { time: "2:00 PM",  title: "Design crit — Onboarding v3", where: "Conf room A" },
-    { time: "4:00 PM",  title: "1:1 with Priya",              where: "Google Meet" },
-    { time: "Tomorrow", title: "Quarterly review prep",        where: "Block · 90 min" },
-  ],
+  upcomingEvents: [],
 };
-
-// ── API calls with dummy fallback ─────────────────────────────────────────────
 
 export const homeApi = {
   /**
@@ -44,7 +47,7 @@ export const homeApi = {
     try {
       return await safeFetch(`${API_BASE_URL}/stats/daily-summary`);
     } catch {
-      return DUMMY.dailySummary;
+      return EMPTY_HOME_DATA.dailySummary;
     }
   },
 
@@ -56,7 +59,7 @@ export const homeApi = {
     try {
       return await safeFetch(`${API_BASE_URL}/calendar/upcoming?limit=${limit}`);
     } catch {
-      return DUMMY.upcomingEvents;
+      return EMPTY_HOME_DATA.upcomingEvents;
     }
   },
 };
