@@ -5,26 +5,12 @@ import type {
   EmbeddedChunk,
   VectorStoreDocument,
 } from "../src/RAG/vectorStores/vectorStore.js";
+import {
+  vectorMigrationRepository,
+  type PgvectorMigrationChunkRow,
+} from "../src/database/vectorMigrationRepository.js";
 
 const DEFAULT_BATCH_SIZE = 250;
-
-interface ChunkRow {
-  chunk_id: number;
-  content: string;
-  chunk_index: number;
-  source_type: string;
-  occurred_at: Date | string | null;
-  embedding_text: string;
-  document_pk: number;
-  user_id: number | string;
-  document_id: string;
-  source: string;
-  type: string | null;
-  title: string | null;
-  timestamp: Date | string | null;
-  author: string | null;
-  metadata: Record<string, unknown> | null;
-}
 
 function parseArgs(argv: string[]) {
   const args = {
@@ -70,8 +56,8 @@ function parsePgvector(value: string): number[] {
   return withoutBrackets.split(",").map((part) => Number(part.trim()));
 }
 
-function groupRowsByDocument(rows: ChunkRow[]) {
-  const groups = new Map<number, ChunkRow[]>();
+function groupRowsByDocument(rows: PgvectorMigrationChunkRow[]) {
+  const groups = new Map<number, PgvectorMigrationChunkRow[]>();
 
   for (const row of rows) {
     const existing = groups.get(row.document_pk) ?? [];
@@ -82,7 +68,7 @@ function groupRowsByDocument(rows: ChunkRow[]) {
   return groups;
 }
 
-function toVectorDocument(row: ChunkRow): VectorStoreDocument {
+function toVectorDocument(row: PgvectorMigrationChunkRow): VectorStoreDocument {
   return {
     id: row.document_pk,
     user_id: row.user_id,
@@ -96,7 +82,7 @@ function toVectorDocument(row: ChunkRow): VectorStoreDocument {
   };
 }
 
-function toEmbeddedChunk(row: ChunkRow): EmbeddedChunk {
+function toEmbeddedChunk(row: PgvectorMigrationChunkRow): EmbeddedChunk {
   const embedding = parsePgvector(row.embedding_text);
 
   if (embedding.some((value) => !Number.isFinite(value))) {
@@ -112,88 +98,6 @@ function toEmbeddedChunk(row: ChunkRow): EmbeddedChunk {
   };
 }
 
-async function fetchDocumentChunkBatch({
-  limit,
-  afterDocumentPk,
-  userId,
-}: {
-  limit: number;
-  afterDocumentPk: number;
-  userId: string | null;
-}): Promise<ChunkRow[]> {
-  const values: Array<string | number> = [];
-  let userFilter = "";
-
-  if (userId) {
-    values.push(userId);
-    userFilter = `AND d.user_id = $${values.length}`;
-  }
-
-  values.push(afterDocumentPk, limit);
-  const afterDocumentParam = values.length - 1;
-  const limitParam = values.length;
-
-  const query = `
-    WITH batch_documents AS (
-      SELECT d.id
-      FROM documents d
-      WHERE d.id > $${afterDocumentParam}
-        ${userFilter}
-        AND EXISTS (
-          SELECT 1
-          FROM document_chunks c
-          WHERE c.document_id = d.id
-            AND c.embedding IS NOT NULL
-        )
-      ORDER BY d.id ASC
-      LIMIT $${limitParam}
-    )
-    SELECT
-      c.id AS chunk_id,
-      c.content,
-      c.chunk_index,
-      c.source_type,
-      COALESCE(c.occurred_at, d.timestamp) AS occurred_at,
-      c.embedding::text AS embedding_text,
-      d.id AS document_pk,
-      d.user_id,
-      d.document_id,
-      d.source,
-      d.type,
-      d.title,
-      d.timestamp,
-      d.author,
-      d.metadata
-    FROM batch_documents bd
-    JOIN documents d ON d.id = bd.id
-    JOIN document_chunks c ON c.document_id = d.id
-    WHERE c.embedding IS NOT NULL
-    ORDER BY d.id ASC, c.chunk_index ASC`;
-
-  const result = await getPool().query(query, values);
-  return result.rows as ChunkRow[];
-}
-
-async function countSourceChunks(userId: string | null): Promise<number> {
-  const values: string[] = [];
-  let userFilter = "";
-
-  if (userId) {
-    values.push(userId);
-    userFilter = `AND d.user_id = $${values.length}`;
-  }
-
-  const query = `
-    SELECT COUNT(*)::int AS count
-    FROM document_chunks c
-    JOIN documents d ON c.document_id = d.id
-    WHERE c.embedding IS NOT NULL
-      ${userFilter}`;
-
-  const result = await getPool().query(query, values);
-  return Number(result.rows[0]?.count ?? 0);
-}
-
 async function migrate() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -201,7 +105,7 @@ async function migrate() {
     throw new Error("Set VECTOR_STORE=chroma before running this migration");
   }
 
-  const totalChunks = await countSourceChunks(args.userId);
+  const totalChunks = await vectorMigrationRepository.countSourceChunks(args.userId);
   console.log(`Found ${totalChunks} pgvector chunks to migrate`);
 
   if (args.dryRun) {
@@ -217,7 +121,7 @@ async function migrate() {
   let lastDocumentPk = 0;
 
   while (migratedChunks < totalChunks) {
-    const rows = await fetchDocumentChunkBatch({
+    const rows = await vectorMigrationRepository.fetchDocumentChunkBatch({
       limit: args.batchSize,
       afterDocumentPk: lastDocumentPk,
       userId: args.userId,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
-import TypingIndicator from "./TypingIndicator";
+import ResponseActivity from "./ResponseActivity";
 import { useChatStore } from "../../store/chatStore";
 import { useAuthStore } from "../../store/authStore";
 import { useVoiceRecorder } from "../../hooks/useVoiceRecorder";
@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Send,
   Sparkles,
+  Square,
   Sun,
   Trash2,
   X,
@@ -38,6 +39,8 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
     clearPendingMessage,
     agentActive,
     deleteConversation,
+    stopGenerating,
+    canStopStreaming,
   } = useChatStore();
   const { user } = useAuthStore();
   const [draft, setDraft] = useState("");
@@ -52,6 +55,7 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
     stopRecording: stopVoiceRecording,
   } = useVoiceRecorder();
   const scrollRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
   const textareaRef = useRef(null);
   const firstName = user?.name?.split(" ")[0] || "there";
   const [displayTagline, setDisplayTagline] = useState("");
@@ -87,14 +91,27 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
     return () => clearInterval(timer);
   }, [tagline]);
 
-  // Auto-scroll on new messages
+  // Follow streamed content only while the reader remains near the bottom.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (!scrollRef.current || !shouldStickToBottomRef.current) return undefined;
+    const frame = requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [messages, isTyping]);
 
+  const handleChatScroll = () => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const distanceFromBottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 120;
+  };
+
   const handleSend = () => {
+    if (isTyping) return;
     const text = draft.trim();
     if (!text) return;
     setDraft("");
@@ -220,6 +237,9 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
               onVoiceToggle={handleVoiceToggle}
               selectedModelId={selectedModelId}
               onModelChange={setSelectedModelId}
+              isTyping={isTyping}
+              canStopStreaming={canStopStreaming}
+              onStop={stopGenerating}
             />
           </div>
         </div>
@@ -283,7 +303,7 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
       </div>
 
       {/* Messages scroll area */}
-      <div className="myra-chat-scroll" ref={scrollRef}>
+      <div className="myra-chat-scroll" ref={scrollRef} onScroll={handleChatScroll}>
         <div className="myra-chat-scroll-inner">
           {/* Date system bubble */}
           <div className="myra-bubble system">{todayLabel}</div>
@@ -299,11 +319,6 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
             });
           })()}
 
-          {isTyping && (
-            <div style={{ alignSelf: "flex-start" }}>
-              <TypingIndicator />
-            </div>
-          )}
         </div>
       </div>
 
@@ -325,6 +340,9 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
         onVoiceToggle={handleVoiceToggle}
         selectedModelId={selectedModelId}
         onModelChange={setSelectedModelId}
+        isTyping={isTyping}
+        canStopStreaming={canStopStreaming}
+        onStop={stopGenerating}
       />
     </div>
   );
@@ -347,6 +365,10 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
     );
   }
 
+  if (msg.isStreaming && !msg.text?.trim()) {
+    return <ResponseActivity activity={msg.activity} />;
+  }
+
   // Email agent: draft approval card
   if (msg.mode === "email_agent" && msg.emailResponse?.type === "recipient_choice") {
     return <RecipientChoiceCard data={msg.emailResponse} readonly={readonly} />;
@@ -363,9 +385,17 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
   return (
     <div className={"myra-bubble assistant myra-fade-in" + (msg.isError ? " error" : "")}>
       {msg.text && (
-        <div className="myra-markdown">
+        <div className={"myra-markdown" + (msg.isStreaming ? " is-streaming" : "")}>
           <ReactMarkdown>{msg.text}</ReactMarkdown>
+          {msg.isStreaming && <span className="myra-stream-caret" aria-hidden="true" />}
         </div>
+      )}
+
+      {msg.streamStatus === "stopped" && (
+        <div className="myra-stream-note">Stopped</div>
+      )}
+      {msg.streamStatus === "interrupted" && (
+        <div className="myra-stream-note error">Connection interrupted</div>
       )}
 
       {/* Source pills */}
@@ -743,7 +773,7 @@ function DraftApprovalCard({ data, setDraft, readonly = false }) {
 
 // ── Composer — the input area at bottom ─────────────────────────────────────
 
-function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle, selectedModelId, onModelChange }) {
+function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle, selectedModelId, onModelChange, isTyping, canStopStreaming, onStop }) {
   if (pendingConfirmation) {
     return (
       <div className="myra-composer">
@@ -799,15 +829,26 @@ function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pe
             >
               <MicIcon />
             </button>
-            <button
-              className={"myra-btn icon sm" + (draft.trim() ? " primary" : "")}
-              style={!draft.trim() ? { background: "var(--bg-3)", color: "var(--text-muted)", cursor: "not-allowed" } : {}}
-              onClick={onSend}
-              disabled={!draft.trim()}
-              aria-label="Send"
-            >
-              <SendIcon />
-            </button>
+            {isTyping && canStopStreaming ? (
+              <button
+                className="myra-btn icon sm myra-stream-stop"
+                onClick={onStop}
+                aria-label="Stop generating"
+                title="Stop generating"
+              >
+                <Square size={12} fill="currentColor" strokeWidth={1.8} />
+              </button>
+            ) : (
+              <button
+                className={"myra-btn icon sm" + (draft.trim() && !isTyping ? " primary" : "")}
+                style={!draft.trim() || isTyping ? { background: "var(--bg-3)", color: "var(--text-muted)", cursor: "not-allowed" } : {}}
+                onClick={onSend}
+                disabled={!draft.trim() || isTyping}
+                aria-label="Send"
+              >
+                <SendIcon />
+              </button>
+            )}
           </div>
         </div>
 

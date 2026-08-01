@@ -48,6 +48,7 @@ export default class PgVectorStore extends VectorStore {
       sourceType: filters.sourceType ?? null,
       occurredAfter: filters.occurredAfter ?? null,
       occurredBefore: filters.occurredBefore ?? null,
+      metadata: filters.metadata ?? {},
     });
   }
 }

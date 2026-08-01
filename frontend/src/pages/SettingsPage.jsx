@@ -14,6 +14,17 @@ import {
   DEFAULT_LLM_MODEL_ID,
   LLM_MODEL_OPTIONS,
 } from "../constants/llmModels";
+import ApiBudgetSettings from "../components/settings/ApiBudgetSettings";
+
+const SETTINGS_NAV_ITEMS = [
+  { id: "models", label: "Models & API", icon: KeyRound },
+  { id: "budgets", label: "API budgets", icon: Bell },
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "sources", label: "Data sources", icon: Database },
+  { id: "security", label: "Security", icon: ShieldCheck },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "privacy", label: "Privacy & data", icon: ShieldCheck },
+];
 
 export default function SettingsPage({
   theme = "light",
@@ -22,9 +33,9 @@ export default function SettingsPage({
 }) {
   const { user } = useAuthStore();
   const { gmail, calendar } = useSyncStore();
+  const [activeSection, setActiveSection] = useState("models");
   const [defaultModel, setDefaultModel] = useState(DEFAULT_LLM_MODEL_ID);
   const [density, setDensity] = useState("comfortable");
-  const [spendCap, setSpendCap] = useState("50");
   const [security, setSecurity] = useState({
     approval: true,
     reauth: true,
@@ -44,14 +55,59 @@ export default function SettingsPage({
     { name: "Google Calendar", state: calendar },
   ];
 
+  function openSection(sectionId) {
+    setActiveSection(sectionId);
+  }
+
   return (
     <div className="myra-page-inner myra-settings-page">
       <header className="myra-page-opening">
         <h1 className="display">Settings</h1>
-        <p>Changes save as you make them</p>
+        <p>Manage models, budgets, connected data, and preferences</p>
       </header>
 
-      <SettingsSection title="Models & API" icon={<KeyRound size={15} strokeWidth={1.7} />}>
+      <div className="myra-settings-window">
+        <aside className="myra-settings-window-sidebar">
+          <div className="myra-settings-nav-heading">Settings menu</div>
+          <nav
+            className="myra-settings-nav"
+            aria-label="Settings sections"
+            role="tablist"
+          >
+            {SETTINGS_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  className={`myra-settings-nav-button ${activeSection === item.id ? "active" : ""}`}
+                  type="button"
+                  key={item.id}
+                  onClick={() => openSection(item.id)}
+                  id={`settings-tab-${item.id}`}
+                  role="tab"
+                  aria-selected={activeSection === item.id}
+                  aria-controls={`settings-panel-${item.id}`}
+                >
+                  <Icon size={15} strokeWidth={1.7} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <div
+          key={activeSection}
+          className="myra-settings-window-content"
+          id={`settings-panel-${activeSection}`}
+          role="tabpanel"
+          aria-labelledby={`settings-tab-${activeSection}`}
+        >
+      {activeSection === "models" && (
+      <SettingsSection
+        sectionId="models"
+        title="Models & API"
+        icon={<KeyRound size={15} strokeWidth={1.7} />}
+      >
         <SettingsRow label="Default chat model" description="Used for new chats and daily summaries">
           <select
             className="myra-input myra-settings-control"
@@ -71,21 +127,24 @@ export default function SettingsPage({
         <SettingsRow label="Anthropic API key" description="Not configured in the frontend">
           <button className="myra-btn secondary sm" type="button">Configure</button>
         </SettingsRow>
-        <SettingsRow label="Monthly spend cap" description="Pause model requests when the cap is reached">
-          <label className="myra-money-input">
-            <span>$</span>
-            <input
-              className="myra-input"
-              type="number"
-              min="0"
-              value={spendCap}
-              onChange={(event) => setSpendCap(event.target.value)}
-            />
-          </label>
-        </SettingsRow>
       </SettingsSection>
+      )}
 
-      <SettingsSection title="Appearance" icon={<Palette size={15} strokeWidth={1.7} />}>
+      {activeSection === "budgets" && (
+      <div
+        className="myra-settings-page-panel"
+        id="settings-budgets"
+      >
+        <ApiBudgetSettings />
+      </div>
+      )}
+
+      {activeSection === "appearance" && (
+      <SettingsSection
+        sectionId="appearance"
+        title="Appearance"
+        icon={<Palette size={15} strokeWidth={1.7} />}
+      >
         <SettingsRow label="Account" description={user?.email || "No signed-in account"}>
           <span className="myra-badge">{user?.user_name || user?.name || "Guest"}</span>
         </SettingsRow>
@@ -126,8 +185,14 @@ export default function SettingsPage({
           </div>
         </SettingsRow>
       </SettingsSection>
+      )}
 
-      <SettingsSection title="Data sources" icon={<Database size={15} strokeWidth={1.7} />}>
+      {activeSection === "sources" && (
+      <SettingsSection
+        sectionId="sources"
+        title="Data sources"
+        icon={<Database size={15} strokeWidth={1.7} />}
+      >
         {sourceRows.map((source) => {
           const errored = source.state.syncPhase === "error";
           const syncing = source.state.isSyncing;
@@ -158,8 +223,14 @@ export default function SettingsPage({
           <span className="myra-badge">Not connected</span>
         </SettingsRow>
       </SettingsSection>
+      )}
 
-      <SettingsSection title="Security" icon={<ShieldCheck size={15} strokeWidth={1.7} />}>
+      {activeSection === "security" && (
+      <SettingsSection
+        sectionId="security"
+        title="Security"
+        icon={<ShieldCheck size={15} strokeWidth={1.7} />}
+      >
         <SettingsRow
           label="Require approval before sending mail"
           description="The Email Agent waits for explicit approval"
@@ -192,8 +263,14 @@ export default function SettingsPage({
           </select>
         </SettingsRow>
       </SettingsSection>
+      )}
 
-      <SettingsSection title="Notifications" icon={<Bell size={15} strokeWidth={1.7} />}>
+      {activeSection === "notifications" && (
+      <SettingsSection
+        sectionId="notifications"
+        title="Notifications"
+        icon={<Bell size={15} strokeWidth={1.7} />}
+      >
         <SettingsRow label="Daily summary" description="A morning digest of important items">
           <Toggle
             on={notifications.daily}
@@ -216,8 +293,14 @@ export default function SettingsPage({
           />
         </SettingsRow>
       </SettingsSection>
+      )}
 
-      <SettingsSection title="Privacy & data" icon={<ShieldCheck size={15} strokeWidth={1.7} />}>
+      {activeSection === "privacy" && (
+      <SettingsSection
+        sectionId="privacy"
+        title="Privacy & data"
+        icon={<ShieldCheck size={15} strokeWidth={1.7} />}
+      >
         <SettingsRow label="Index connected data" description="Required for personal retrieval features">
           <Toggle
             on={privacy.indexData}
@@ -245,13 +328,19 @@ export default function SettingsPage({
           </button>
         </SettingsRow>
       </SettingsSection>
+      )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function SettingsSection({ title, icon, children }) {
+function SettingsSection({ sectionId, title, icon, children }) {
   return (
-    <section className="myra-card myra-settings-section">
+    <section
+      className="myra-card myra-settings-section myra-settings-anchor"
+      id={`settings-${sectionId}`}
+    >
       <div className="myra-card-header">
         <h3>{icon}{title}</h3>
       </div>

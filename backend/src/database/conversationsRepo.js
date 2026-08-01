@@ -1,16 +1,20 @@
 import { pool } from "../config/dbConfig.js";
 
 export default class ConversationRepository {
-  async getConversationHistory(conversationId, userId) {
+  async getConversationHistory(conversationId, userId, limit = 20) {
     const query = `
-      SELECT user_message, assistant_message, created_at
-      FROM conversations
-      WHERE conversation_id = $1 AND user_id = $2
-        AND is_deleted IS NULL
-      ORDER BY created_at ASC
-      LIMIT 20;`;
+      SELECT user_message, assistant_message, metadata, created_at
+      FROM (
+        SELECT user_message, assistant_message, metadata, created_at
+        FROM conversations
+        WHERE conversation_id = $1 AND user_id = $2
+          AND is_deleted IS NULL
+        ORDER BY created_at DESC
+        LIMIT $3
+      ) recent_messages
+      ORDER BY created_at ASC;`;
 
-    return await pool.query(query, [conversationId, userId]);
+    return await pool.query(query, [conversationId, userId, limit]);
   }
 
   async getConversationStatus(conversationId, userId) {
@@ -81,21 +85,6 @@ export default class ConversationRepository {
 
     const { rows } = await pool.query(query, [limit, userId]);
     return rows;
-  }
-
-  async getHistory(userId, conversationId, limit = 20) {
-    const query = `
-      SELECT
-        COUNT(*) as message_count,
-        MIN(created_at) as first_message,
-        MAX(created_at) as last_message
-      FROM conversations
-      WHERE user_id = $1 AND conversation_id = $2
-        AND is_deleted IS NULL
-    `;
-
-    const { rows } = await pool.query(query, [userId, conversationId]);
-    return rows[0];
   }
 
   async clear(conversationId, userId) {

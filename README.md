@@ -21,6 +21,7 @@ The project is under active development. The core Google sync, retrieval, chat, 
 - New-email drafting with recipient lookup, draft review, edits, explicit approval, and a six-second revoke window
 - Saved conversation history with conversation-level soft deletion
 - Usage views for model tokens, estimated cost, chat sessions, synced emails, and calendar events
+- Per-user OpenAI and Anthropic monthly budgets based on current calendar-month INR usage, with editable 50%, 80%, and 95% email alert thresholds by default
 - Live sync progress through Socket.IO
 - Responsive light and dark interfaces
 
@@ -30,7 +31,7 @@ The project is under active development. The core Google sync, retrieval, chat, 
 - File attachments and the Notes source are present in the interface but are not processed by the backend.
 - Voice controls call a configurable voice endpoint, but this repository does not include the matching backend route.
 - Some home summary and upcoming-calendar cards fall back to empty states because their expected endpoints are not registered by the backend.
-- Most settings controls are local interface state and are not persisted.
+- API budget settings are persisted; most other settings controls are still local interface state.
 - Memory currently consists of stored conversation history. The full personal memory engine described in the roadmap is not implemented.
 - Spotify, Google Drive, and GitHub are not active integrations.
 
@@ -42,7 +43,7 @@ The project is under active development. The core Google sync, retrieval, chat, 
 4. An intent router sends each message to general chat, personal-data retrieval, the calendar agent, or the email agent.
 5. Retrieval builds a user-scoped context for the selected model. Calendar creation and email sending add confirmation steps before making changes.
 
-The Express API is organized under `/auth`, `/sync`, `/chat`, and `/stats`. Socket.IO is used separately for sync progress updates.
+The Express API is organized under `/auth`, `/sync`, `/chat`, `/stats`, and `/budgets`. A budget job totals each user’s current calendar-month LLM usage and sends newly crossed alert levels without repeating the same alert within four days. Socket.IO is used separately for sync progress updates.
 
 ## Tech stack
 
@@ -88,6 +89,7 @@ backend/
   src/service/            Google, email, cron, OAuth, and WebSocket services
   src/database/           PostgreSQL repositories
   scripts/                Vector-store migration utility
+  API_BUDGETS_MIGRATION.sql  API budget tables and user threshold columns
 ```
 
 ## Local setup
@@ -100,7 +102,13 @@ backend/
 - Google OAuth credentials with the Gmail and Calendar scopes requested by the application
 - OpenAI and Anthropic API keys for the models exposed by the current interface
 
-This repository does not include SQL migrations or a database bootstrap script. A compatible PostgreSQL schema must already be provisioned before the backend can run.
+The repository does not include a full database bootstrap. A compatible PostgreSQL schema must already be provisioned. Apply the included API budget migration from the repository root:
+
+```bash
+psql "<postgres-connection-string>" -f backend/API_BUDGETS_MIGRATION.sql
+```
+
+This adds the reusable `api_budgets` table, monthly alert delivery records, and the three budget threshold columns on `users`.
 
 ### 1. Clone the repository
 
@@ -190,13 +198,27 @@ Create `frontend/.env.local`:
 VITE_API_BASE_URL=http://localhost:2020
 ```
 
+To enable API budget emails in a running environment, enable cron jobs and configure the SMTP sender:
+
+```dotenv
+ENABLE_CRON_JOBS=true
+ENABLE_API_BUDGET_ALERT_CRON=true
+API_BUDGET_ALERT_CRON_SCHEDULE="0 9 * * *"
+MAIL_USER=<smtp-user>
+MAIL_APP_PASSWORD=<smtp-password>
+MAIL_SMTP_HOST=<smtp-host>
+MAIL_SMTP_PORT=587
+MAIL_FROM_NAME=MyRA
+MAIL_FROM_ADDRESS=<sender-address>
+```
+
 Additional variables are only needed for the related optional behavior:
 
 - **Model settings:** `OPENAI_MODEL_TEMP`, `OPENAI_MAX_TOKENS`, `ANTHROPIC_MODEL_TEMP`, `ANTHROPIC_MAX_TOKENS`, `CALENDAR_AGENT_LLM_PROVIDER`, and `CALENDAR_AGENT_MODEL`
 - **Runtime and retrieval:** `SYNC_USER_ID` for unauthenticated development fallbacks, `DEFAULT_USER_TIMEZONE`, `LOG_LEVEL`, and `VECTOR_STORE`
 - **Chroma:** `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_SSL`, `CHROMA_COLLECTION`, `CHROMA_API_KEY`, `CHROMA_TENANT`, and `CHROMA_DATABASE`
 - **Scheduled Google sync:** `ENABLE_GOOGLE_WORKSPACE_SYNC_CRON`, `ENABLE_GMAIL_SYNC_CRON`, `ENABLE_CALENDAR_SYNC_CRON`, `GOOGLE_WORKSPACE_SYNC_CRON_SCHEDULE`, `CRON_TIMEZONE`, `GOOGLE_WORKSPACE_SYNC_STALE_MINUTES`, `GOOGLE_WORKSPACE_SYNC_EMBEDDING_BATCH_SIZE`, and `GOOGLE_WORKSPACE_SYNC_EMBEDDING_MAX_BATCHES`
-- **Credential usage alerts:** `ENABLE_CREDS_ALERT_CRON`, `CREDS_ALERT_CRON_SCHEDULE`, `ANTHROPIC_MONTHLY_BUDGET`, `GOOGLE_MONTHLY_BUDGET`, `MAIL_USER`, `MAIL_APP_PASSWORD`, `MAIL_SMTP_HOST`, `MAIL_SMTP_PORT`, `MAIL_FROM_NAME`, `MAIL_FROM_ADDRESS`, and `MAIL_ALERT_RECIPIENT`
+- **API budget alerts:** `ENABLE_API_BUDGET_ALERT_CRON`, `API_BUDGET_ALERT_CRON_SCHEDULE`, `MAIL_USER`, `MAIL_APP_PASSWORD`, `MAIL_SMTP_HOST`, `MAIL_SMTP_PORT`, `MAIL_FROM_NAME`, and `MAIL_FROM_ADDRESS`; the older `ENABLE_CREDS_ALERT_CRON` and `CREDS_ALERT_CRON_SCHEDULE` names remain accepted as aliases. Budgets and thresholds are saved per user in PostgreSQL rather than environment variables.
 - **Usage-cost overrides:** `<PROVIDER>_INPUT_COST_PER_MILLION`, `<PROVIDER>_OUTPUT_COST_PER_MILLION`, or the model-specific `<PROVIDER>_<MODEL>_INPUT_COST_PER_MILLION` and `<PROVIDER>_<MODEL>_OUTPUT_COST_PER_MILLION` forms
 - **Frontend voice hook:** `VITE_VOICE_CHAT_PATH`; the corresponding voice backend is not part of this repository
 

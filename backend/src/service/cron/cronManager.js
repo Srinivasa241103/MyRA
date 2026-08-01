@@ -16,7 +16,10 @@ export default class CronManager {
       if (process.env.ENABLE_GOOGLE_WORKSPACE_SYNC_CRON !== "false") {
         this.jobs.googleWorkspaceSync.start();
       }
-      if (process.env.ENABLE_CREDS_ALERT_CRON === "true") {
+      if (
+        process.env.ENABLE_API_BUDGET_ALERT_CRON === "true" ||
+        process.env.ENABLE_CREDS_ALERT_CRON === "true"
+      ) {
         this.jobs.credsAlert.start();
       }
     } catch (error) {

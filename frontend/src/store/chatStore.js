@@ -17,8 +17,22 @@ const normalizeEmailResponse = (response) => {
   return { text: response.message ?? response.prompt ?? "Done.", emailResponse: null };
 };
 
+const normalizeStoredMetadata = (value) => {
+  let metadata = value;
+  for (let attempt = 0; attempt < 2 && typeof metadata === "string"; attempt += 1) {
+    try {
+      metadata = JSON.parse(metadata);
+    } catch {
+      return {};
+    }
+  }
+  return metadata && typeof metadata === "object" ? metadata : {};
+};
+
 const createLocalId = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+let activeStreamController = null;
 
 const normalizeAssistantMessage = (result) => {
   if (result.mode === "email_agent") {
@@ -65,6 +79,8 @@ export const useChatStore = create((set, get) => ({
   error: null,
   pendingMessage: null,
   pendingModelSelection: null,
+  activeStreamId: null,
+  canStopStreaming: false,
 
   conversations: [],
   conversationsLoading: false,
@@ -74,102 +90,207 @@ export const useChatStore = create((set, get) => ({
     const { conversationId, agentActive, activeAgentMode, isTyping } = get();
     if (isTyping) return;
 
+    const assistantId = createLocalId();
+    const controller = new AbortController();
+    activeStreamController = controller;
+
     set((state) => ({
-      messages: [...state.messages, { role: "user", text }],
+      messages: [
+        ...state.messages,
+        { role: "user", text },
+        {
+          id: assistantId,
+          role: "ai",
+          text: "",
+          isStreaming: true,
+          activity: {
+            stage: "routing",
+            flow: "general",
+            detail: null,
+            history: [],
+          },
+        },
+      ],
       isTyping: true,
       error: null,
+      activeStreamId: assistantId,
+      canStopStreaming: false,
     }));
 
+    const isCurrentStream = () => get().activeStreamId === assistantId;
+    const updateAssistant = (updater) => {
+      if (!isCurrentStream()) return;
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          message.id === assistantId ? updater(message) : message
+        ),
+      }));
+    };
+
     try {
-      const result = await chatApi.sendMessage(
+      const result = await chatApi.sendMessageStream(
         text,
         conversationId,
         confirmationStatus,
         agentActive,
         activeAgentMode,
         modelSelection,
+        {
+          signal: controller.signal,
+          onEvent: (event) => {
+            if (!isCurrentStream()) return;
+
+            if (event.type === "start") {
+              set({ conversationId: event.conversationId });
+              return;
+            }
+
+            if (event.type === "status") {
+              const status = event.data ?? {};
+              updateAssistant((message) => {
+                const previous = message.activity?.stage;
+                const history = [...(message.activity?.history ?? [])];
+                if (
+                  previous &&
+                  previous !== status.stage &&
+                  !history.includes(previous)
+                ) {
+                  history.push(previous);
+                }
+                return {
+                  ...message,
+                  activity: {
+                    stage: status.stage,
+                    flow: status.flow,
+                    detail: status.detail ?? null,
+                    history: history.slice(-4),
+                  },
+                };
+              });
+              set({ canStopStreaming: Boolean(status.cancellable) });
+              return;
+            }
+
+            if (event.type === "context") {
+              updateAssistant((message) => ({
+                ...message,
+                context: event.data,
+              }));
+              return;
+            }
+
+            if (event.type === "delta") {
+              const delta = event.data?.text ?? "";
+              if (!delta) return;
+              updateAssistant((message) => ({
+                ...message,
+                text: `${message.text ?? ""}${delta}`,
+              }));
+              return;
+            }
+
+            if (event.type === "result") {
+              const normalized = normalizeAssistantMessage(event.data ?? {});
+              updateAssistant((message) => ({
+                ...message,
+                ...normalized,
+                id: assistantId,
+                isStreaming: false,
+                activity: null,
+                streamStatus:
+                  event.data?.metadata?.streamStatus ?? "complete",
+              }));
+              set({ canStopStreaming: false });
+              return;
+            }
+
+            if (event.type === "done") {
+              set({ canStopStreaming: false });
+            }
+          },
+        },
       );
 
-      if (result.success) {
-        let messageEntry;
-
-        if (result.mode === "email_agent") {
-          // The backend now sends the structured draft/selection payload as
-          // `emailResponse` (separate from the plain-text `response`).
-          // Fall back to normalizing result.response for older-style replies.
-          let normText, emailResponse;
-          if (result.emailResponse) {
-            normText = null;
-            emailResponse = result.emailResponse;
-          } else {
-            ({ text: normText, emailResponse } = normalizeEmailResponse(result.response));
-          }
-          messageEntry = {
-            role: "ai",
-            text: normText,
-            emailResponse,
-            emailStatus: result.emailStatus ?? null,
-            mode: result.mode,
-            context: result.context,
-            metadata: result.metadata,
-          };
-        } else {
-          messageEntry = {
-            role: "ai",
-            text: result.response,
-            mode: result.mode ?? null,
-            context: result.context,
-            metadata: result.metadata,
-          };
-        }
-
+      if (result.success && isCurrentStream()) {
         set((state) => ({
-          messages: [...state.messages, messageEntry],
+          messages: state.messages.map((message) =>
+            message.id === assistantId
+              ? {
+                ...message,
+                ...normalizeAssistantMessage(result),
+                id: assistantId,
+                isStreaming: false,
+                activity: null,
+                streamStatus: result.metadata?.streamStatus ?? "complete",
+              }
+              : message
+          ),
           isTyping: false,
           conversationId: result.conversationId,
           pendingConfirmation: result.pendingConfirmation ?? false,
           agentActive: result.agentActive ?? false,
           activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
+          activeStreamId: null,
+          canStopStreaming: false,
         }));
 
         get().loadConversations();
-      } else {
-        set((state) => ({
-          messages: [
-            ...state.messages,
-            {
-              role: "ai",
-              text: result.error || "Sorry, I couldn't process your request.",
-              isError: true,
-            },
-          ],
-          isTyping: false,
-          error: result.error,
-          pendingConfirmation: false,
-          agentActive: result.agentActive ?? false,
-          activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
-        }));
       }
     } catch (error) {
+      if (!isCurrentStream()) return;
+      const stopped = error.name === "AbortError" || controller.signal.aborted;
       set((state) => ({
-        messages: [
-          ...state.messages,
-          {
-            role: "ai",
-            text: error.message || "Something went wrong. Please try again.",
-            isError: true,
-          },
-        ],
+        messages: state.messages
+          .map((message) => {
+            if (message.id !== assistantId) return message;
+            if (stopped && message.text?.trim()) {
+              return {
+                ...message,
+                isStreaming: false,
+                activity: null,
+                streamStatus: "stopped",
+              };
+            }
+            if (stopped) return null;
+            if (message.text?.trim()) {
+              return {
+                ...message,
+                isStreaming: false,
+                activity: null,
+                streamStatus: "interrupted",
+                streamError: error.message,
+              };
+            }
+            return {
+              ...message,
+              text: error.message || "Something went wrong. Please try again.",
+              isStreaming: false,
+              activity: null,
+              isError: true,
+            };
+          })
+          .filter(Boolean),
         isTyping: false,
-        error: error.message,
+        error: stopped ? null : error.message,
         pendingConfirmation: false,
         conversationId: error.data?.conversationId ?? state.conversationId,
         agentActive: error.data?.agentActive ?? state.agentActive,
         activeAgentMode: error.data?.agentActive
           ? (error.data?.mode ?? state.activeAgentMode)
           : null,
+        activeStreamId: null,
+        canStopStreaming: false,
       }));
+    } finally {
+      if (activeStreamController === controller) {
+        activeStreamController = null;
+      }
     }
+  },
+
+  stopGenerating: () => {
+    const { canStopStreaming } = get();
+    if (canStopStreaming) activeStreamController?.abort();
   },
 
   sendVoiceMessage: async ({ blob, audioUrl, durationMs, mimeType, wakeWord = null }) => {
@@ -316,24 +437,44 @@ export const useChatStore = create((set, get) => ({
   },
 
   loadConversation: async (conversationId) => {
-    set({ isTyping: true, error: null });
+    activeStreamController?.abort();
+    activeStreamController = null;
+    set({
+      isTyping: true,
+      error: null,
+      activeStreamId: null,
+      canStopStreaming: false,
+    });
     try {
       const data = await chatApi.getHistory(conversationId);
       const history = data?.data?.history ?? data?.history ?? [];
 
       const messages = history.flatMap((entry) => {
         let aiMsg;
+        const metadata = normalizeStoredMetadata(entry.metadata);
+        const historicalState = {
+          metadata,
+          mode: metadata.mode ?? null,
+          streamStatus: metadata.streamStatus ?? null,
+          isHistorical: true,
+        };
         // Detect email agent responses stored as JSON strings
         try {
           const parsed = JSON.parse(entry.assistant_message);
           if (parsed && typeof parsed === "object" && parsed.type) {
             const { text: normText, emailResponse } = normalizeEmailResponse(parsed);
-            aiMsg = { role: "ai", text: normText, emailResponse, mode: "email_agent", isHistorical: true };
+            aiMsg = {
+              role: "ai",
+              text: normText,
+              emailResponse,
+              ...historicalState,
+              mode: metadata.mode ?? "email_agent",
+            };
           } else {
-            aiMsg = { role: "ai", text: entry.assistant_message, isHistorical: true };
+            aiMsg = { role: "ai", text: entry.assistant_message, ...historicalState };
           }
         } catch {
-          aiMsg = { role: "ai", text: entry.assistant_message, isHistorical: true };
+          aiMsg = { role: "ai", text: entry.assistant_message, ...historicalState };
         }
         return [{ role: "user", text: entry.user_message, isHistorical: true }, aiMsg];
       });
@@ -402,6 +543,10 @@ export const useChatStore = create((set, get) => ({
       return { success: true };
     }
 
+    if (get().conversationId === conversationId) {
+      activeStreamController?.abort();
+    }
+
     try {
       const result = await chatApi.deleteConversation(conversationId);
 
@@ -423,6 +568,8 @@ export const useChatStore = create((set, get) => ({
               error: null,
               pendingMessage: null,
               pendingModelSelection: null,
+              activeStreamId: null,
+              canStopStreaming: false,
             }
             : {}),
         };
@@ -447,6 +594,8 @@ export const useChatStore = create((set, get) => ({
                 activeAgentMode: null,
                 pendingMessage: null,
                 pendingModelSelection: null,
+                activeStreamId: null,
+                canStopStreaming: false,
               }
               : {}),
             error: error.message || "Chat does not exist",
@@ -460,7 +609,9 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  resetChat: () =>
+  resetChat: () => {
+    activeStreamController?.abort();
+    activeStreamController = null;
     set({
       messages: [],
       isTyping: false,
@@ -471,9 +622,14 @@ export const useChatStore = create((set, get) => ({
       error: null,
       pendingMessage: null,
       pendingModelSelection: null,
-    }),
+      activeStreamId: null,
+      canStopStreaming: false,
+    });
+  },
 
-  startNewChat: (text = null, modelSelection = null) =>
+  startNewChat: (text = null, modelSelection = null) => {
+    activeStreamController?.abort();
+    activeStreamController = null;
     set({
       messages: [],
       isTyping: false,
@@ -484,7 +640,10 @@ export const useChatStore = create((set, get) => ({
       error: null,
       pendingMessage: text,
       pendingModelSelection: modelSelection,
-    }),
+      activeStreamId: null,
+      canStopStreaming: false,
+    });
+  },
 
   clearPendingMessage: () => set({ pendingMessage: null, pendingModelSelection: null }),
 }));

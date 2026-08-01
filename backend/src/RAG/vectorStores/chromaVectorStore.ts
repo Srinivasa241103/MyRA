@@ -15,6 +15,10 @@ import VectorStore, {
   type VectorSearchResult,
 } from "./vectorStore.js";
 import { mapDocumentChunksToVectorRecords } from "./vectorRecordMapper.js";
+import {
+  retrievalIndexRepository,
+  type RetrievalIndexRepository,
+} from "../../database/retrievalIndexRepository.js";
 
 const DEFAULT_CHROMA_HOST = "localhost";
 const DEFAULT_CHROMA_PORT = 8000;
@@ -155,11 +159,13 @@ export default class ChromaVectorStore extends VectorStore {
   private readonly collectionName: string;
   private readonly baseUrl: string;
   private readonly headers: Record<string, string> | undefined;
+  private readonly indexRepository: RetrievalIndexRepository;
   private collectionPromise: Promise<Collection> | null = null;
 
-  constructor() {
+  constructor(indexRepository = retrievalIndexRepository) {
     super();
 
+    this.indexRepository = indexRepository;
     this.collectionName = process.env.CHROMA_COLLECTION || DEFAULT_COLLECTION;
 
     if (process.env.CHROMA_API_KEY) {
@@ -329,7 +335,7 @@ export default class ChromaVectorStore extends VectorStore {
     const metadatas = result.metadatas[0] ?? [];
     const distances = result.distances[0] ?? [];
 
-    return ids.map((id, index) => {
+    const mappedResults = ids.map((id, index) => {
       const metadata = metadatas[index] ?? null;
       const documentPk = metadataNumber(metadata, "document_pk");
       const sourceId = metadataString(metadata, "document_id") ?? id;
@@ -350,5 +356,14 @@ export default class ChromaVectorStore extends VectorStore {
         },
       };
     });
+
+    const readyDocumentIds = await this.indexRepository.findReadyDocumentIds({
+      userId,
+      documentIds: mappedResults.map((result) => result.document.id),
+    });
+
+    return mappedResults.filter((result) =>
+      readyDocumentIds.has(String(result.document.id))
+    );
   }
 }

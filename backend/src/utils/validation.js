@@ -41,8 +41,8 @@ export function validateDocument(document) {
   } else if (!VALID_SOURCES.includes(document.source)) {
     errors.push(
       `Invalid source: ${document.source}. Must be one of: ${VALID_SOURCES.join(
-        ", "
-      )}`
+        ", ",
+      )}`,
     );
   }
 
@@ -51,8 +51,8 @@ export function validateDocument(document) {
   } else if (!VALID_TYPES.includes(document.type)) {
     errors.push(
       `Invalid type: ${document.type}. Must be one of: ${VALID_TYPES.join(
-        ", "
-      )}`
+        ", ",
+      )}`,
     );
   }
 
@@ -61,7 +61,7 @@ export function validateDocument(document) {
     const allowedTypes = SOURCE_TYPE_MAP[document.source];
     if (allowedTypes && !allowedTypes.includes(document.type)) {
       errors.push(
-        `Type '${document.type}' is not valid for source '${document.source}'`
+        `Type '${document.type}' is not valid for source '${document.source}'`,
       );
     }
   }

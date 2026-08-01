@@ -1,3 +1,5 @@
+import { readSseJsonStream } from "./sse";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:2020";
 
@@ -38,6 +40,42 @@ export const chatApi = {
     }
 
     return response.json();
+  },
+
+  sendMessageStream: async (
+    message,
+    conversationId = null,
+    confirmationStatus = null,
+    agentActive = false,
+    activeAgentMode = null,
+    modelSelection = null,
+    { onEvent, signal } = {},
+  ) => {
+    const response = await fetch(`${API_BASE_URL}/chat/message/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      credentials: "include",
+      signal,
+      body: JSON.stringify({
+        message,
+        conversationId,
+        confirmationStatus,
+        agentActive,
+        activeAgentMode,
+        provider: modelSelection?.provider,
+        model: modelSelection?.model,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const error = new Error(data.error || `Chat request failed: ${response.status}`);
+      error.data = data;
+      error.status = response.status;
+      throw error;
+    }
+
+    return readSseJsonStream(response.body, { onEvent });
   },
 
   getEmailStatus: async (conversationId) => {

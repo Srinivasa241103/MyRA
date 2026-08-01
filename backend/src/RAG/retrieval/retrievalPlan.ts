@@ -69,6 +69,7 @@ export interface RetrievalLimits {
 export interface RetrievalPlan {
   rawQuery: string;
   semanticQuery: string;
+  contentQuery: string | null;
   strategy: RetrievalStrategy;
   sort: RetrievalSort;
   temporalIntent: TemporalIntent;

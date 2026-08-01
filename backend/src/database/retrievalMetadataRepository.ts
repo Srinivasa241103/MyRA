@@ -107,6 +107,7 @@ export class RetrievalMetadataRepository {
           d.timestamp
         FROM documents d
         WHERE d.user_id = $1
+          AND d.needs_embedding IS NOT TRUE
           AND d.source = 'gmail'
       ),
       people AS (
@@ -173,6 +174,7 @@ export class RetrievalMetadataRepository {
           d.timestamp
         FROM documents d
         WHERE d.user_id = $1
+          AND d.needs_embedding IS NOT TRUE
           AND d.source = 'calendar'
       ),
       people AS (
@@ -207,4 +209,3 @@ export class RetrievalMetadataRepository {
 }
 
 export const retrievalMetadataRepository = new RetrievalMetadataRepository();
-

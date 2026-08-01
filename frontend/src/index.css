@@ -912,20 +912,6 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   opacity: .78;
 }
 
-/* Typing indicator */
-.myra-typing-dots { display: flex; gap: 5px; align-items: center; padding: 4px 0; }
-.myra-typing-dots span {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--text-muted);
-  animation: myra-bounce 1.2s ease-in-out infinite;
-}
-.myra-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
-.myra-typing-dots span:nth-child(3) { animation-delay: 0.30s; }
-@keyframes myra-bounce {
-  0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-5px); }
-}
-
 /* ── Composer ── */
 .myra-composer {
   border-top: 1px solid var(--border);

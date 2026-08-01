@@ -68,3 +68,53 @@ workflow
 
 const checkpointer = new MemorySaver();
 export const calendarAgentGraph = workflow.compile({ checkpointer });
+
+const nextCalendarStage = (node, update = {}) => {
+  if (node === "parse_intent") {
+    return update.missingFields?.length > 0
+      ? "calendar_confirmation"
+      : "calendar_check";
+  }
+  if (node === "check_conflicts") {
+    return update.conflicts?.length > 0
+      ? "calendar_slots"
+      : "calendar_confirmation";
+  }
+  if (node === "suggest_slots") return "calendar_slots";
+  if (["ask_for_missing_info", "await_confirmation"].includes(node)) {
+    return "calendar_confirmation";
+  }
+  if (node === "create_event") return "calendar_create";
+  return null;
+};
+
+export async function invokeCalendarAgent(
+  input,
+  config,
+  { onStatus, signal } = {},
+) {
+  let finalState = null;
+  const stream = await calendarAgentGraph.stream(input, {
+    ...config,
+    ...(signal ? { signal } : {}),
+    streamMode: ["updates", "values"],
+  });
+
+  for await (const event of stream) {
+    const [mode, data] = Array.isArray(event) ? event : ["values", event];
+    if (mode === "values") {
+      finalState = data;
+      continue;
+    }
+
+    if (mode === "updates" && data && typeof data === "object") {
+      const [node, update] = Object.entries(data)[0] ?? [];
+      const stage = nextCalendarStage(node, update);
+      if (stage) await onStatus?.(stage);
+    }
+  }
+
+  if (finalState) return finalState;
+  const snapshot = await calendarAgentGraph.getState(config);
+  return snapshot.values;
+}

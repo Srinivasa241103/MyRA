@@ -4,6 +4,7 @@ import authRoutes from "./api/routes/authRoutes.js";
 import syncRoutes from "./api/routes/syncRoutes.js";
 import chatRoutes from "./api/routes/chat.js";
 import statsRoutes from "./api/routes/stats.js";
+import apiBudgetRoutes from "./api/routes/apiBudgets.js";
 
 const app = express();
 
@@ -46,5 +47,6 @@ app.use("/auth", authRoutes);
 app.use("/sync", syncRoutes);
 app.use("/chat", chatRoutes);
 app.use("/stats", statsRoutes);
+app.use("/budgets", apiBudgetRoutes);
 
 export default app;

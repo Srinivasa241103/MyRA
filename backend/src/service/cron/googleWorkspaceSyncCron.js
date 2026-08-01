@@ -100,8 +100,12 @@ export default class GoogleWorkspaceSyncCronJob {
       sourcesSkipped: 0,
       documentsFetched: 0,
       documentsInserted: 0,
+      documentsUpdated: 0,
       embeddingsProcessed: 0,
       embeddingsFailed: 0,
+      embeddingsPending: 0,
+      postgresIndexed: 0,
+      vectorIndexed: 0,
     };
 
     try {
@@ -137,8 +141,12 @@ export default class GoogleWorkspaceSyncCronJob {
         summary.sourcesSkipped += userSummary.sourcesSkipped;
         summary.documentsFetched += userSummary.documentsFetched;
         summary.documentsInserted += userSummary.documentsInserted;
+        summary.documentsUpdated += userSummary.documentsUpdated;
         summary.embeddingsProcessed += userSummary.embeddingsProcessed;
         summary.embeddingsFailed += userSummary.embeddingsFailed;
+        summary.embeddingsPending += userSummary.embeddingsPending;
+        summary.postgresIndexed += userSummary.postgresIndexed;
+        summary.vectorIndexed += userSummary.vectorIndexed;
       }
 
       logger.info("Google workspace sync cron job completed", {
@@ -164,8 +172,12 @@ export default class GoogleWorkspaceSyncCronJob {
       sourcesSkipped: 0,
       documentsFetched: 0,
       documentsInserted: 0,
+      documentsUpdated: 0,
       embeddingsProcessed: 0,
       embeddingsFailed: 0,
+      embeddingsPending: 0,
+      postgresIndexed: 0,
+      vectorIndexed: 0,
     };
 
     logger.info("Starting scheduled Google workspace sync for user", {
@@ -188,27 +200,18 @@ export default class GoogleWorkspaceSyncCronJob {
 
       if (result.status === "success") {
         summary.sourcesSucceeded++;
-        summary.documentsFetched += result.fetched;
-        summary.documentsInserted += result.inserted;
       } else {
         summary.sourcesFailed++;
       }
-    }
 
-    if (summary.sourcesSucceeded > 0) {
-      const embeddingResponse = await this.embeddingPipeline.runEmbedding(userId, {
-        batchSize: this.embeddingBatchSize,
-        maxBatches: this.embeddingMaxBatches,
-      });
-
-      summary.embeddingsProcessed = embeddingResponse.processed;
-      summary.embeddingsFailed = embeddingResponse.failed;
-
-      logger.info("Scheduled embedding generation completed for user", {
-        userId,
-        processed: embeddingResponse.processed,
-        failed: embeddingResponse.failed,
-      });
+      summary.documentsFetched += result.fetched || 0;
+      summary.documentsInserted += result.inserted || 0;
+      summary.documentsUpdated += result.updated || 0;
+      summary.embeddingsProcessed += result.embeddingsProcessed || 0;
+      summary.embeddingsFailed += result.embeddingsFailed || 0;
+      summary.embeddingsPending += result.embeddingsPending || 0;
+      summary.postgresIndexed += result.postgresIndexed || 0;
+      summary.vectorIndexed += result.vectorIndexed || 0;
     }
 
     return summary;
@@ -248,7 +251,7 @@ export default class GoogleWorkspaceSyncCronJob {
         await this.syncLogRepo.complete(syncLog.id, {
           status: "failed",
           documentsFetched: ingestionResponse.fetched,
-          documentsStored: ingestionResponse.inserted,
+          documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
           lastSyncTimestamp: new Date(),
           error: `${ingestionResponse.failed} ${source.name} item(s) failed during ingestion`,
         });
@@ -263,10 +266,53 @@ export default class GoogleWorkspaceSyncCronJob {
         return { status: "failed", ...ingestionResponse };
       }
 
+      const embeddingResponse = await this.embeddingPipeline.runEmbedding(userId, {
+        batchSize: this.embeddingBatchSize,
+        maxBatches: this.embeddingMaxBatches,
+        sourceType: source.ingestionSource,
+        conversationId: `scheduled_sync:${source.syncLogSource}:${syncLog.id}`,
+      });
+
+      logger.info("Scheduled retrieval indexing completed", {
+        userId,
+        source: source.displayName,
+        syncId: syncLog.id,
+        processed: embeddingResponse.processed,
+        failed: embeddingResponse.failed,
+        pending: embeddingResponse.pending,
+        postgresIndexed: embeddingResponse.postgresIndexed,
+        vectorIndexed: embeddingResponse.vectorIndexed,
+        vectorProvider: embeddingResponse.vectorProvider,
+      });
+
+      if (embeddingResponse.failed > 0 || embeddingResponse.pending > 0) {
+        const errorMessage = embeddingResponse.pending > 0
+          ? `${embeddingResponse.pending} document(s) remain pending for retrieval indexing`
+          : `${embeddingResponse.failed} document(s) failed during retrieval indexing`;
+        await this.syncLogRepo.complete(syncLog.id, {
+          status: "failed",
+          documentsFetched: ingestionResponse.fetched,
+          documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
+          lastSyncTimestamp: new Date(),
+          error: errorMessage,
+        });
+
+        return {
+          status: "failed",
+          ...ingestionResponse,
+          embeddingsProcessed: embeddingResponse.processed,
+          embeddingsFailed: embeddingResponse.failed,
+          embeddingsPending: embeddingResponse.pending,
+          postgresIndexed: embeddingResponse.postgresIndexed,
+          vectorIndexed: embeddingResponse.vectorIndexed,
+          vectorProvider: embeddingResponse.vectorProvider,
+        };
+      }
+
       await this.syncLogRepo.complete(syncLog.id, {
         status: "success",
         documentsFetched: ingestionResponse.fetched,
-        documentsStored: ingestionResponse.inserted,
+        documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
         lastSyncTimestamp: new Date(),
       });
 
@@ -276,10 +322,20 @@ export default class GoogleWorkspaceSyncCronJob {
         syncId: syncLog.id,
         fetched: ingestionResponse.fetched,
         inserted: ingestionResponse.inserted,
+        updated: ingestionResponse.updated,
         skipped: ingestionResponse.skipped,
       });
 
-      return { status: "success", ...ingestionResponse };
+      return {
+        status: "success",
+        ...ingestionResponse,
+        embeddingsProcessed: embeddingResponse.processed,
+        embeddingsFailed: embeddingResponse.failed,
+        embeddingsPending: embeddingResponse.pending,
+        postgresIndexed: embeddingResponse.postgresIndexed,
+        vectorIndexed: embeddingResponse.vectorIndexed,
+        vectorProvider: embeddingResponse.vectorProvider,
+      };
     } catch (error) {
       logger.error("Scheduled source sync failed", {
         userId,

@@ -1,8 +1,6 @@
 import { getPool } from "../config/dbConfig.js";
 
-export class StatsRepository {
-  async insertLLMPrice(stats) {
-    const query = `INSERT INTO llm_usage_logs (
+export const LLM_USAGE_INSERT_SQL = `INSERT INTO llm_usage_logs (
                     conversation_id,
                     provider,
                     model,
@@ -13,18 +11,49 @@ export class StatsRepository {
                     invocation_type,
                     user_id
                   )
-                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
-    await getPool().query(query, [
+                  VALUES (
+                    $1::varchar(255),
+                    $2::varchar(50),
+                    $3::varchar(100),
+                    $4::integer,
+                    $5::integer,
+                    $6::numeric,
+                    $7::numeric,
+                    $8::varchar(50),
+                    $9::integer
+                  )
+                  RETURNING id, total_tokens, total_cost`;
+
+function finiteNonNegative(value, fieldName) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    throw new TypeError(`${fieldName} must be a finite, non-negative number`);
+  }
+
+  return numericValue;
+}
+
+export class StatsRepository {
+  async insertLLMPrice(stats, queryable = getPool()) {
+    const inputTokens = finiteNonNegative(stats.inputTokens, "inputTokens");
+    const outputTokens = finiteNonNegative(stats.outputTokens, "outputTokens");
+    const inputCost = finiteNonNegative(stats.inputCost, "inputCost");
+    const outputCost = finiteNonNegative(stats.outputCost, "outputCost");
+
+    const result = await queryable.query(LLM_USAGE_INSERT_SQL, [
       stats.conversationId,
       stats.provider,
       stats.model,
-      stats.inputTokens,
-      stats.outputTokens,
-      stats.inputCost,
-      stats.outputCost,
+      inputTokens,
+      outputTokens,
+      inputCost,
+      outputCost,
       stats.invocationType,
       stats.userId,
     ]);
+
+    return result.rows[0];
   }
 
   async getCostAndTokensConsumed(days, userId) {

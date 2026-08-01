@@ -92,6 +92,25 @@ const isRevokeResponse = (value) => {
     );
 };
 
+const nextEmailStage = (node, update = {}) => {
+    if (node === "parse_request" || node === "resolve_recipient") {
+        return "email_recipient";
+    }
+    if (node === "present_recipient_choice") {
+        return update.cancelled ? null : "email_draft";
+    }
+    if (node === "draft_email") return "email_review";
+    if (node === "review_draft") {
+        if (update.approval_status === "revision_requested") return "email_draft";
+        if (update.approval_status === "approved") return "email_send";
+        return "email_review";
+    }
+    if (["prepare_send", "revoke_window", "send_email"].includes(node)) {
+        return "email_send";
+    }
+    return null;
+};
+
 const invokeEmailAgent = async (
     userMessage,
     conversationId,
@@ -99,7 +118,8 @@ const invokeEmailAgent = async (
     userId = null,
     resumeValue = null,
     llmProvider = null,
-    model = null
+    model = null,
+    options = {}
 ) => {
     const config = getConfig(conversationId, userId, llmProvider, model);
     const threadId = config.configurable.thread_id;
@@ -121,9 +141,20 @@ const invokeEmailAgent = async (
         let finalState = null;
         for await (const event of await emailAgent.stream(input, {
             ...config,
-            streamMode: "values",
+            ...(options.signal ? { signal: options.signal } : {}),
+            streamMode: ["updates", "values"],
         })) {
-            finalState = event;
+            const [mode, data] = Array.isArray(event) ? event : ["values", event];
+            if (mode === "values") {
+                finalState = data;
+                continue;
+            }
+
+            if (mode === "updates" && data && typeof data === "object") {
+                const [node, update] = Object.entries(data)[0] ?? [];
+                const stage = nextEmailStage(node, update);
+                if (stage) await options.onStatus?.(stage);
+            }
         }
 
         const snapshot = await emailAgent.getState(config);

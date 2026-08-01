@@ -1398,17 +1398,277 @@ button {
   color: var(--color-danger);
 }
 
-.myra-typing-dots {
+.myra-activity-trail {
+  align-self: flex-start;
+  width: min(100%, 560px);
+  min-height: 64px;
   display: flex;
-  gap: 4px;
-  padding: 8px 0;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 7px 0 5px;
+  color: var(--color-text-2);
+  animation: myra-activity-enter 220ms ease-out both;
 }
 
-.myra-typing-dots span {
-  width: 5px;
-  height: 5px;
+.myra-activity-signal {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+}
+
+.myra-activity-orbit {
+  position: absolute;
+  inset: 2px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, transparent);
+  border-top-color: var(--color-accent);
+  border-right-color: color-mix(in srgb, var(--color-accent-2) 75%, transparent);
   border-radius: 50%;
-  background: var(--color-text-muted);
+  animation: myra-activity-orbit 2.4s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+.myra-activity-core {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--color-accent) 10%, transparent),
+    0 0 18px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  animation: myra-activity-breathe 1.8s ease-in-out infinite;
+}
+
+.myra-activity-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px;
+  border-radius: 50%;
+  background: var(--color-accent-2);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-2) 55%, transparent);
+  transform-origin: 2px 2px;
+  animation: myra-activity-spark 3.2s linear infinite;
+}
+
+.myra-activity-copy {
+  min-width: 0;
+  flex: 1;
+  padding-top: 1px;
+}
+
+.myra-activity-current {
+  min-height: 22px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  animation: myra-activity-label 220ms ease-out both;
+}
+
+.myra-activity-current > span {
+  color: var(--color-text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.myra-activity-current small {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myra-activity-rail {
+  position: relative;
+  height: 1px;
+  margin: 5px 0 7px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-border-strong) 48%, transparent);
+}
+
+.myra-activity-light {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-accent) 84%, white 16%),
+    color-mix(in srgb, var(--color-accent-2) 70%, transparent),
+    transparent
+  );
+  animation: myra-activity-travel 1.85s ease-in-out infinite;
+}
+
+.myra-activity-history {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.myra-activity-history > span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  opacity: 0.62;
+  text-overflow: ellipsis;
+}
+
+.myra-activity-history > span i {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 4px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+}
+
+.myra-activity-history > span.active {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
+.myra-activity-history > span.active i {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.myra-markdown.is-streaming {
+  min-height: 38px;
+  animation: myra-stream-reveal 180ms ease-out both;
+}
+
+.myra-markdown.is-streaming > p:last-of-type {
+  display: inline;
+}
+
+.myra-stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  vertical-align: -0.14em;
+  animation: myra-stream-caret 760ms ease-in-out infinite;
+}
+
+.myra-stream-note {
+  width: max-content;
+  margin-top: 7px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.myra-stream-note.error {
+  color: var(--color-danger);
+}
+
+.myra-stream-stop {
+  border: 1px solid color-mix(in srgb, var(--color-accent) 48%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  animation: myra-stop-arrive 160ms ease-out both;
+}
+
+.myra-stream-stop:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+@keyframes myra-activity-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes myra-activity-orbit {
+  0% { transform: rotate(0deg) scale(0.94); }
+  50% { transform: rotate(190deg) scale(1); }
+  100% { transform: rotate(360deg) scale(0.94); }
+}
+
+@keyframes myra-activity-spark {
+  from { transform: rotate(0deg) translateX(15px) scale(0.8); }
+  50% { transform: rotate(180deg) translateX(15px) scale(1.15); }
+  to { transform: rotate(360deg) translateX(15px) scale(0.8); }
+}
+
+@keyframes myra-activity-breathe {
+  0%, 100% { transform: scale(0.82); opacity: 0.72; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes myra-activity-label {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes myra-activity-travel {
+  from { transform: translateX(-110%); opacity: 0; }
+  24% { opacity: 1; }
+  76% { opacity: 1; }
+  to { transform: translateX(340%); opacity: 0; }
+}
+
+@keyframes myra-stream-reveal {
+  from { opacity: 0.3; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes myra-stream-caret {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+@keyframes myra-stop-arrive {
+  from { opacity: 0; transform: scale(0.86); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 640px) {
+  .myra-activity-trail {
+    gap: 9px;
+    min-height: 58px;
+  }
+
+  .myra-activity-signal {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+  }
+
+  .myra-activity-spark {
+    animation-name: myra-activity-spark-mobile;
+  }
+
+  .myra-activity-history > span:not(.active) {
+    max-width: 72px;
+  }
+
+  .myra-activity-current small {
+    display: none;
+  }
+}
+
+@keyframes myra-activity-spark-mobile {
+  from { transform: rotate(0deg) translateX(13px) scale(0.8); }
+  50% { transform: rotate(180deg) translateX(13px) scale(1.15); }
+  to { transform: rotate(360deg) translateX(13px) scale(0.8); }
 }
 
 .typing-cursor {
@@ -1742,10 +2002,330 @@ button {
 }
 
 .myra-settings-page {
-  width: min(100%, 780px);
+  width: min(100%, 1040px);
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.myra-settings-window {
+  height: clamp(560px, calc(100dvh - 170px), 760px);
+  min-height: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.myra-settings-window-sidebar {
+  min-width: 0;
+  padding: 18px 12px;
+  border-right: 1px solid var(--color-divider);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 38%),
+    var(--color-surface);
+}
+
+.myra-settings-nav-heading {
+  padding: 0 9px 10px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.myra-settings-window-content {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--color-border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.myra-settings-anchor {
+  flex: none;
+  scroll-margin-top: 18px;
+}
+
+.myra-budget-section {
+  position: relative;
+  padding: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 38%),
+    var(--color-elevated);
+}
+
+.myra-budget-heading {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.myra-budget-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.myra-budget-heading h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+}
+
+.myra-budget-heading p,
+.myra-budget-threshold-copy p,
+.myra-budget-empty p {
+  margin: 5px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.myra-budget-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.myra-budget-provider-card {
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-elevated) 90%, var(--color-surface));
+  box-shadow: var(--shadow-sm);
+}
+
+.myra-budget-provider-topline,
+.myra-budget-provider-topline > div,
+.myra-budget-footer,
+.myra-budget-feedback span {
+  display: flex;
+  align-items: center;
+}
+
+.myra-budget-provider-topline {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.myra-budget-provider-topline > div {
+  gap: 8px;
+}
+
+.myra-provider-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  background: #1f5139;
+}
+
+.myra-provider-mark.anthropic {
+  color: #36261b;
+  background: #d6a650;
+}
+
+.myra-budget-spend {
+  margin-top: 22px;
+}
+
+.myra-budget-spend > span {
+  display: block;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.myra-budget-spend small {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.myra-budget-progress {
+  height: 7px;
+  margin-top: 15px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+}
+
+.myra-budget-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transition: width 220ms ease;
+}
+
+.myra-budget-progress > span.attention {
+  background: var(--color-accent-2);
+}
+
+.myra-budget-progress > span.critical {
+  background: var(--color-danger);
+}
+
+.myra-budget-progress-caption {
+  margin-top: 5px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  text-align: right;
+}
+
+.myra-budget-input-label {
+  margin-top: 18px;
+  display: block;
+  color: var(--color-text-2);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.myra-budget-money-input {
+  position: relative;
+  margin-top: 6px;
+}
+
+.myra-budget-money-input > span {
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  color: var(--color-text-muted);
+  transform: translateY(-50%);
+}
+
+.myra-budget-money-input input {
+  width: 100%;
+  padding-left: 28px;
+}
+
+.myra-budget-threshold-panel {
+  margin-top: 14px;
+  padding: 17px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface) 65%, transparent);
+}
+
+.myra-budget-threshold-copy strong {
+  font-size: 13px;
+}
+
+.myra-budget-threshold-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.myra-budget-threshold {
+  padding: 10px;
+  border-left: 3px solid var(--color-info);
+  border-radius: 6px;
+  background: var(--color-elevated);
+}
+
+.myra-budget-threshold.attention {
+  border-color: var(--color-accent-2);
+}
+
+.myra-budget-threshold.critical {
+  border-color: var(--color-danger);
+}
+
+.myra-budget-threshold > span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.myra-budget-threshold > div {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.myra-budget-threshold input {
+  width: 66px;
+  min-height: 32px;
+  padding: 5px 7px;
+  font-weight: 600;
+}
+
+.myra-budget-footer {
+  min-height: 38px;
+  margin-top: 18px;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.myra-budget-feedback {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.myra-budget-feedback span {
+  gap: 5px;
+}
+
+.myra-budget-feedback .error,
+.myra-budget-message.error {
+  color: var(--color-danger);
+}
+
+.myra-budget-feedback .success {
+  color: var(--color-accent);
+}
+
+.myra-budget-empty,
+.myra-budget-loading,
+.myra-budget-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.myra-budget-loading {
+  color: var(--color-text-muted);
+}
+
+.myra-spin {
+  animation: myra-spin 800ms linear infinite;
+}
+
+@keyframes myra-spin {
+  to { transform: rotate(360deg); }
 }
 
 .myra-settings-section {
@@ -1774,31 +2354,43 @@ button {
   padding-block: 0;
 }
 
-.myra-money-input {
-  position: relative;
-  width: 110px;
-  display: block;
-}
-
-.myra-money-input span {
-  position: absolute;
-  top: 50%;
-  left: 10px;
-  z-index: 1;
-  color: var(--color-text-muted);
-  transform: translateY(-50%);
-}
-
-.myra-money-input input {
-  width: 100%;
-  padding-left: 22px;
-  text-align: right;
-}
-
 .myra-settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+}
+
+.myra-settings-nav-button {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: transparent;
+  color: var(--color-text-2);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.myra-settings-nav-button:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  color: var(--color-text);
+}
+
+.myra-settings-nav-button.active {
+  border-color: color-mix(in srgb, var(--color-accent) 24%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 13%, transparent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.myra-settings-nav-button svg {
+  flex: none;
 }
 
 .myra-settings-row {
@@ -2149,9 +2741,31 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .myra-settings-window {
+    height: clamp(540px, calc(100dvh - 165px), 720px);
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .myra-settings-window-sidebar {
+    padding: 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .myra-settings-nav-heading {
+    display: none;
+  }
+
   .myra-settings-nav {
     flex-direction: row;
     overflow-x: auto;
+  }
+
+  .myra-settings-nav-button {
+    width: auto;
+    min-width: max-content;
+    flex: none;
   }
 
   .myra-settings-nav .myra-sidebar-item {
@@ -2231,6 +2845,34 @@ button {
     justify-content: flex-end;
   }
 
+  .myra-settings-window {
+    height: calc(100dvh - 155px);
+    min-height: 500px;
+    border-radius: 10px;
+  }
+
+  .myra-settings-window-content {
+    padding: 12px;
+  }
+
+  .myra-budget-section {
+    padding: 18px;
+  }
+
+  .myra-budget-provider-grid,
+  .myra-budget-threshold-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .myra-budget-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .myra-budget-footer .myra-btn {
+    justify-content: center;
+  }
+
   .myra-composer {
     padding: 9px 10px 12px;
   }
@@ -2270,5 +2912,16 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .myra-activity-orbit,
+  .myra-activity-core,
+  .myra-activity-light,
+  .myra-stream-caret {
+    animation: none !important;
+  }
+
+  .myra-activity-spark {
+    display: none;
   }
 }

@@ -15,11 +15,6 @@ const MODEL_COLORS = {
   "gemini-embedding-001": "#D4A96A",
 };
 
-const EMBEDDING_MODEL_PROVIDER = {
-  "text-embedding-3-small": "OpenAI",
-  "text-embedding-3-large": "OpenAI",
-  "gemini-embedding-001": "Google",
-};
 const DEFAULT_COLOR = "#8C6A4A";
 
 export default class StatsController {
@@ -33,29 +28,21 @@ export default class StatsController {
     const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
 
     try {
-      const [tokensData, embeddingData, sessionData, emailsData, calData] = await Promise.all([
+      const [tokensData, sessionData, emailsData, calData] = await Promise.all([
         this.statsRepo.getCostAndTokensConsumed(days, userId),
-        this.statsRepo.getEmbeddingCostAndTokens(days),
         this.statsRepo.getConversationSessions(days, userId),
         this.statsRepo.getEmails(days, userId),
         this.statsRepo.getCalendarEvents(days, userId),
       ]);
 
       // tokens: one entry per model with total token count + color
-      const tokens = [
-        ...tokensData.map((row) => ({
-          name: row.model,
-          value:
-            parseInt(row.totalinputtokens || 0) +
-            parseInt(row.totaloutputtokens || 0),
-          color: MODEL_COLORS[row.model] || DEFAULT_COLOR,
-        })),
-        ...embeddingData.map((row) => ({
-          name: row.model,
-          value: parseInt(row.totaltokens || 0),
-          color: MODEL_COLORS[row.model] || DEFAULT_COLOR,
-        })),
-      ];
+      const tokens = tokensData.map((row) => ({
+        name: row.model,
+        value:
+          parseInt(row.totalinputtokens || 0) +
+          parseInt(row.totaloutputtokens || 0),
+        color: MODEL_COLORS[row.model] || DEFAULT_COLOR,
+      }));
 
       // cost: aggregate spend by provider (multiple models can share a provider)
       const costMap = {};
@@ -65,15 +52,10 @@ export default class StatsController {
           parseFloat(row.totaloutputcost || 0);
         costMap[row.provider] = (costMap[row.provider] || 0) + spend;
       }
-      for (const row of embeddingData) {
-        const provider =
-          EMBEDDING_MODEL_PROVIDER[row.model] || row.model;
-        const spend = parseFloat(row.totalcost || 0);
-        costMap[provider] = (costMap[provider] || 0) + spend;
-      }
       const cost = Object.entries(costMap).map(([provider, spend]) => ({
         provider,
         spend: parseFloat(spend.toFixed(2)),
+        currency: "INR",
       }));
 
       const sessions = sessionData.map((row) => parseInt(row.totalsessions || 0));
@@ -83,6 +65,7 @@ export default class StatsController {
       return res.status(200).json({
         success: true,
         data: {
+          currency: "INR",
           emails,
           tokens,
           reminders: [],

@@ -1,252 +1,89 @@
-// services/database/DocumentRepository.js
-import { pool } from '../config/dbConfig.js';
+import { getPool } from "../config/dbConfig.js";
 
 export class DocumentRepository {
-    /**
-     * Creates a new document record in the database.
-     * @param {Object} document - The document data to be inserted.
-     * @return {Promise<Object>} The newly created document record.
-     */
-    async create(document) {
-        const query = `
-            INSERT INTO documents
-            (user_id, document_id, source, type, content, title, timestamp, author, metadata)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING *;`;
+  async create(document) {
+    const query = `
+      INSERT INTO documents (
+        user_id,
+        document_id,
+        source,
+        type,
+        content,
+        title,
+        timestamp,
+        author,
+        metadata,
+        needs_embedding
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
+      RETURNING *`;
+    const values = [
+      document.user_id,
+      document.document_id,
+      document.source,
+      document.type,
+      document.content,
+      document.title,
+      document.timestamp,
+      document.author,
+      JSON.stringify(document.metadata),
+    ];
 
-        const values = [
-            document.user_id,
-            document.document_id,
-            document.source,
-            document.type,
-            document.content,
-            document.title,
-            document.timestamp,
-            document.author,
-            JSON.stringify(document.metadata) // Ensure JSONB is properly formatted
-        ];
-
-        try {
-            const { rows } = await pool.query(query, values);
-            if (rows.length === 0) {
-                throw new Error('Failed to create document');
-            }
-            return rows[0];
-        } catch (error) {
-            if (error.code === '23505') { // Unique violation
-                throw new Error(`Document with ID ${document.document_id} already exists`);
-            }
-            throw error;
-        }
+    try {
+      const { rows } = await getPool().query(query, values);
+      if (rows.length === 0) {
+        throw new Error("Failed to create document");
+      }
+      return rows[0];
+    } catch (error) {
+      if (error.code === "23505") {
+        throw new Error(`Document with ID ${document.document_id} already exists`);
+      }
+      throw error;
     }
+  }
 
-    /**
-     * Find document by document_id, scoped to a user
-     * @param {string} documentId
-     * @param {number} userId
-     * @returns {Promise<Object|null>}
-     */
-    async findByDocumentId(documentId, userId) {
-        const query = `
-            SELECT * FROM documents
-            WHERE document_id = $1 AND user_id = $2;`;
-        const values = [documentId, userId];
-        const { rows } = await pool.query(query, values);
-        return rows.length > 0 ? rows[0] : null;
+  async findByDocumentId(documentId, userId) {
+    const query = `
+      SELECT *
+      FROM documents
+      WHERE document_id = $1
+        AND user_id = $2`;
+    const { rows } = await getPool().query(query, [documentId, userId]);
+    return rows[0] ?? null;
+  }
+
+  async updateForReindex(documentId, userId, document) {
+    const query = `
+      UPDATE documents
+      SET source = $3,
+          type = $4,
+          content = $5,
+          title = $6,
+          timestamp = $7,
+          author = $8,
+          metadata = $9,
+          needs_embedding = TRUE,
+          updated_at = NOW()
+      WHERE document_id = $1
+        AND user_id = $2
+      RETURNING *`;
+    const values = [
+      documentId,
+      userId,
+      document.source,
+      document.type,
+      document.content,
+      document.title,
+      document.timestamp,
+      document.author,
+      JSON.stringify(document.metadata),
+    ];
+    const { rows } = await getPool().query(query, values);
+
+    if (rows.length === 0) {
+      throw new Error(`Document with ID ${documentId} not found`);
     }
-
-    /**
-     * Find all documents from a source
-     * @param {string} source
-     * @returns {Promise<Array>}
-     */
-    async findBySource(source) {
-        const query = `
-            SELECT * FROM documents
-            WHERE source = $1
-            ORDER BY timestamp DESC;`;
-        const values = [source];
-        const { rows } = await pool.query(query, values);
-        return rows;
-    }
-
-    /**
-     * Find documents that need embeddings, scoped to a user
-     * @param {number} userId
-     * @param {number} limit
-     * @returns {Promise<Array>}
-     */
-    async findPendingEmbeddings(userId, limit = 50) {
-        const query = `
-            SELECT * FROM documents
-            WHERE needs_embedding IS TRUE AND user_id = $1
-            ORDER BY created_at ASC
-            LIMIT $2;`;
-        const values = [userId, limit];
-        const { rows } = await pool.query(query, values);
-        return rows;
-    }
-
-    /**
-     * Update document with embedding vector, scoped to a user
-     * @param {string} documentId
-     * @param {number} userId
-     * @returns {Promise<Object>}
-     */
-    async updateEmbedding(documentId, userId) {
-        const query = `
-            UPDATE documents
-            SET needs_embedding = FALSE
-            WHERE document_id = $1 AND user_id = $2
-            RETURNING *;`;
-
-        const values = [documentId, userId];
-
-        const { rows } = await pool.query(query, values);
-        if (rows.length === 0) {
-            throw new Error(`Document with ID ${documentId} not found`);
-        }
-        return rows[0];
-    }
-
-    /**
-     * Vector similarity search
-     * @param {number[]} queryVector
-     * @param {Object} options
-     * @returns {Promise<Array>}
-     */
-    async search(queryVector, options = {}) {
-        const {
-            limit = 10,
-            source = null,
-            startDate = null,
-            endDate = null,
-        } = options;
-
-        const values = [];
-        let idx = 1;
-
-        // Convert query vector to pgvector format
-        const vectorString = `[${queryVector.join(',')}]`;
-        values.push(vectorString);
-        idx++;
-
-        let whereClause = `embedding IS NOT NULL`;
-
-        if (source) {
-            whereClause += ` AND source = $${idx}`;
-            values.push(source);
-            idx++;
-        }
-
-        if (startDate) {
-            whereClause += ` AND timestamp >= $${idx}`;
-            values.push(startDate);
-            idx++;
-        }
-
-        if (endDate) {
-            whereClause += ` AND timestamp <= $${idx}`;
-            values.push(endDate);
-            idx++;
-        }
-
-        const query = `
-            SELECT
-                *,
-                embedding <=> $1::vector AS similarity
-            FROM documents
-            WHERE ${whereClause}
-            ORDER BY similarity ASC
-            LIMIT $${idx};
-        `;
-
-        values.push(limit);
-
-        const { rows } = await pool.query(query, values);
-
-        // Return empty array instead of throwing error
-        return rows;
-    }
-
-    /**
-     * Count documents by source
-     * @returns {Promise<Object>}
-     */
-    async countBySource() {
-        const query = `
-            SELECT source, COUNT(*) as count
-            FROM documents
-            GROUP BY source;`;
-        const { rows } = await pool.query(query);
-        const result = {};
-        rows.forEach(row => {
-            result[row.source] = parseInt(row.count, 10);
-        });
-        return result;
-    }
-
-    /**
-     * Check if document exists
-     * @param {string} documentId
-     * @returns {Promise<boolean>}
-     */
-    async exists(documentId) {
-        const query = `
-            SELECT 1 FROM documents
-            WHERE document_id = $1;`;
-        const values = [documentId];
-        const { rows } = await pool.query(query, values);
-        return rows.length > 0;
-    }
-
-    /**
-     * Delete a document by document_id
-     * @param {string} documentId
-     * @returns {Promise<boolean>}
-     */
-    async delete(documentId) {
-        const query = `
-            DELETE FROM documents
-            WHERE document_id = $1
-            RETURNING *;`;
-        const values = [documentId];
-        const { rows } = await pool.query(query, values);
-        return rows.length > 0;
-    }
-
-    /**
-     * Get total count of all documents
-     * @returns {Promise<number>}
-     */
-    async getTotalCount() {
-        const query = `SELECT COUNT(*) as count FROM documents;`;
-        const { rows } = await pool.query(query);
-        return parseInt(rows[0].count, 10);
-    }
-
-    /**
-     * Find documents within date range
-     * @param {Date} startDate
-     * @param {Date} endDate
-     * @param {string} source - Optional source filter
-     * @returns {Promise<Array>}
-     */
-    async findByDateRange(startDate, endDate, source = null) {
-        let query = `
-            SELECT * FROM documents
-            WHERE timestamp >= $1 AND timestamp <= $2`;
-
-        const values = [startDate, endDate];
-
-        if (source) {
-            query += ` AND source = $3`;
-            values.push(source);
-        }
-
-        query += ` ORDER BY timestamp DESC;`;
-
-        const { rows } = await pool.query(query, values);
-        return rows;
-    }
+    return rows[0];
+  }
 }

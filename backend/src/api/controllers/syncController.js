@@ -110,25 +110,18 @@ export default class SyncController {
       );
 
       logger.info(
-        `${source} ingestion completed for user ${userId}: ${ingestionResponse.inserted} inserted, ${ingestionResponse.skipped} skipped, ${ingestionResponse.failed} failed`
+        `${source} ingestion completed for user ${userId}: ${ingestionResponse.inserted} inserted, ${ingestionResponse.updated} updated, ${ingestionResponse.skipped} skipped, ${ingestionResponse.failed} failed`
       );
 
       if (ingestionResponse.failed > 0) {
         await this.syncLogRepo.complete(syncLogId, {
           status: "failed",
           documentsFetched: ingestionResponse.fetched,
-          documentsStored: ingestionResponse.inserted,
+          documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
           lastSyncTimestamp: new Date(),
         });
         return;
       }
-
-      await this.syncLogRepo.complete(syncLogId, {
-        status: "success",
-        documentsFetched: ingestionResponse.fetched,
-        documentsStored: ingestionResponse.inserted,
-        lastSyncTimestamp: new Date(),
-      });
 
       socketServer.emitSyncProgress(`${source}`, {
         syncId: syncLogId,
@@ -137,14 +130,49 @@ export default class SyncController {
         message: "Documents stored. Starting embedding generation...",
         progress: 60,
         documentsAdded: ingestionResponse.inserted,
+        documentsUpdated: ingestionResponse.updated,
         documentsSkipped: ingestionResponse.skipped,
       });
 
-      const embeddingResponse = await this.embeddingPipeline.runEmbedding(userId);
+      const embeddingResponse = await this.embeddingPipeline.runEmbedding(userId, {
+        sourceType: ingestionSource,
+        conversationId: `manual_sync:${source}:${syncLogId}`,
+      });
 
       logger.info(`${source} embedding generation completed`, {
         syncId: syncLogId,
         embeddingsProcessed: embeddingResponse.processed,
+        embeddingsPending: embeddingResponse.pending,
+        postgresIndexed: embeddingResponse.postgresIndexed,
+        vectorIndexed: embeddingResponse.vectorIndexed,
+        vectorProvider: embeddingResponse.vectorProvider,
+      });
+
+      if (embeddingResponse.failed > 0 || embeddingResponse.pending > 0) {
+        const errorMessage = embeddingResponse.pending > 0
+          ? `${embeddingResponse.pending} document(s) remain pending for retrieval indexing`
+          : `${embeddingResponse.failed} document(s) failed during retrieval indexing`;
+        await this.syncLogRepo.complete(syncLogId, {
+          status: "failed",
+          documentsFetched: ingestionResponse.fetched,
+          documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
+          lastSyncTimestamp: new Date(),
+          error: errorMessage,
+        });
+
+        socketServer.emitSyncError(`${source}`, {
+          syncId: syncLogId,
+          message: errorMessage,
+          code: "RETRIEVAL_INDEXING_FAILED",
+        });
+        return;
+      }
+
+      await this.syncLogRepo.complete(syncLogId, {
+        status: "success",
+        documentsFetched: ingestionResponse.fetched,
+        documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
+        lastSyncTimestamp: new Date(),
       });
 
       socketServer.emitSyncComplete(`${source}`, {
@@ -154,10 +182,15 @@ export default class SyncController {
         summary: {
           totalFetched: ingestionResponse.fetched,
           documentsAdded: ingestionResponse.inserted,
+          documentsUpdated: ingestionResponse.updated,
           documentsSkipped: ingestionResponse.skipped,
           documentsFailed: ingestionResponse.failed,
           embeddingsGenerated: embeddingResponse.processed,
           embeddingsFailed: embeddingResponse.failed,
+          embeddingsPending: embeddingResponse.pending,
+          postgresIndexed: embeddingResponse.postgresIndexed,
+          vectorIndexed: embeddingResponse.vectorIndexed,
+          vectorProvider: embeddingResponse.vectorProvider,
         },
       });
     } catch (syncError) {

@@ -25,7 +25,7 @@ import {
 
 export const DEFAULT_RETRIEVAL_PLANNER_OPTIONS: RetrievalPlannerOptions = {
   defaultSource: "all",
-  defaultStrategy: "vector",
+  defaultStrategy: "hybrid",
   defaultSort: "relevance",
   vectorTopK: 20,
   keywordTopK: 20,
@@ -39,7 +39,14 @@ export interface ResolvedRetrievalPlanInput extends RetrievalPlanInput {
 const DEFAULT_TIMEZONE = process.env.DEFAULT_USER_TIMEZONE || "UTC";
 
 const GMAIL_SOURCE_PATTERN = /\b(gmail|email|emails|mail|mails|message|messages|inbox)\b/i;
-const CALENDAR_SOURCE_PATTERN = /\b(calendar|event|events|meeting|meetings|schedule|appointment|appointments)\b/i;
+const CALENDAR_SOURCE_PATTERN = /\b(calendar|event|events|meeting|meetings|schedule|appointment|appointments|organizer|organiser|organized|organised)\b/i;
+
+const GMAIL_SOURCE_TERMS_PATTERN =
+  /\b(gmail|email|emails|mail|mails|message|messages|inbox)\b/gi;
+const CALENDAR_SOURCE_TERMS_PATTERN =
+  /\b(calendar|event|events|meeting|meetings|schedule|appointment|appointments)\b/gi;
+const CROSS_SOURCE_PATTERN =
+  /\b(?:gmail|email|emails|mail|mails|inbox)\b[\s\S]*\b(?:and|or)\b[\s\S]*\b(?:calendar|events?|meetings?|appointments?)\b|\b(?:calendar|events?|meetings?|appointments?)\b[\s\S]*\b(?:and|or)\b[\s\S]*\b(?:gmail|email|emails|mail|mails|inbox)\b/i;
 
 const LATEST_PATTERN =
   /\b(latest|newest|recent|most\s+recent)\b|\blast\s+(email|mail|message|gmail|event|meeting|appointment)\b/i;
@@ -56,6 +63,9 @@ const FROM_PERSON_PATTERN =
 
 const WITH_PERSON_PATTERN =
   /\bwith\s+(.+?)(?=\s+(?:today|yesterday|tomorrow|this\s+week|last\s+week|last\s+\d+\s+days?|past\s+\d+\s+days?|latest|newest|recent|most\s+recent|oldest|earliest|first|about|regarding|related\s+to|on|before|after)\b|$)/i;
+
+const ORGANIZER_PERSON_PATTERN =
+  /\b(?:organized|organised)\s+by\s+(.+?)(?=\s+(?:today|yesterday|tomorrow|this\s+week|last\s+week|last\s+\d+\s+days?|past\s+\d+\s+days?|latest|newest|recent|most\s+recent|oldest|earliest|first|about|regarding|related\s+to|on|before|after)\b|$)/i;
 
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 
@@ -80,6 +90,16 @@ function mergeOptions(
       Object.assign(merged, { [key]: value });
     }
   }
+
+  merged.vectorTopK = Number.isInteger(merged.vectorTopK) && merged.vectorTopK > 0
+    ? merged.vectorTopK
+    : DEFAULT_RETRIEVAL_PLANNER_OPTIONS.vectorTopK;
+  merged.keywordTopK = Number.isInteger(merged.keywordTopK) && merged.keywordTopK > 0
+    ? merged.keywordTopK
+    : DEFAULT_RETRIEVAL_PLANNER_OPTIONS.keywordTopK;
+  merged.finalTopK = Number.isInteger(merged.finalTopK) && merged.finalTopK > 0
+    ? merged.finalTopK
+    : DEFAULT_RETRIEVAL_PLANNER_OPTIONS.finalTopK;
 
   return merged;
 }
@@ -247,7 +267,13 @@ function detectSource(
 
   if (mentionsGmail && !mentionsCalendar) return "gmail";
   if (mentionsCalendar && !mentionsGmail) return "calendar";
-  if (mentionsGmail && mentionsCalendar) return "all";
+  if (mentionsGmail && mentionsCalendar) {
+    if (CROSS_SOURCE_PATTERN.test(query)) return "all";
+
+    const gmailIndex = query.search(GMAIL_SOURCE_PATTERN);
+    const calendarIndex = query.search(CALENDAR_SOURCE_PATTERN);
+    return gmailIndex <= calendarIndex ? "gmail" : "calendar";
+  }
   return defaultSource;
 }
 
@@ -370,6 +396,7 @@ function extractPersonFilters(
   const people: PersonFilter[] = [];
   const fromMatch = query.match(FROM_PERSON_PATTERN);
   const withMatch = query.match(WITH_PERSON_PATTERN);
+  const organizerMatch = query.match(ORGANIZER_PERSON_PATTERN);
   const emailMatch = query.match(EMAIL_PATTERN);
 
   if (fromMatch?.[1]) {
@@ -383,6 +410,13 @@ function extractPersonFilters(
     pushUniquePersonFilter(
       people,
       createPersonFilter("participant", withMatch[1], 0.65),
+    );
+  }
+
+  if (organizerMatch?.[1]) {
+    pushUniquePersonFilter(
+      people,
+      createPersonFilter("organizer", organizerMatch[1], 0.9),
     );
   }
 
@@ -404,15 +438,37 @@ function removeWithPersonPhrase(query: string): string {
   return query.replace(WITH_PERSON_PATTERN, " ");
 }
 
-function buildSemanticQuery(query: string): string {
-  const cleaned = normalizeWhitespace(
-    removeWithPersonPhrase(removeFromPersonPhrase(query))
-      .replace(DATE_PHRASE_PATTERN, " ")
-      .replace(SORT_PHRASE_PATTERN, " ")
-      .replace(/\b(show|get|find|search|tell\s+me|what\s+is|what\s+are)\b/gi, " "),
+function removeOrganizerPersonPhrase(query: string): string {
+  return query.replace(ORGANIZER_PERSON_PATTERN, " ");
+}
+
+function buildContentQuery(
+  query: string,
+  source: RetrievalSourceScope,
+): string | null {
+  let cleanedQuery = removeOrganizerPersonPhrase(
+    removeWithPersonPhrase(removeFromPersonPhrase(query)),
   );
 
-  return cleaned.length > 0 ? cleaned : query.trim();
+  if (source === "gmail") {
+    cleanedQuery = cleanedQuery.replace(GMAIL_SOURCE_TERMS_PATTERN, " ");
+  } else if (source === "calendar") {
+    cleanedQuery = cleanedQuery.replace(CALENDAR_SOURCE_TERMS_PATTERN, " ");
+  } else {
+    cleanedQuery = cleanedQuery
+      .replace(GMAIL_SOURCE_TERMS_PATTERN, " ")
+      .replace(CALENDAR_SOURCE_TERMS_PATTERN, " ");
+  }
+
+  const cleaned = normalizeWhitespace(
+    cleanedQuery
+      .replace(DATE_PHRASE_PATTERN, " ")
+      .replace(SORT_PHRASE_PATTERN, " ")
+      .replace(/\b(show|get|find|search|tell\s+me|what\s+is|what\s+are)\b/gi, " ")
+      .replace(/\b(about|regarding|related\s+to)\b/gi, " "),
+  );
+
+  return cleaned.length > 0 ? cleaned : null;
 }
 
 function buildTemporalIntent(
@@ -544,6 +600,7 @@ export function buildRetrievalPlan({
   const sort = detectSort(normalizedQuery, plannerOptions.defaultSort);
   const dateDetection = detectDateRange(normalizedQuery, now, timezone);
   const people = extractPersonFilters(normalizedQuery, source);
+  const contentQuery = buildContentQuery(normalizedQuery, source);
   const strategy = inferStrategy(
     plannerOptions.defaultStrategy,
     people,
@@ -553,7 +610,8 @@ export function buildRetrievalPlan({
 
   const plan: RetrievalPlan = {
     rawQuery: normalizedQuery,
-    semanticQuery: buildSemanticQuery(normalizedQuery),
+    semanticQuery: contentQuery ?? normalizedQuery,
+    contentQuery,
     strategy,
     sort,
     temporalIntent: buildTemporalIntent(dateDetection?.dateRange ?? null, sort),
@@ -592,9 +650,20 @@ export async function buildResolvedRetrievalPlan({
     userId: input.userId,
     source: result.plan.filters.source,
   });
+  const hasUnsupportedUnresolvedPerson = resolvedPeople.some((person) =>
+    person.status !== "resolved" &&
+    person.role !== "sender" &&
+    person.role !== "organizer"
+  );
 
   const plan: RetrievalPlan = {
     ...result.plan,
+    semanticQuery: hasUnsupportedUnresolvedPerson
+      ? result.plan.rawQuery
+      : result.plan.semanticQuery,
+    contentQuery: hasUnsupportedUnresolvedPerson
+      ? result.plan.rawQuery
+      : result.plan.contentQuery,
     filters: {
       ...result.plan.filters,
       people: resolvedPeople,

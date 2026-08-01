@@ -3,13 +3,11 @@ import { CredentialRepository } from "./credentialRepository.js";
 import { SyncLogRepository } from "./syncLogsRepository.js";
 import { UserRepository } from "./userRepository.js";
 import { StatsRepository } from "./statsRepository.js";
-import ChunkRepository from "./chunkRepository.js";
 
 export const documentRepository = new DocumentRepository();
 export const credentialRepository = new CredentialRepository();
 export const syncLogRepository = new SyncLogRepository();
 export const userRepository = new UserRepository();
-export const chunkRepository = new ChunkRepository();
 
 export {
   DocumentRepository,
@@ -17,5 +15,4 @@ export {
   SyncLogRepository,
   UserRepository,
   StatsRepository,
-  ChunkRepository,
 };

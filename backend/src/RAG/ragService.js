@@ -1,12 +1,17 @@
 import QueryPipeline from "./query/queryPipeline.js";
 import { logger } from "../utils/logger.js";
-import ConversationRepository from "../database/conversationsRepo.js";
 import { v4 as uuidv4 } from "uuid";
+
+const toSourcedDocument = (doc) => ({
+    content: doc.content,
+    source: doc.document.id,
+    type: doc.source_type,
+    metadata: doc.document.metadata,
+});
 
 export default class RagChain {
     constructor() {
         this.querypipe = new QueryPipeline();
-        this.conversationRepo = new ConversationRepository();
     }
 
     async chat({
@@ -15,7 +20,8 @@ export default class RagChain {
         userId,
         llmProvider = 'OpenAI',
         model = null,
-        RetrieveOptions = {}
+        RetrieveOptions = {},
+        stream = null,
     }) {
         try {
             if (!userId) throw new Error("user id is missing");
@@ -25,7 +31,7 @@ export default class RagChain {
                 logger.info("Created new conversation", { conversationId });
             }
 
-            logger.info("Chat resuest", {
+            logger.info("Chat request", {
                 conversationId,
                 messageLength: userMessage.length,
             })
@@ -36,7 +42,15 @@ export default class RagChain {
                 userId,
                 llmProvider,
                 model,
-                options: RetrieveOptions
+                options: RetrieveOptions,
+                stream: stream
+                    ? {
+                        ...stream,
+                        onContext: async (documents) => {
+                            await stream.onContext?.(documents.map(toSourcedDocument));
+                        },
+                    }
+                    : undefined,
             }
             const response = await this.querypipe.run(ragParams);
 
@@ -46,18 +60,18 @@ export default class RagChain {
                 response: response.answer,
                 provider: response.provider,
                 model: response.model,
-                sourcedDocuments: response.sources.map((doc) => ({
-                    content: doc.content,
-                    source: doc.document.id,
-                    type: doc.source_type,
-                    metadata: doc.document.metadata,
-                }))
+                duration: response.duration,
+                retrieval: response.retrieval,
+                clarificationRequired: response.clarificationRequired,
+                stopped: response.stopped,
+                sourcedDocuments: response.sources.map(toSourcedDocument),
             }
         } catch (error) {
             logger.error("Error in chat", { error: error.message });
             return {
                 success: false,
                 error: error.message,
+                partialResponse: error.partialAnswer || null,
                 conversationId,
             };
         }

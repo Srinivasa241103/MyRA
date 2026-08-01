@@ -22,6 +22,43 @@ const SYNC_LOG_SOURCE_BY_INGESTION_SOURCE = {
     calendar: 'google_calendar'
 };
 
+function canonicalValue(value) {
+    if (value instanceof Date) return value.toISOString();
+    if (Array.isArray(value)) return value.map(canonicalValue);
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.keys(value)
+                .sort()
+                .map((key) => [key, canonicalValue(value[key])])
+        );
+    }
+    return value === undefined ? undefined : value;
+}
+
+function documentsMatch(existing, normalized) {
+    const existingDocument = {
+        source: existing.source,
+        type: existing.type,
+        content: existing.content,
+        title: existing.title,
+        timestamp: existing.timestamp,
+        author: existing.author,
+        metadata: existing.metadata,
+    };
+    const normalizedDocument = {
+        source: normalized.source,
+        type: normalized.type,
+        content: normalized.content,
+        title: normalized.title,
+        timestamp: normalized.timestamp,
+        author: normalized.author,
+        metadata: normalized.metadata,
+    };
+
+    return JSON.stringify(canonicalValue(existingDocument)) ===
+        JSON.stringify(canonicalValue(normalizedDocument));
+}
+
 export default class IngestionPipeline {
     constructor() {
         this.syncRepo = new SyncLogRepository();
@@ -57,6 +94,7 @@ export default class IngestionPipeline {
 
         logger.info(`Fetched ${data.length} messages from ${sourceName}`);
         response.inserted = 0;
+        response.updated = 0;
         response.skipped = 0;
         response.failed = 0;
 
@@ -72,7 +110,16 @@ export default class IngestionPipeline {
 
                 const isExisting = await this.documentRepo.findByDocumentId(doc.documentId, userId);
                 if (isExisting) {
-                    response.skipped++;
+                    if (documentsMatch(isExisting, doc)) {
+                        response.skipped++;
+                    } else {
+                        await this.documentRepo.updateForReindex(
+                            doc.documentId,
+                            userId,
+                            doc
+                        );
+                        response.updated++;
+                    }
                     continue;
                 }
 

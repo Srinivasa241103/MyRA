@@ -1,37 +1,28 @@
 import cron from "node-cron";
-import { checkAndAlert } from "../alertServices/CredAlertService.js";
-import { StatsRepository } from "../../database/statsRepository.js";
+import { sendBudgetAlert } from "../alertServices/CredAlertService.js";
+import { apiBudgetRepository } from "../../database/apiBudgetRepository.js";
+import { getAlertLevels } from "../../utils/emailTemplates.js";
 import { logger } from "../../utils/logger.js";
-
-const statsRepo = new StatsRepository();
-
-// Budget env vars (in USD). Set these in .env to override defaults.
-const BUDGETS = {
-  anthropic: Number(process.env.ANTHROPIC_MONTHLY_BUDGET) || 10,
-  google: Number(process.env.GOOGLE_MONTHLY_BUDGET) || 5,
-};
-
-// Maps provider values stored in the DB to display names and budget keys
-const PROVIDER_MAP = {
-  anthropic: { name: "Anthropic Claude", budgetKey: "anthropic" },
-  google: { name: "Google Gemini", budgetKey: "google" },
-};
 
 export default class CredsAlertCronJob {
   constructor() {
     this.isRunning = false;
     this.task = null;
-    this.schedule = process.env.CREDS_ALERT_CRON_SCHEDULE || "0 9 * * *";
+    this.schedule =
+      process.env.API_BUDGET_ALERT_CRON_SCHEDULE ||
+      process.env.CREDS_ALERT_CRON_SCHEDULE ||
+      "0 9 * * *";
+    this.timezone = process.env.CRON_TIMEZONE || "Asia/Kolkata";
   }
 
   start() {
     if (this.task) {
-      logger.warn("Creds alert cron job already running");
+      logger.warn("API budget alert cron job already running");
       return;
     }
 
     if (!cron.validate(this.schedule)) {
-      logger.error("Invalid creds alert cron schedule", {
+      logger.error("Invalid API budget alert cron schedule", {
         schedule: this.schedule,
       });
       throw new Error(`Invalid cron schedule: ${this.schedule}`);
@@ -42,80 +33,79 @@ export default class CredsAlertCronJob {
       async () => {
         await this.executeJob();
       },
-      { timezone: "Asia/Kolkata" }
+      { timezone: this.timezone },
     );
 
-    logger.info("Creds alert cron job scheduled", {
+    logger.info("API budget alert cron job scheduled", {
       schedule: this.schedule,
-      timezone: "Asia/Kolkata",
-      nextRun: "09:00 AM IST daily",
+      timezone: this.timezone,
     });
   }
 
   async executeJob() {
     if (this.isRunning) {
-      logger.warn("Creds alert job already running, skipping");
+      logger.warn("API budget alert job already running, skipping");
       return;
     }
 
     this.isRunning = true;
     const startTime = Date.now();
+    let sent = 0;
+    let failed = 0;
 
     try {
-      logger.info("Creds alert cron job executing");
+      const candidates =
+        await apiBudgetRepository.getCurrentMonthAlertCandidates();
 
-      const rows = await statsRepo.getLLMCredsUsage();
+      for (const candidate of candidates) {
+        const used = Number(candidate.usage_inr) || 0;
+        const budget = Number(candidate.monthly_budget_inr);
+        const percent = (used / budget) * 100;
+        const crossedLevels = getAlertLevels(percent, candidate.thresholds);
+        const level = crossedLevels.at(-1);
 
-      if (!rows.length) {
-        logger.info("Creds alert: no LLM usage recorded this month, skipping");
-        return;
-      }
+        if (!level) continue;
 
-      for (const row of rows) {
-        const providerKey = row.provider?.toLowerCase();
-        const meta = PROVIDER_MAP[providerKey];
-
-        if (!meta) {
-          logger.warn("Creds alert: unknown provider in usage data", {
-            provider: row.provider,
-          });
-          continue;
-        }
-
-        const used = Number(row.totalcost) || 0;
-        const budget = BUDGETS[meta.budgetKey];
-
-        logger.info("Creds alert: checking usage", {
-          service: meta.name,
-          used,
-          budget,
+        const claim = await apiBudgetRepository.claimAlert({
+          apiBudgetId: candidate.api_budget_id,
+          userId: candidate.user_id,
+          providerKey: candidate.provider_key,
+          periodStart: candidate.alert_period_start,
+          thresholdKey: level.key,
+          thresholdPercent: level.threshold,
+          usageInr: used,
+          budgetInr: budget,
         });
 
-        const alertResult = await checkAndAlert({
-          service: meta.name,
+        if (!claim) continue;
+
+        const result = await sendBudgetAlert({
+          service: candidate.provider_name,
           used,
           budget,
-          unit: "$",
+          recipient: candidate.email,
+          level,
+          periodStart: candidate.usage_period_start,
+          periodEnd: candidate.usage_period_end,
         });
 
-        if (alertResult.sent) {
-          logger.info("Creds alert: alert email sent", {
-            service: meta.name,
-            level: alertResult.level,
-          });
+        if (result.sent) {
+          await apiBudgetRepository.markAlertSent(claim.id, result.messageId);
+          sent += 1;
         } else {
-          logger.info("Creds alert: no email sent", {
-            service: meta.name,
-            reason: alertResult.reason,
-          });
+          await apiBudgetRepository.markAlertFailed(claim.id, result.reason);
+          failed += 1;
         }
       }
 
-      logger.info("Creds alert cron job completed", {
+      logger.info("API budget alert cron job completed", {
+        candidates: candidates.length,
+        sent,
+        failed,
         duration: Date.now() - startTime,
       });
     } catch (error) {
-      logger.error("Creds alert cron job failed", error);
+      logger.error("API budget alert cron job failed", error);
     } finally {
       this.isRunning = false;
     }
@@ -125,7 +115,7 @@ export default class CredsAlertCronJob {
     if (this.task) {
       this.task.stop();
       this.task = null;
-      logger.info("Creds alert cron job stopped");
+      logger.info("API budget alert cron job stopped");
     }
   }
 
@@ -133,13 +123,13 @@ export default class CredsAlertCronJob {
     return {
       running: this.task !== null,
       schedule: this.schedule,
-      timezone: "Asia/Kolkata",
+      timezone: this.timezone,
       currentlyExecuting: this.isRunning,
     };
   }
 
   async triggerManually() {
-    logger.info("Manually triggering creds alert job");
+    logger.info("Manually triggering API budget alert job");
     await this.executeJob();
   }
 }

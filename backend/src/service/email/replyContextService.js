@@ -34,7 +34,9 @@ const findOriginalEmail = async (replyReference, userId) => {
         bodyPreview: chunk.content?.slice(0, 300),
         timestamp: gmailMeta.date || chunk.occurred_at,
         references: gmailMeta.references || null,
-        score: 1 - chunk.distance,
+        score: Number.isFinite(chunk.retrieval?.rerank_score)
+          ? chunk.retrieval.rerank_score
+          : 1 - chunk.distance,
       };
     });
 
