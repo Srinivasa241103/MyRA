@@ -1,22 +1,6 @@
 import { create } from "zustand";
 import { chatApi } from "../api/chat";
 
-// Normalise the email agent's agentResponse into something the UI can safely
-// render. The response is either a plain string (clarify question) or a
-// structured object (draft_approval, success, cancelled, error).
-const normalizeEmailResponse = (response) => {
-  if (response === null || response === undefined) {
-    return { text: null, emailResponse: null };
-  }
-  if (typeof response === "string") {
-    return { text: response, emailResponse: null };
-  }
-  if (["draft_approval", "recipient_choice", "pending_send"].includes(response.type)) {
-    return { text: null, emailResponse: response };
-  }
-  return { text: response.message ?? response.prompt ?? "Done.", emailResponse: null };
-};
-
 const normalizeStoredMetadata = (value) => {
   let metadata = value;
   for (let attempt = 0; attempt < 2 && typeof metadata === "string"; attempt += 1) {
@@ -35,26 +19,6 @@ const createLocalId = () =>
 let activeStreamController = null;
 
 const normalizeAssistantMessage = (result) => {
-  if (result.mode === "email_agent") {
-    let normText;
-    let emailResponse;
-    if (result.emailResponse) {
-      normText = null;
-      emailResponse = result.emailResponse;
-    } else {
-      ({ text: normText, emailResponse } = normalizeEmailResponse(result.response));
-    }
-    return {
-      role: "ai",
-      text: normText,
-      emailResponse,
-      emailStatus: result.emailStatus ?? null,
-      mode: result.mode,
-      context: result.context,
-      metadata: result.metadata,
-    };
-  }
-
   const response = result.response;
   const text = typeof response === "object" && response !== null
     ? response.message ?? response.text ?? JSON.stringify(response)
@@ -63,7 +27,7 @@ const normalizeAssistantMessage = (result) => {
   return {
     role: "ai",
     text,
-    mode: result.mode ?? response?.type ?? null,
+    mode: result.mode ?? null,
     context: result.context,
     metadata: result.metadata,
   };
@@ -73,9 +37,6 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   isTyping: false,
   conversationId: null,
-  pendingConfirmation: false,
-  agentActive: false,
-  activeAgentMode: null,
   error: null,
   pendingMessage: null,
   pendingModelSelection: null,
@@ -86,8 +47,8 @@ export const useChatStore = create((set, get) => ({
   conversationsLoading: false,
   conversationsError: null,
 
-  sendMessage: async (text, confirmationStatus = null, modelSelection = null) => {
-    const { conversationId, agentActive, activeAgentMode, isTyping } = get();
+  sendMessage: async (text, modelSelection = null) => {
+    const { conversationId, isTyping } = get();
     if (isTyping) return;
 
     const assistantId = createLocalId();
@@ -105,7 +66,7 @@ export const useChatStore = create((set, get) => ({
           isStreaming: true,
           activity: {
             stage: "routing",
-            flow: "general",
+            flow: "rag",
             detail: null,
             history: [],
           },
@@ -131,9 +92,6 @@ export const useChatStore = create((set, get) => ({
       const result = await chatApi.sendMessageStream(
         text,
         conversationId,
-        confirmationStatus,
-        agentActive,
-        activeAgentMode,
         modelSelection,
         {
           signal: controller.signal,
@@ -150,11 +108,7 @@ export const useChatStore = create((set, get) => ({
               updateAssistant((message) => {
                 const previous = message.activity?.stage;
                 const history = [...(message.activity?.history ?? [])];
-                if (
-                  previous &&
-                  previous !== status.stage &&
-                  !history.includes(previous)
-                ) {
+                if (previous && previous !== status.stage && !history.includes(previous)) {
                   history.push(previous);
                 }
                 return {
@@ -197,8 +151,7 @@ export const useChatStore = create((set, get) => ({
                 id: assistantId,
                 isStreaming: false,
                 activity: null,
-                streamStatus:
-                  event.data?.metadata?.streamStatus ?? "complete",
+                streamStatus: event.data?.metadata?.streamStatus ?? "complete",
               }));
               set({ canStopStreaming: false });
               return;
@@ -227,9 +180,6 @@ export const useChatStore = create((set, get) => ({
           ),
           isTyping: false,
           conversationId: result.conversationId,
-          pendingConfirmation: result.pendingConfirmation ?? false,
-          agentActive: result.agentActive ?? false,
-          activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
           activeStreamId: null,
           canStopStreaming: false,
         }));
@@ -272,12 +222,7 @@ export const useChatStore = create((set, get) => ({
           .filter(Boolean),
         isTyping: false,
         error: stopped ? null : error.message,
-        pendingConfirmation: false,
         conversationId: error.data?.conversationId ?? state.conversationId,
-        agentActive: error.data?.agentActive ?? state.agentActive,
-        activeAgentMode: error.data?.agentActive
-          ? (error.data?.mode ?? state.activeAgentMode)
-          : null,
         activeStreamId: null,
         canStopStreaming: false,
       }));
@@ -336,9 +281,6 @@ export const useChatStore = create((set, get) => ({
           ],
           isTyping: false,
           conversationId: result.conversationId ?? state.conversationId,
-          pendingConfirmation: result.pendingConfirmation ?? false,
-          agentActive: result.agentActive ?? false,
-          activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
         }));
 
         get().loadConversations();
@@ -351,9 +293,6 @@ export const useChatStore = create((set, get) => ({
           ),
           isTyping: false,
           error: result.error,
-          pendingConfirmation: false,
-          agentActive: result.agentActive ?? false,
-          activeAgentMode: result.agentActive ? (result.mode ?? null) : null,
         }));
       }
     } catch (error) {
@@ -365,64 +304,9 @@ export const useChatStore = create((set, get) => ({
         ),
         isTyping: false,
         error: error.message,
-        pendingConfirmation: false,
         conversationId: error.data?.conversationId ?? state.conversationId,
-        agentActive: error.data?.agentActive ?? state.agentActive,
-        activeAgentMode: error.data?.agentActive
-          ? (error.data?.mode ?? state.activeAgentMode)
-          : null,
       }));
     }
-  },
-
-  syncEmailStatus: async () => {
-    const { conversationId } = get();
-    if (!conversationId) return null;
-
-    const status = await chatApi.getEmailStatus(conversationId);
-
-    set((state) => {
-      const messages = state.messages.map((message) => {
-        if (message.emailResponse?.type !== "pending_send") return message;
-        return {
-          ...message,
-          emailStatus: status.emailStatus,
-          emailResponse: {
-            ...message.emailResponse,
-            status: status.emailStatus,
-            deadline: status.revokeDeadline ?? message.emailResponse.deadline,
-          },
-        };
-      });
-
-      const terminal = ["sent", "revoked", "cancelled", "failed"].includes(status.emailStatus);
-      const hasNotice = messages.some(message =>
-        message.emailStatusNotice === status.emailStatus
-      );
-
-      if (terminal && status.response && !hasNotice) {
-        messages.push({
-          role: "ai",
-          text: status.response,
-          mode: "email_agent",
-          emailStatus: status.emailStatus,
-          emailStatusNotice: status.emailStatus,
-        });
-      }
-
-      return {
-        messages,
-        agentActive: status.active,
-        activeAgentMode: status.active ? "email_agent" : null,
-      };
-    });
-
-    return status;
-  },
-
-  confirmAction: async (status) => {
-    const label = status === "confirmed" ? "Yes, create it" : "Cancel";
-    get().sendMessage(label, status);
   },
 
   loadConversations: async () => {
@@ -450,85 +334,25 @@ export const useChatStore = create((set, get) => ({
       const history = data?.data?.history ?? data?.history ?? [];
 
       const messages = history.flatMap((entry) => {
-        let aiMsg;
         const metadata = normalizeStoredMetadata(entry.metadata);
-        const historicalState = {
-          metadata,
-          mode: metadata.mode ?? null,
-          streamStatus: metadata.streamStatus ?? null,
-          isHistorical: true,
-        };
-        // Detect email agent responses stored as JSON strings
-        try {
-          const parsed = JSON.parse(entry.assistant_message);
-          if (parsed && typeof parsed === "object" && parsed.type) {
-            const { text: normText, emailResponse } = normalizeEmailResponse(parsed);
-            aiMsg = {
-              role: "ai",
-              text: normText,
-              emailResponse,
-              ...historicalState,
-              mode: metadata.mode ?? "email_agent",
-            };
-          } else {
-            aiMsg = { role: "ai", text: entry.assistant_message, ...historicalState };
-          }
-        } catch {
-          aiMsg = { role: "ai", text: entry.assistant_message, ...historicalState };
-        }
-        return [{ role: "user", text: entry.user_message, isHistorical: true }, aiMsg];
-      });
-
-      const emailStatus = await chatApi.getEmailStatus(conversationId)
-        .catch(() => null);
-
-      if (emailStatus?.interrupt) {
-        const lastEmailResponse = [...messages]
-          .reverse()
-          .find(message => message.emailResponse)?.emailResponse;
-
-        if (lastEmailResponse?.type !== emailStatus.interrupt.type) {
-          messages.push({
+        return [
+          { role: "user", text: entry.user_message, isHistorical: true },
+          {
             role: "ai",
-            text: null,
-            emailResponse: emailStatus.interrupt,
-            emailStatus: emailStatus.emailStatus,
-            mode: "email_agent",
-          });
-        }
-      } else if (
-        ["sent", "revoked", "cancelled", "failed"].includes(emailStatus?.emailStatus)
-        && emailStatus?.response
-        && !messages.some(message => message.text === emailStatus.response)
-      ) {
-        messages.push({
-          role: "ai",
-          text: emailStatus.response,
-          emailStatus: emailStatus.emailStatus,
-          emailStatusNotice: emailStatus.emailStatus,
-          mode: "email_agent",
-        });
-      }
-
-      set({
-        messages,
-        conversationId,
-        isTyping: false,
-        agentActive: emailStatus?.active ?? false,
-        activeAgentMode: emailStatus?.active ? "email_agent" : null,
+            text: entry.assistant_message,
+            metadata,
+            mode: metadata.mode ?? null,
+            streamStatus: metadata.streamStatus ?? null,
+            isHistorical: true,
+          },
+        ];
       });
+
+      set({ messages, conversationId, isTyping: false });
     } catch (error) {
       const chatMissing = error.status === 404;
       set({
-        ...(chatMissing
-          ? {
-            messages: [],
-            conversationId: null,
-            pendingConfirmation: false,
-            agentActive: false,
-            activeAgentMode: null,
-          }
-          : {}),
+        ...(chatMissing ? { messages: [], conversationId: null } : {}),
         isTyping: false,
         error: error.message || "Failed to load conversation.",
       });
@@ -562,9 +386,6 @@ export const useChatStore = create((set, get) => ({
               messages: [],
               isTyping: false,
               conversationId: null,
-              pendingConfirmation: false,
-              agentActive: false,
-              activeAgentMode: null,
               error: null,
               pendingMessage: null,
               pendingModelSelection: null,
@@ -589,9 +410,6 @@ export const useChatStore = create((set, get) => ({
                 messages: [],
                 isTyping: false,
                 conversationId: null,
-                pendingConfirmation: false,
-                agentActive: false,
-                activeAgentMode: null,
                 pendingMessage: null,
                 pendingModelSelection: null,
                 activeStreamId: null,
@@ -616,9 +434,6 @@ export const useChatStore = create((set, get) => ({
       messages: [],
       isTyping: false,
       conversationId: null,
-      pendingConfirmation: false,
-      agentActive: false,
-      activeAgentMode: null,
       error: null,
       pendingMessage: null,
       pendingModelSelection: null,
@@ -634,9 +449,6 @@ export const useChatStore = create((set, get) => ({
       messages: [],
       isTyping: false,
       conversationId: null,
-      pendingConfirmation: false,
-      agentActive: false,
-      activeAgentMode: null,
       error: null,
       pendingMessage: text,
       pendingModelSelection: modelSelection,

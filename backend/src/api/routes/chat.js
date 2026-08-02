@@ -40,8 +40,5 @@ router.get("/conversations", optionalAuth, (req, res) =>
 router.get("/history/:conversationId", optionalAuth, (req, res) =>
   chatController.getHistory(req, res)
 );
-router.get("/email-status/:conversationId", optionalAuth, (req, res) =>
-  chatController.getEmailStatus(req, res)
-);
 
 export default router;

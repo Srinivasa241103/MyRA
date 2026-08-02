@@ -36,13 +36,9 @@ export default function SettingsPage({
   const [activeSection, setActiveSection] = useState("models");
   const [defaultModel, setDefaultModel] = useState(DEFAULT_LLM_MODEL_ID);
   const [density, setDensity] = useState("comfortable");
-  const [security, setSecurity] = useState({
-    approval: true,
-    reauth: true,
-  });
+  const [security, setSecurity] = useState({ reauth: true });
   const [notifications, setNotifications] = useState({
     daily: true,
-    agentActions: true,
     weekly: false,
   });
   const [privacy, setPrivacy] = useState({
@@ -231,23 +227,6 @@ export default function SettingsPage({
         title="Security"
         icon={<ShieldCheck size={15} strokeWidth={1.7} />}
       >
-        <SettingsRow
-          label="Require approval before sending mail"
-          description="The Email Agent waits for explicit approval"
-        >
-          <Toggle
-            on={security.approval}
-            onClick={() => setSecurity((value) => ({ ...value, approval: !value.approval }))}
-            label="Require email approval"
-          />
-        </SettingsRow>
-        <SettingsRow label="Undo window for sends" description="How long a revoke stays available">
-          <select className="myra-input myra-settings-control" defaultValue="12">
-            <option value="5">5 seconds</option>
-            <option value="12">12 seconds</option>
-            <option value="30">30 seconds</option>
-          </select>
-        </SettingsRow>
         <SettingsRow label="Ask for re-auth on new devices" description="Protect access to connected data">
           <Toggle
             on={security.reauth}
@@ -276,13 +255,6 @@ export default function SettingsPage({
             on={notifications.daily}
             onClick={() => setNotifications((value) => ({ ...value, daily: !value.daily }))}
             label="Daily summary notifications"
-          />
-        </SettingsRow>
-        <SettingsRow label="Agent action updates" description="Notify when an approved action completes">
-          <Toggle
-            on={notifications.agentActions}
-            onClick={() => setNotifications((value) => ({ ...value, agentActions: !value.agentActions }))}
-            label="Agent action notifications"
           />
         </SettingsRow>
         <SettingsRow label="Weekly review" description="A Sunday recap of the week">

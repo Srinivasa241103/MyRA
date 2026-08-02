@@ -12,9 +12,6 @@ export const chatApi = {
   sendMessage: async (
     message,
     conversationId = null,
-    confirmationStatus = null,
-    agentActive = false,
-    activeAgentMode = null,
     modelSelection = null,
   ) => {
     const response = await fetch(`${API_BASE_URL}/chat/message`, {
@@ -24,9 +21,6 @@ export const chatApi = {
       body: JSON.stringify({
         message,
         conversationId,
-        confirmationStatus,
-        agentActive,
-        activeAgentMode,
         provider: modelSelection?.provider,
         model: modelSelection?.model,
       }),
@@ -45,9 +39,6 @@ export const chatApi = {
   sendMessageStream: async (
     message,
     conversationId = null,
-    confirmationStatus = null,
-    agentActive = false,
-    activeAgentMode = null,
     modelSelection = null,
     { onEvent, signal } = {},
   ) => {
@@ -59,9 +50,6 @@ export const chatApi = {
       body: JSON.stringify({
         message,
         conversationId,
-        confirmationStatus,
-        agentActive,
-        activeAgentMode,
         provider: modelSelection?.provider,
         model: modelSelection?.model,
       }),
@@ -76,20 +64,6 @@ export const chatApi = {
     }
 
     return readSseJsonStream(response.body, { onEvent });
-  },
-
-  getEmailStatus: async (conversationId) => {
-    const response = await fetch(`${API_BASE_URL}/chat/email-status/${conversationId}`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to read email status: ${response.status}`);
-    }
-
-    return response.json();
   },
 
   createConversation: async () => {

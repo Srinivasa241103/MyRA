@@ -1,24 +1,22 @@
 # MyRA
 
-MyRA is a personal AI assistant that connects Gmail and Google Calendar with chat, personal-data retrieval, email drafting, and calendar actions.
+MyRA is a personal RAG application that connects Gmail and Google Calendar with conversational personal-data retrieval.
 
 **Live application:** [https://yoursmyra.com](https://yoursmyra.com)
 
 ## Overview
 
-MyRA brings email, calendar, and general AI chat into one interface. After signing in with Google, users can sync Gmail and Calendar data, ask questions about that data, draft new emails, and create calendar events with confirmation steps.
+MyRA brings email and calendar retrieval into one chat interface. After signing in with Google, users can sync Gmail and Calendar data and ask questions about that indexed data.
 
-The project is under active development. The core Google sync, retrieval, chat, email-agent, and calendar-agent paths are implemented. Some visible controls are still prototypes; the current limitations are listed below.
+The project is under active development. The current backend is intentionally RAG-only while the application use case is being redesigned. Some visible controls are still prototypes; the current limitations are listed below.
 
 ## Key features
 
 - Google OAuth sign-in with Gmail and Google Calendar access
-- General chat with selectable OpenAI and Anthropic models
+- RAG chat with selectable OpenAI and Anthropic models
 - Gmail and Calendar synchronization, normalization, chunking, and embedding
 - Personal-data retrieval with source, date, and person-aware filtering
 - Retrieved context references included in RAG responses
-- Calendar search and event creation with conflict checks and user confirmation
-- New-email drafting with recipient lookup, draft review, edits, explicit approval, and a six-second revoke window
 - Saved conversation history with conversation-level soft deletion
 - Usage views for model tokens, estimated cost, chat sessions, synced emails, and calendar events
 - Per-user OpenAI and Anthropic monthly budgets based on current calendar-month INR usage, with editable 50%, 80%, and 95% email alert thresholds by default
@@ -27,7 +25,7 @@ The project is under active development. The core Google sync, retrieval, chat, 
 
 ## Current limitations
 
-- Replying to an existing email thread is not available.
+- Email sending, drafting, and calendar mutations are not available; Google data access is read-only.
 - File attachments and the Notes source are present in the interface but are not processed by the backend.
 - Voice controls call a configurable voice endpoint, but this repository does not include the matching backend route.
 - Some home summary and upcoming-calendar cards fall back to empty states because their expected endpoints are not registered by the backend.
@@ -40,8 +38,8 @@ The project is under active development. The core Google sync, retrieval, chat, 
 1. The user signs in through Google OAuth. MyRA stores the connected Gmail and Calendar credentials in PostgreSQL.
 2. Manual or scheduled sync jobs fetch Google data, normalize it into documents, and store it in PostgreSQL.
 3. Documents are split into chunks and embedded with OpenAI. Vectors are stored in pgvector by default, with Chroma available as an alternative.
-4. An intent router sends each message to general chat, personal-data retrieval, the calendar agent, or the email agent.
-5. Retrieval builds a user-scoped context for the selected model. Calendar creation and email sending add confirmation steps before making changes.
+4. Every chat message runs through the user-scoped RAG query pipeline.
+5. Retrieval plans source, date, and person filters, builds context, and generates the response with the selected model.
 
 The Express API is organized under `/auth`, `/sync`, `/chat`, `/stats`, and `/budgets`. A budget job totals each user’s current calendar-month LLM usage and sends newly crossed alert levels without repeating the same alert within four days. Socket.IO is used separately for sync progress updates.
 
@@ -58,7 +56,7 @@ The Express API is organized under `/auth`, `/sync`, `/chat`, `/stats`, and `/bu
 ### Backend and AI
 
 - Node.js, Express, JavaScript, and TypeScript
-- LangChain and LangGraph
+- LangChain
 - OpenAI chat models and embeddings
 - Anthropic chat models
 - Socket.IO, JSON Web Tokens, and node-cron
@@ -85,11 +83,11 @@ frontend/                 React application, pages, stores, and API clients
 backend/
   src/api/                Express routes and controllers
   src/RAG/                Ingestion, embeddings, retrieval, and query pipeline
-  src/agent/              Calendar and email LangGraph workflows
-  src/service/            Google, email, cron, OAuth, and WebSocket services
+  src/service/            Google sync, cron, OAuth, alert, and WebSocket services
   src/database/           PostgreSQL repositories
   scripts/                Vector-store migration utility
   API_BUDGETS_MIGRATION.sql  API budget tables and user threshold columns
+  REMOVE_AGENT_DATABASE_OBJECTS.sql  One-time cleanup for the removed workflows
 ```
 
 ## Local setup
@@ -109,6 +107,12 @@ psql "<postgres-connection-string>" -f backend/API_BUDGETS_MIGRATION.sql
 ```
 
 This adds the reusable `api_budgets` table, monthly alert delivery records, and the three budget threshold columns on `users`.
+
+If upgrading a database that previously ran the calendar or email workflows, review and run the one-time cleanup separately:
+
+```bash
+psql "<postgres-connection-string>" -f backend/REMOVE_AGENT_DATABASE_OBJECTS.sql
+```
 
 ### 1. Clone the repository
 
@@ -214,7 +218,7 @@ MAIL_FROM_ADDRESS=<sender-address>
 
 Additional variables are only needed for the related optional behavior:
 
-- **Model settings:** `OPENAI_MODEL_TEMP`, `OPENAI_MAX_TOKENS`, `ANTHROPIC_MODEL_TEMP`, `ANTHROPIC_MAX_TOKENS`, `CALENDAR_AGENT_LLM_PROVIDER`, and `CALENDAR_AGENT_MODEL`
+- **Model settings:** `OPENAI_MODEL_TEMP`, `OPENAI_MAX_TOKENS`, `ANTHROPIC_MODEL_TEMP`, and `ANTHROPIC_MAX_TOKENS`
 - **Runtime and retrieval:** `SYNC_USER_ID` for unauthenticated development fallbacks, `DEFAULT_USER_TIMEZONE`, `LOG_LEVEL`, and `VECTOR_STORE`
 - **Chroma:** `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_SSL`, `CHROMA_COLLECTION`, `CHROMA_API_KEY`, `CHROMA_TENANT`, and `CHROMA_DATABASE`
 - **Scheduled Google sync:** `ENABLE_GOOGLE_WORKSPACE_SYNC_CRON`, `ENABLE_GMAIL_SYNC_CRON`, `ENABLE_CALENDAR_SYNC_CRON`, `GOOGLE_WORKSPACE_SYNC_CRON_SCHEDULE`, `CRON_TIMEZONE`, `GOOGLE_WORKSPACE_SYNC_STALE_MINUTES`, `GOOGLE_WORKSPACE_SYNC_EMBEDDING_BATCH_SIZE`, and `GOOGLE_WORKSPACE_SYNC_EMBEDDING_MAX_BATCHES`
@@ -245,7 +249,7 @@ The production version is planned to include document ingestion, parsing, chunki
 
 Planned integrations include Spotify, Google Drive, and GitHub. These sources are intended to give the assistant more useful personal context.
 
-### Personal Agent Memory Engine
+### Personal Memory Engine
 
 A controllable memory system planned to support:
 
@@ -262,8 +266,7 @@ The goal is to build structured personal context over time while keeping stored 
 ## Privacy and safety
 
 - Google OAuth access and refresh tokens are encrypted before they are stored in PostgreSQL.
-- Calendar events are created only after confirmation.
-- The email agent requires draft approval and provides a six-second revoke window before sending.
+- Google OAuth requests read-only Gmail and Calendar access for synchronization and retrieval.
 - Synced content, retrieved context, and prompts may be sent to the configured OpenAI or Anthropic service to produce a response.
 - Deleting a conversation currently marks its rows as deleted rather than physically removing them.
 - Full account export and deletion flows are not implemented in this repository.

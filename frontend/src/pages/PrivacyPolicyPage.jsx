@@ -1,26 +1,23 @@
-const LAST_UPDATED = "July 29, 2026";
+const LAST_UPDATED = "August 2, 2026";
 
 const googleDataItems = [
   "Google account profile information such as your name, email address, profile photo, Google account ID, locale, and email verification status.",
   "Gmail data that you authorize MyRA to access, including message IDs, thread IDs, labels, snippets, sender and recipient headers, subjects, dates, and email body text.",
-  "Gmail draft and send details when you ask MyRA to draft, save, or send an email, including recipients, subject, message body, thread references, and delivery status.",
-  "Google Calendar data that you authorize MyRA to access, including event titles, descriptions, locations, start and end times, attendees, organizers, recurrence details, conference data, links, and free/busy information.",
+  "Google Calendar data that you authorize MyRA to access, including event titles, descriptions, locations, start and end times, attendees, organizers, recurrence details, conference data, and links.",
 ];
 
 const useItems = [
   "Authenticate you and keep your account connected to the Google services you choose.",
   "Sync, index, and retrieve your Gmail and Calendar information so MyRA can answer your questions about your inbox and schedule.",
   "Summarize, search, and organize your personal information in response to your prompts.",
-  "Draft, save, or send emails only when you request or approve that action.",
-  "Create, update, review, or schedule calendar events only when you request that action.",
   "Show account, sync, activity, and connection status inside the app.",
   "Maintain security, debug failures, prevent abuse, and comply with legal obligations.",
 ];
 
 const shareItems = [
   "Infrastructure providers that host the app, databases, logs, and related systems.",
-  "AI model and processing providers when needed to generate a response, draft, summary, retrieval result, or user-directed action.",
-  "Google APIs when MyRA authenticates, syncs data, sends email, saves drafts, or manages calendar events at your direction.",
+  "AI model and processing providers when needed to generate a response, summary, or retrieval result.",
+  "Google APIs when MyRA authenticates and synchronizes the read-only data you connect.",
   "Authorities or other parties when disclosure is required by law, security, abuse prevention, or an enforceable legal process.",
 ];
 
@@ -45,7 +42,7 @@ function PrivacyPolicyPage({ onNavigate }) {
 
       <div className="myra-card" style={{ marginBottom: 18 }}>
         <p style={{ color: "var(--text-2)", fontSize: 15 }}>
-          MyRA is a personal AI retrieval assistant that helps you search, summarize, draft, and act on
+          MyRA is a personal AI retrieval assistant that helps you search and summarize
           information from the Google services you choose to connect. This policy explains how MyRA
           accesses, uses, stores, shares, protects, retains, and deletes Google user data and related app data.
         </p>
@@ -75,7 +72,7 @@ function PrivacyPolicyPage({ onNavigate }) {
         <h2>Other app data MyRA collects</h2>
         <p>
           MyRA may also collect information you provide directly in the app, such as prompts, chat messages,
-          account preferences, sync actions, connection status, generated drafts, generated event details,
+          account preferences, sync actions, connection status, generated responses,
           and operational logs needed to run and secure the service.
         </p>
       </section>

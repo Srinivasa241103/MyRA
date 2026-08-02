@@ -20,9 +20,9 @@ import {
 
 const SUGGESTIONS = [
   "What did I miss overnight?",
-  "Draft a reply to an important thread",
+  "Summarize an important email thread",
   "Find my notes from last week",
-  "Free 45 minutes on my calendar",
+  "When do I have 45 free minutes?",
 ];
 
 const SOURCE_OPTIONS = [

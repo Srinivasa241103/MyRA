@@ -7,7 +7,6 @@ import { useVoiceRecorder } from "../../hooks/useVoiceRecorder";
 import { DEFAULT_LLM_MODEL_ID, LLM_MODEL_OPTIONS, getLlmModelOption } from "../../constants/llmModels";
 import {
   CalendarDays,
-  Check,
   Mail,
   Mic,
   Moon,
@@ -16,13 +15,11 @@ import {
   Pause,
   Pencil,
   Play,
-  RefreshCw,
   Send,
   Sparkles,
   Square,
   Sun,
   Trash2,
-  X,
 } from "lucide-react";
 
 // ── ChatWindow — exact MyRA design replica ───────────────────────────────────
@@ -34,10 +31,7 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
     conversationId,
     sendMessage,
     sendVoiceMessage,
-    pendingConfirmation,
-    confirmAction,
     clearPendingMessage,
-    agentActive,
     deleteConversation,
     stopGenerating,
     canStopStreaming,
@@ -72,7 +66,7 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
       if (pendingModelSelection?.id) {
         setSelectedModelId(pendingModelSelection.id);
       }
-      sendMessage(pendingMessage, null, pendingModelSelection ?? selectedModelOption);
+      sendMessage(pendingMessage, pendingModelSelection ?? selectedModelOption);
     }
   }, [clearPendingMessage, selectedModelOption, sendMessage]);
 
@@ -116,7 +110,7 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
     if (!text) return;
     setDraft("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    sendMessage(text, null, selectedModelOption);
+    sendMessage(text, selectedModelOption);
   };
 
   const handleDeleteChat = async () => {
@@ -227,9 +221,6 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
               onSend={handleSend}
               onKeyDown={handleKeyDown}
               onInput={handleInput}
-              pendingConfirmation={pendingConfirmation}
-              onConfirm={() => confirmAction("confirmed")}
-              onReject={() => confirmAction("rejected")}
               voiceSupported={voiceSupported}
               voiceRecording={voiceRecording}
               voiceDurationMs={voiceDurationMs}
@@ -308,16 +299,9 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
           {/* Date system bubble */}
           <div className="myra-bubble system">{todayLabel}</div>
 
-          {(() => {
-            const interactiveTypes = ["recipient_choice", "draft_approval", "pending_send"];
-            const lastInteractiveIdx = messages.reduce((last, m, i) =>
-              (m.mode === "email_agent" && interactiveTypes.includes(m.emailResponse?.type)) ? i : last, -1);
-            return messages.map((msg, idx) => {
-              const readonly = (msg.isHistorical && !agentActive) ||
-                (msg.mode === "email_agent" && interactiveTypes.includes(msg.emailResponse?.type) && idx !== lastInteractiveIdx);
-              return <MessageTurn key={idx} msg={msg} setDraft={setDraft} readonly={readonly} />;
-            });
-          })()}
+          {messages.map((msg, idx) => (
+            <MessageTurn key={idx} msg={msg} />
+          ))}
 
         </div>
       </div>
@@ -330,9 +314,6 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
         onSend={handleSend}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
-        pendingConfirmation={pendingConfirmation}
-        onConfirm={() => confirmAction("confirmed")}
-        onReject={() => confirmAction("rejected")}
         voiceSupported={voiceSupported}
         voiceRecording={voiceRecording}
         voiceDurationMs={voiceDurationMs}
@@ -350,7 +331,7 @@ function ChatWindow({ onNavigate, onToggleSidebar, theme = "light", onThemeChang
 
 // ── MessageTurn — renders one user or AI bubble ──────────────────────────────
 
-function MessageTurn({ msg, setDraft, readonly = false }) {
+function MessageTurn({ msg }) {
   const isUser = msg.role === "user";
 
   if (isUser) {
@@ -367,19 +348,6 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
 
   if (msg.isStreaming && !msg.text?.trim()) {
     return <ResponseActivity activity={msg.activity} />;
-  }
-
-  // Email agent: draft approval card
-  if (msg.mode === "email_agent" && msg.emailResponse?.type === "recipient_choice") {
-    return <RecipientChoiceCard data={msg.emailResponse} readonly={readonly} />;
-  }
-
-  if (msg.mode === "email_agent" && msg.emailResponse?.type === "draft_approval") {
-    return <DraftApprovalCard data={msg.emailResponse} setDraft={setDraft} readonly={readonly} />;
-  }
-
-  if (msg.mode === "email_agent" && msg.emailResponse?.type === "pending_send") {
-    return <PendingSendCard data={msg.emailResponse} readonly={readonly} />;
   }
 
   return (
@@ -399,7 +367,7 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
       )}
 
       {/* Source pills */}
-      {msg.mode !== "agent" && msg.mode !== "email_agent" && msg.context?.selectedDocuments > 0 && (
+      {msg.context?.selectedDocuments > 0 && (
         <div className="src-row" style={{ marginTop: 10 }}>
           <span className="myra-source-pill">
             <span className="dot" />
@@ -408,21 +376,6 @@ function MessageTurn({ msg, setDraft, readonly = false }) {
         </div>
       )}
 
-      {/* Agent mode badges */}
-      {msg.mode === "agent" && (
-        <div style={{ marginTop: 8 }}>
-          <span className="myra-badge accent">
-            <CalendarSmIcon /> Calendar Agent
-          </span>
-        </div>
-      )}
-      {msg.mode === "email_agent" && (
-        <div style={{ marginTop: 8 }}>
-          <span className="myra-badge warning">
-            <MailSmIcon /> Email Agent
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -487,313 +440,9 @@ function AudioMessageBubble({ msg }) {
   );
 }
 
-function EmailAgentCard({ children }) {
-  return (
-    <div className="myra-fade-in" style={{ alignSelf: "flex-start", width: "100%", maxWidth: 580 }}>
-      <div style={{
-        border: "1px solid var(--border-strong)",
-        borderRadius: "var(--radius-lg)",
-        overflow: "hidden",
-        background: "var(--color-elevated)",
-      }}>
-        {children}
-      </div>
-      <div style={{ marginTop: 6 }}>
-        <span className="myra-badge warning">
-          <MailSmIcon /> Email Agent
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function RecipientChoiceCard({ data, readonly = false }) {
-  const { sendMessage, isTyping } = useChatStore();
-  const [email, setEmail] = useState("");
-  const candidates = data.candidates ?? [];
-
-  const submitEmail = () => {
-    const value = email.trim();
-    if (value) sendMessage(value);
-  };
-
-  return (
-    <EmailAgentCard>
-      <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
-        <strong style={{ fontSize: 14, color: "var(--text-2)" }}>Choose recipient</strong>
-        <p style={{ margin: "5px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-          {data.prompt}
-        </p>
-      </div>
-
-      {candidates.length > 0 && (
-        <div style={{ padding: "10px 14px", display: "grid", gap: 8 }}>
-          {candidates.map((candidate, index) => (
-            <button
-              key={`${candidate.email}-${index}`}
-              className="myra-btn secondary sm"
-              disabled={readonly || isTyping}
-              onClick={() => sendMessage(String(index + 1))}
-              style={{ justifyContent: "flex-start" }}
-            >
-              {candidate.name || "Recipient"} &lt;{candidate.email}&gt;
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
-        <input
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") submitEmail();
-          }}
-          disabled={readonly || isTyping}
-          placeholder={data.placeholder || "name@example.com"}
-          type="email"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            border: "1px solid var(--border-strong)",
-            borderRadius: "var(--radius-md)",
-            padding: "8px 10px",
-            background: "var(--color-elevated)",
-            color: "var(--text-2)",
-          }}
-        />
-        <button
-          className="myra-btn primary sm"
-          disabled={readonly || isTyping || !email.trim()}
-          onClick={submitEmail}
-        >
-          Use email
-        </button>
-        <button
-          className="myra-btn ghost sm"
-          disabled={readonly || isTyping}
-          onClick={() => sendMessage("cancel")}
-        >
-          Cancel
-        </button>
-      </div>
-    </EmailAgentCard>
-  );
-}
-
-function PendingSendCard({ data, readonly = false }) {
-  const { sendMessage, syncEmailStatus, isTyping } = useChatStore();
-  const [remaining, setRemaining] = useState(() =>
-    Math.max(0, Date.parse(data.deadline) - Date.now())
-  );
-  const status = data.status ?? "pending_revoke";
-  const terminal = ["sent", "revoked", "cancelled", "failed"].includes(status);
-
-  useEffect(() => {
-    if (readonly || terminal) return undefined;
-
-    const refresh = () => {
-      setRemaining(Math.max(0, Date.parse(data.deadline) - Date.now()));
-      syncEmailStatus().catch(() => { });
-    };
-
-    refresh();
-    const interval = window.setInterval(refresh, 750);
-    return () => window.clearInterval(interval);
-  }, [data.deadline, readonly, syncEmailStatus, terminal]);
-
-  const seconds = Math.max(0, Math.ceil(remaining / 1000));
-  const canRevoke = !readonly && !terminal && remaining > 0 && !isTyping;
-
-  return (
-    <EmailAgentCard>
-      <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
-        <strong style={{ fontSize: 14, color: "var(--text-2)" }}>
-          {status === "sent" ? "Email sent" : status === "revoked" ? "Send revoked" : "Email pending"}
-        </strong>
-        <p style={{ margin: "5px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
-          {terminal
-            ? `Status: ${status}`
-            : remaining > 0
-              ? `Sending in ${seconds} second${seconds === 1 ? "" : "s"}.`
-              : "Sending now…"}
-        </p>
-      </div>
-
-      <div style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-2)" }}>
-        <div>To: {data.recipient?.name ? `${data.recipient.name} <${data.recipient.email}>` : data.recipient?.email}</div>
-        <div style={{ marginTop: 4 }}>Subject: {data.draft?.subject}</div>
-      </div>
-
-      <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
-        <button
-          className="myra-btn secondary sm"
-          disabled={!canRevoke}
-          onClick={() => sendMessage("revoke")}
-        >
-          <XIcon /> Revoke send
-        </button>
-      </div>
-    </EmailAgentCard>
-  );
-}
-
-// ── DraftApprovalCard — rendered when email agent returns a draft ─────────────
-
-function DraftApprovalCard({ data, setDraft, readonly = false }) {
-  const { sendMessage, isTyping } = useChatStore();
-  const { draft, meta = {}, instructions } = data;
-
-  const cardStyle = {
-    border: "1px solid var(--border-strong)",
-    borderRadius: "var(--radius-lg)",
-    overflow: "hidden",
-    background: "var(--color-elevated)",
-    marginBottom: 4,
-    opacity: readonly ? 0.75 : 1,
-  };
-  const headerStyle = {
-    padding: "10px 14px",
-    borderBottom: "1px solid var(--border)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    background: "var(--color-surface)",
-  };
-  const bodyStyle = {
-    padding: "12px 14px",
-    fontSize: 13,
-    lineHeight: 1.6,
-    color: "var(--text-2)",
-    whiteSpace: "pre-wrap",
-    maxHeight: 260,
-    overflowY: "auto",
-  };
-  const metaStyle = {
-    padding: "8px 14px",
-    borderTop: "1px solid var(--border)",
-    fontSize: 12,
-    color: "var(--text-muted)",
-    background: "var(--color-bg)",
-  };
-  const actionsStyle = {
-    padding: "10px 14px",
-    borderTop: "1px solid var(--border)",
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    alignItems: "center",
-    background: "var(--color-bg)",
-  };
-
-  return (
-    <div className="myra-fade-in" style={{ alignSelf: "flex-start", width: "100%", maxWidth: 580 }}>
-      <div style={cardStyle}>
-        {/* Header */}
-        <div style={headerStyle}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <MailSmIcon />
-            <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-2)" }}>
-              {draft.subject || "Draft"}
-            </span>
-          </div>
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            v{draft.version} · {draft.source || "agent"}
-          </span>
-        </div>
-
-        {/* Body */}
-        <div style={bodyStyle}>{draft.body}</div>
-
-        {/* Meta row */}
-        <div style={metaStyle}>
-          {meta.to && <span>To: <strong>{meta.to}</strong></span>}
-          {meta.cc && <span style={{ marginLeft: 12 }}>CC: {meta.cc}</span>}
-          <span style={{ marginLeft: 12 }}>Tone: {meta.tone}</span>
-          {meta.totalVersions > 1 && <span style={{ marginLeft: 12 }}>{meta.totalVersions} versions</span>}
-        </div>
-
-        {/* Action buttons */}
-        <div style={actionsStyle}>
-          {readonly ? (
-            <span style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
-              Session ended · actions unavailable
-            </span>
-          ) : (
-            <>
-              <button
-                className="myra-btn primary sm"
-                disabled={isTyping}
-                onClick={() => sendMessage("approve")}
-              >
-                <CheckIcon /> Approve
-              </button>
-              <button
-                className="myra-btn secondary sm"
-                disabled={isTyping}
-                onClick={() => { setDraft("Edit: "); }}
-              >
-                <EditIcon /> Edit
-              </button>
-              <button
-                className="myra-btn secondary sm"
-                disabled={isTyping}
-                onClick={() => sendMessage("regenerate")}
-              >
-                <RefreshIcon /> Regenerate
-              </button>
-              <button
-                className="myra-btn ghost sm"
-                disabled={isTyping}
-                onClick={() => sendMessage("cancel")}
-                style={{ color: "var(--text-muted)" }}
-              >
-                <XIcon /> Cancel
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Instructions hint — only shown during active session */}
-      {!readonly && instructions && (
-        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, paddingLeft: 4 }}>
-          {instructions}
-        </p>
-      )}
-
-      <div style={{ marginTop: 6 }}>
-        <span className="myra-badge warning">
-          <MailSmIcon /> Email Agent
-        </span>
-      </div>
-    </div>
-  );
-}
-
 // ── Composer — the input area at bottom ─────────────────────────────────────
 
-function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, pendingConfirmation, onConfirm, onReject, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle, selectedModelId, onModelChange, isTyping, canStopStreaming, onStop }) {
-  if (pendingConfirmation) {
-    return (
-      <div className="myra-composer">
-        <div className="myra-composer-inner">
-          <div className="myra-confirm-card">
-            <p>Shall I go ahead and create this event?</p>
-            <div className="myra-confirm-actions">
-              <button className="myra-btn primary sm" onClick={onConfirm}>
-                <CheckIcon /> Yes, create it
-              </button>
-              <button className="myra-btn secondary sm" onClick={onReject}>
-                <XIcon /> Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+function Composer({ draft, setDraft, textareaRef, onSend, onKeyDown, onInput, voiceSupported, voiceRecording, voiceDurationMs, voiceError, onVoiceToggle, selectedModelId, onModelChange, isTyping, canStopStreaming, onStop }) {
   return (
     <div className="myra-composer">
       <div className="myra-composer-inner">
@@ -941,20 +590,11 @@ function PauseIcon() {
 function SendIcon() {
   return <Send size={14} strokeWidth={1.8} />;
 }
-function CheckIcon() {
-  return <Check size={13} strokeWidth={2.2} />;
-}
-function XIcon() {
-  return <X size={13} strokeWidth={2.2} />;
-}
 function CalendarSmIcon() {
   return <CalendarDays size={12} strokeWidth={1.7} />;
 }
 function MailSmIcon() {
   return <Mail size={12} strokeWidth={1.7} />;
-}
-function RefreshIcon() {
-  return <RefreshCw size={13} strokeWidth={1.7} />;
 }
 function SparklesSmIcon() {
   return <Sparkles size={12} strokeWidth={1.7} />;

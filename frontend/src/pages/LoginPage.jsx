@@ -47,8 +47,8 @@ function LoginPage({ onNavigate, theme = "light", onThemeChange = () => {} }) {
 
           <h1 className="display">Your chief of staff for mail, calendar and notes.</h1>
           <p className="myra-login-lede">
-            Sign in with Google to let MyRA read the context you choose. Nothing
-            moves, sends, or schedules without your approval.
+            Sign in with Google to let MyRA search and summarize the read-only
+            context you choose to sync.
           </p>
 
           {error && <div className="myra-login-error">{error}</div>}
@@ -73,7 +73,7 @@ function LoginPage({ onNavigate, theme = "light", onThemeChange = () => {} }) {
           </div>
 
           <div className="myra-login-trust">
-            <p><Check size={15} strokeWidth={1.7} />Read-only scopes by default. Sending mail always waits for approval.</p>
+            <p><Check size={15} strokeWidth={1.7} />Read-only access to connected Gmail and Calendar data.</p>
             <p><Check size={15} strokeWidth={1.7} />Your mail and documents are never used to train models.</p>
             <p><Check size={15} strokeWidth={1.7} />Revoke access or delete synced data at any time.</p>
           </div>
@@ -97,17 +97,17 @@ function LoginPage({ onNavigate, theme = "light", onThemeChange = () => {} }) {
           </article>
           <article className="myra-card">
             <div className="myra-login-preview-meta">
-              <span className="myra-badge success"><CalendarDays size={13} strokeWidth={1.7} />Calendar Agent</span>
-              <span>No action yet</span>
+              <span className="myra-badge success"><CalendarDays size={13} strokeWidth={1.7} />Calendar search</span>
+              <span>Read only</span>
             </div>
             <p>No calendar data yet.</p>
           </article>
           <article className="myra-card">
             <div className="myra-login-preview-meta">
-              <span className="myra-badge warning"><Mail size={13} strokeWidth={1.7} />Email Agent</span>
-              <span>Approval required</span>
+              <span className="myra-badge warning"><Mail size={13} strokeWidth={1.7} />Inbox search</span>
+              <span>Read only</span>
             </div>
-            <p>Drafts remain private until you review and approve them.</p>
+            <p>Ask questions across the email content you choose to sync.</p>
           </article>
           <span className="myra-login-preview-caption">A preview of your workspace</span>
         </div>

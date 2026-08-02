@@ -297,7 +297,7 @@ export default function StatsScreen() {
         <div className="myra-card myra-stats-reveal" style={{ animationDelay: "170ms" }}>
           <div className="myra-card-header">
             <h3>Calendar events</h3>
-            <span className="muted" style={{ fontSize: 12 }}>handled by agent</span>
+            <span className="muted" style={{ fontSize: 12 }}>indexed for search</span>
           </div>
           {isLoading ? (
             <ChartLoadingState variant="line" compact />

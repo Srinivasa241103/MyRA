@@ -1,10 +1,8 @@
-
 import { logger } from "../utils/logger.js";
 import LLMService from "../RAG/query/llmService.js";
 import { LLM_INVOCATION_TYPES } from "../utils/constants.js";
 
 const llm = new LLMService();
-
 
 const SYSTEM_PROMPT = `You are an intent classifier. Classify the user message into exactly one of these categories:
 - calendar_agent: The user wants to CREATE, SCHEDULE, ADD, UPDATE, MODIFY, RESCHEDULE, DELETE, or CANCEL a calendar event
@@ -31,7 +29,7 @@ export async function routeIntent(
   conversationId = null,
   userId = null,
   llmProvider = "OpenAI",
-  model = null
+  model = null,
 ) {
   try {
     const messages = [
@@ -44,11 +42,10 @@ export async function routeIntent(
       userId ?? parseInt(process.env.SYNC_USER_ID, 10),
       conversationId ?? "intent_router",
       {
-        model,
         invocationType: LLM_INVOCATION_TYPES.INTENT_ROUTER,
         temperature: 0,
         maxTokens: 20,
-      }
+      },
     );
     const intent = response.answer.trim().toLowerCase();
 

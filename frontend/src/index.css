@@ -1127,16 +1127,6 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
   50% { transform: translateY(-1px); }
 }
 
-.myra-confirm-card {
-  background: var(--parchment);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  padding: 16px 20px;
-  text-align: center;
-}
-.myra-confirm-card p { color: var(--text-2); font-size: 14px; margin-bottom: 12px; }
-.myra-confirm-actions { display: flex; gap: 10px; justify-content: center; }
-
 /* ── Event card ── */
 .myra-event-card {
   background: var(--bg-1); border: 1px solid var(--border-strong);
@@ -1920,10 +1910,6 @@ textarea.myra-input { padding: 10px 12px; height: auto; resize: none; line-heigh
 
   .myra-stat-tile { padding: 12px; }
   .myra-stat-tile .stat-value { font-size: 20px; }
-
-  /* Confirm card */
-  .myra-confirm-card { padding: 12px; }
-  .myra-confirm-actions { gap: 8px; }
 
   .myra-logo .mark { width: 24px; height: 24px; }
   .myra-logo .word { font-size: 14px; }

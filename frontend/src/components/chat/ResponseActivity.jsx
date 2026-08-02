@@ -5,16 +5,6 @@ const STAGE_LABELS = {
   collecting_data: "Collecting relevant data",
   building_context: "Organizing the useful details",
   generating: "Composing your response",
-  calendar_details: "Reading event details",
-  calendar_check: "Checking your calendar",
-  calendar_slots: "Finding available times",
-  calendar_confirmation: "Preparing your confirmation",
-  calendar_create: "Creating your confirmed event",
-  email_details: "Understanding the email",
-  email_recipient: "Finding the recipient",
-  email_draft: "Drafting your email",
-  email_review: "Preparing it for your approval",
-  email_send: "Sending your approved email",
 };
 
 const stageLabel = (stage) => STAGE_LABELS[stage] ?? "Working on your request";

@@ -1,17 +1,15 @@
-const LAST_UPDATED = "July 29, 2026";
+const LAST_UPDATED = "August 2, 2026";
 
 const acceptableUseItems = [
   "Do not use MyRA to violate laws, infringe rights, send spam, distribute malware, or abuse Google services.",
   "Do not attempt to access another user's account, data, tokens, conversations, emails, calendar events, or connected services.",
   "Do not interfere with MyRA's systems, reverse engineer non-public parts of the service, or bypass security controls.",
-  "Do not use MyRA to generate, send, or schedule harmful, deceptive, harassing, or unlawful content.",
+  "Do not use MyRA to generate harmful, deceptive, harassing, or unlawful content.",
 ];
 
 const googleFeatureItems = [
   "Read Gmail messages and metadata you authorize so MyRA can search, summarize, and retrieve information for you.",
-  "Draft, save, or send Gmail messages when you request or approve that action.",
-  "Read Google Calendar events and availability so MyRA can answer schedule questions and find time slots.",
-  "Create or update Google Calendar events when you request or approve that action.",
+  "Read Google Calendar events so MyRA can answer schedule questions and retrieve relevant details.",
 ];
 
 function TermsOfServicePage({ onNavigate }) {
@@ -36,7 +34,7 @@ function TermsOfServicePage({ onNavigate }) {
       <div className="myra-card" style={{ marginBottom: 18 }}>
         <p style={{ color: "var(--text-2)", fontSize: 15 }}>
           These Terms of Service govern your access to and use of MyRA, a personal AI retrieval assistant
-          that helps you search, summarize, draft, and act on information from the Google services and other
+          that helps you search and summarize information from the Google services and other
           sources you choose to connect.
         </p>
       </div>
@@ -61,9 +59,8 @@ function TermsOfServicePage({ onNavigate }) {
       <section className="myra-legal-section">
         <h2>What MyRA does</h2>
         <p>
-          MyRA provides personal assistant features such as retrieval, summarization, chat, email drafting,
-          email sending, calendar search, and calendar scheduling. Features may change over time as the app
-          is improved.
+          MyRA provides read-only retrieval, summarization, chat, inbox search, and calendar search.
+          Features may change over time as the app is improved.
         </p>
       </section>
 
@@ -79,7 +76,7 @@ function TermsOfServicePage({ onNavigate }) {
 
       <section className="myra-legal-section">
         <h2>Google-powered features</h2>
-        <p>When you grant the relevant permissions, MyRA may help you with these Google-related actions:</p>
+        <p>When you grant the relevant permissions, MyRA may provide these Google-related retrieval features:</p>
         <ul>
           {googleFeatureItems.map((item) => <li key={item}>{item}</li>)}
         </ul>
@@ -101,7 +98,7 @@ function TermsOfServicePage({ onNavigate }) {
       <section className="myra-legal-section">
         <h2>AI outputs</h2>
         <p>
-          MyRA may generate drafts, summaries, suggestions, search results, and calendar recommendations.
+          MyRA may generate summaries, suggestions, search results, and calendar recommendations.
           AI output can be incomplete, inaccurate, or unsuitable for your situation. You are responsible for
           reviewing output before relying on it, sending it, scheduling it, or sharing it.
         </p>

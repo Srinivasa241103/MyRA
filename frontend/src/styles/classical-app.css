@@ -1327,18 +1327,11 @@ button {
   white-space: nowrap;
 }
 
-.myra-confirm-card,
 .myra-connection-row {
   padding: 13px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-elevated);
-}
-
-.myra-confirm-actions {
-  margin-top: 10px;
-  display: flex;
-  gap: 8px;
 }
 
 .myra-audio-bubble {
