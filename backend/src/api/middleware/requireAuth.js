@@ -5,11 +5,19 @@ const UNAUTHENTICATED_RESPONSE = Object.freeze({
   error: "Authentication required.",
 });
 
-function hasUserId(value) {
-  return (
-    (typeof value === "string" && value.trim().length > 0) ||
-    (typeof value === "number" && Number.isInteger(value) && value >= 0)
-  );
+function normalizeUserId(value) {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : null;
+  }
+  if (typeof value !== "string" || !/^\d+$/.test(value.trim())) {
+    return null;
+  }
+  const numeric = Number(value.trim());
+  return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null;
+}
+
+function hasUnexpiredToken(decoded) {
+  return Number.isInteger(decoded.exp) && decoded.exp > Math.floor(Date.now() / 1000);
 }
 
 function getJwtSecret() {
@@ -33,12 +41,18 @@ export function verifyAccessToken(token) {
     algorithms: ["HS256"],
   });
 
-  if (!decoded || typeof decoded === "string" || !hasUserId(decoded.userId)) {
+  if (
+    !decoded ||
+    typeof decoded === "string" ||
+    !hasUnexpiredToken(decoded)
+  ) {
     throw new Error("Invalid token payload");
   }
+  const userId = normalizeUserId(decoded.userId);
+  if (userId === null) throw new Error("Invalid token payload");
 
   return Object.freeze({
-    userId: decoded.userId,
+    userId,
     authType: "jwt",
   });
 }
@@ -49,7 +63,7 @@ export function verifyAccessToken(token) {
  */
 export function getDevelopmentPrincipal() {
   if (
-    process.env.NODE_ENV === "production" ||
+    !["development", "test"].includes(process.env.NODE_ENV) ||
     process.env.ENABLE_AUTH_DEV_BYPASS !== "true"
   ) {
     return null;
@@ -60,10 +74,8 @@ export function getDevelopmentPrincipal() {
     return null;
   }
 
-  const numericUserId = Number(configuredUserId);
-  const userId = Number.isSafeInteger(numericUserId) && numericUserId >= 0
-    ? numericUserId
-    : configuredUserId.trim();
+  const userId = normalizeUserId(configuredUserId);
+  if (userId === null) return null;
 
   return Object.freeze({ userId, authType: "development_bypass" });
 }
@@ -103,8 +115,9 @@ export function requireAuth(req, res, next) {
 }
 
 export function getAuthenticatedUserId(req) {
-  if (!hasUserId(req.user?.userId)) {
+  const userId = normalizeUserId(req.user?.userId);
+  if (userId === null) {
     throw new Error("Authenticated user context is required");
   }
-  return req.user.userId;
+  return userId;
 }

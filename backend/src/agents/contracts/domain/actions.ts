@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  ActionRiskSchema,
+  ApprovableActionRiskSchema,
   DomainSchemaVersionSchema,
   IdentifierSchema,
   IsoDateTimeSchema,
@@ -27,7 +27,7 @@ export const ActionProposalSchema = z.object({
   connector: IdentifierSchema,
   actionType: IdentifierSchema,
   proposalVersion: z.string().trim().min(1),
-  risk: ActionRiskSchema,
+  risk: ApprovableActionRiskSchema,
   status: ActionProposalStatusSchema,
   requiresApproval: z.literal(true),
   normalizedPayload: JsonObjectSchema,

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Pool, PoolClient } from "pg";
 import { getPool } from "../../config/dbConfig.js";
@@ -54,7 +55,7 @@ export async function discoverMigrations(
     }
     versions.add(version);
 
-    const sql = await readFile(new URL(name, `file://${directory.endsWith("/") ? directory : `${directory}/`}`), "utf8");
+    const sql = await readFile(join(directory, name), "utf8");
     migrations.push({ version, name, sql, checksum: checksum(sql) });
   }
 
@@ -91,6 +92,15 @@ export async function runMigrations({
       "SELECT name, checksum FROM schema_migrations ORDER BY name",
     );
     const appliedByName = new Map(ledger.rows.map((row) => [row.name, row.checksum]));
+    const discoveredNames = new Set(migrations.map((migration) => migration.name));
+
+    for (const applied of ledger.rows) {
+      if (!discoveredNames.has(applied.name)) {
+        throw new Error(
+          `Applied migration ${applied.name} is missing from the repository; migration history is append-only`,
+        );
+      }
+    }
 
     for (const migration of migrations) {
       const appliedChecksum = appliedByName.get(migration.name);

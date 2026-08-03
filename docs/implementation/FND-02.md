@@ -17,7 +17,9 @@ tests_run:
   - npm run build
 manual_validation:
   - Confirmed all persisted/runtime domain objects require explicit user scope.
-  - Confirmed interrupt payloads and nested domain payloads accept plain JSON only.
+  - Confirmed interrupt payloads and nested domain payloads are rejected before parsing when they contain accessors, cycles, unsafe keys, or non-JSON values.
+  - Confirmed approval-bound proposals and interrupts accept only medium/high risk.
+  - Confirmed terminal results bind to the containing run and request timestamps.
   - Confirmed domain contracts contain no LangGraph or model-framework dependency.
 known_limitations:
   - These contracts define shapes and local invariants only; repositories arrive in FND-03.
@@ -41,9 +43,10 @@ silently omitted.
 
 ## Serialization boundary
 
-`serializeContract` validates a value before encoding it, while `deserializeContract` validates
-again after JSON decoding. The shared JSON guard rejects cycles, non-finite numbers, dates,
-functions, bigint/symbol values, accessor properties, unsafe object keys, and custom prototypes.
+`serializeContract` guards raw input before schema traversal and validates again before encoding;
+`deserializeContract` guards decoded JSON before schema traversal and validates the parsed result.
+The shared JSON guard rejects cycles, non-finite numbers, dates, functions, bigint/symbol values,
+accessor properties, unsafe object keys, and custom prototypes.
 This keeps interrupt and checkpoint-ready payloads portable across process restarts.
 
 ## Explicit scope boundary

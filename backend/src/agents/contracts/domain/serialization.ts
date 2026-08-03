@@ -78,6 +78,9 @@ export function serializeContract<T>(
   schema: z.ZodType<T>,
   value: unknown,
 ): string {
+  // Guard before parsing so accessors, cycles, and custom prototypes cannot be
+  // traversed or normalized by a schema before they are rejected.
+  assertJsonSerializable(value);
   const parsed = schema.parse(value);
   assertJsonSerializable(parsed);
   return JSON.stringify(parsed);
@@ -95,7 +98,11 @@ export function deserializeContract<T>(
     throw new TypeError("Contract payload is not valid JSON", { cause: error });
   }
 
-  return schema.parse(decoded);
+  // JSON.parse can still produce unsafe own keys such as `__proto__`.
+  assertJsonSerializable(decoded);
+  const parsed = schema.parse(decoded);
+  assertJsonSerializable(parsed);
+  return parsed;
 }
 
 export function roundTripContract<T>(

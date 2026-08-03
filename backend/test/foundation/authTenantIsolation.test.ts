@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { afterEach, test } from "node:test";
 import jwt from "jsonwebtoken";
 import { AuthController } from "../../src/api/controllers/authController.js";
+import { ChatController } from "../../src/api/controllers/chatController.js";
 import SyncController from "../../src/api/controllers/syncController.js";
 import {
   getDevelopmentPrincipal,
@@ -78,6 +79,7 @@ test("JWT authentication derives identity only from the verified token", () => {
   process.env.ENABLE_AUTH_DEV_BYPASS = "false";
   const token = jwt.sign({ userId: 101 }, process.env.JWT_SECRET, {
     algorithm: "HS256",
+    expiresIn: "5m",
   });
   const request = {
     headers: { authorization: `Bearer ${token}` },
@@ -114,6 +116,19 @@ test("missing and malformed credentials fail without disclosing resource state",
       error: "Authentication required.",
     });
   }
+
+  const nonExpiringToken = jwt.sign(
+    { userId: 101 },
+    process.env.JWT_SECRET,
+    { algorithm: "HS256" },
+  );
+  const response = responseRecorder();
+  requireAuth(
+    { headers: { authorization: `Bearer ${nonExpiringToken}` } } as any,
+    response as any,
+    () => assert.fail("A token without an expiry must not authenticate"),
+  );
+  assert.equal(response.statusCode, 401);
 });
 
 test("development bypass is opt-in and can never run in production", () => {
@@ -128,7 +143,13 @@ test("development bypass is opt-in and can never run in production", () => {
     authType: "development_bypass",
   });
 
+  process.env.SYNC_USER_ID = "not-a-database-user-id";
+  assert.equal(getDevelopmentPrincipal(), null);
+
   process.env.NODE_ENV = "production";
+  assert.equal(getDevelopmentPrincipal(), null);
+
+  process.env.NODE_ENV = "staging";
   assert.equal(getDevelopmentPrincipal(), null);
 });
 
@@ -289,6 +310,54 @@ test("sync repository scopes status reads and writes by user", async () => {
   );
   assert.match(calls[1].text, /WHERE id = \$6 AND user_id = \$7/);
   assert.equal(calls[1].values.at(-1), 202);
+
+  await assert.rejects(
+    repository.findBySource("gmail", undefined as any),
+    /userId is required/,
+  );
+});
+
+test("cross-user and missing conversations return the same non-disclosing denial", async () => {
+  const scopeChecks: Array<{ conversationId: string; userId: number }> = [];
+  const conversationRepo = {
+    async getConversationStatus(conversationId: string, userId: number) {
+      scopeChecks.push({ conversationId, userId });
+      return { exists: false, active: false, totalCount: 0, activeCount: 0 };
+    },
+    async getConversationHistory() {
+      assert.fail("History must not be read after an ownership denial");
+    },
+  };
+  const controller = new ChatController({
+    conversationRepo: conversationRepo as any,
+    ragChainService: {} as any,
+  });
+
+  const crossUserResponse = responseRecorder();
+  await controller.getHistory(
+    {
+      user: { userId: 101 },
+      params: { conversationId: "conversation-owned-by-202" },
+      query: { userId: "202" },
+    } as any,
+    crossUserResponse as any,
+  );
+  const missingResponse = responseRecorder();
+  await controller.getHistory(
+    {
+      user: { userId: 101 },
+      params: { conversationId: "conversation-does-not-exist" },
+      query: {},
+    } as any,
+    missingResponse as any,
+  );
+
+  assert.equal(crossUserResponse.statusCode, 404);
+  assert.deepEqual(crossUserResponse.body, missingResponse.body);
+  assert.deepEqual(scopeChecks, [
+    { conversationId: "conversation-owned-by-202", userId: 101 },
+    { conversationId: "conversation-does-not-exist", userId: 101 },
+  ]);
 });
 
 test("sync socket events target only the authenticated user's room", () => {
@@ -344,6 +413,7 @@ test("socket identity comes from JWT and never from handshake query data", () =>
 
   const token = jwt.sign({ userId: 202 }, process.env.JWT_SECRET, {
     algorithm: "HS256",
+    expiresIn: "5m",
   });
   const authenticatedSocket = {
     handshake: {

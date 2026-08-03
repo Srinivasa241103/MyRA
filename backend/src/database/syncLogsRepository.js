@@ -114,6 +114,7 @@ export class SyncLogRepository {
    * @returns {Promise<Object|null>}
    */
   async getLastSuccessfulSync(source, userId) {
+    requireUserId(userId);
     const query = `
             SELECT * FROM sync_logs
             WHERE source = $1 AND status = 'success' AND user_id = $2
@@ -133,6 +134,7 @@ export class SyncLogRepository {
    * @returns {Promise<Object|null>}
    */
   async getLastSync(source, userId) {
+    requireUserId(userId);
     const query = `
             SELECT * FROM sync_logs
             WHERE source = $1 AND user_id = $2
@@ -153,6 +155,7 @@ export class SyncLogRepository {
    * @returns {Promise<Array>}
    */
   async findBySource(source, userId, limit = 5) {
+    requireUserId(userId);
     const query = `
             SELECT * FROM sync_logs
             WHERE source = $1 AND user_id = $2
@@ -172,6 +175,7 @@ export class SyncLogRepository {
    * @returns {Promise<Array>}
    */
   async findAll(userId, limit = 20) {
+    requireUserId(userId);
     const query = `
             SELECT * FROM sync_logs
             WHERE user_id = $1
@@ -191,6 +195,7 @@ export class SyncLogRepository {
    * @returns {Promise<Object>}
    */
   async getStats(source, userId) {
+    requireUserId(userId);
     const query = `
             SELECT
                 COUNT(*) as total_syncs,
@@ -216,6 +221,7 @@ export class SyncLogRepository {
    * @returns {Promise<boolean>}
    */
   async isSyncInProgress(source, userId) {
+    requireUserId(userId);
     const query = `
             SELECT 1 FROM sync_logs
             WHERE source = $1 AND status = 'in_progress' AND user_id = $2
@@ -258,6 +264,7 @@ export class SyncLogRepository {
    * @returns {Promise<Array>}
    */
   async findByStatus(status, userId, limit = 10) {
+    requireUserId(userId);
     const query = `
             SELECT * FROM sync_logs
             WHERE status = $1 AND user_id = $2

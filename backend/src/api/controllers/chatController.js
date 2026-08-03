@@ -6,8 +6,8 @@ import { createSseWriter } from "../../utils/sseWriter.js";
 import { logger } from "../../utils/logger.js";
 import { getAuthenticatedUserId } from "../middleware/requireAuth.js";
 
-const conversationRepo = new ConversationRepository();
-const ragChainService = new RagChain();
+const defaultConversationRepo = new ConversationRepository();
+const defaultRagChainService = new RagChain();
 
 const CHAT_NOT_FOUND_RESPONSE = {
   success: false,
@@ -57,13 +57,21 @@ function buildRagResponse(result, queryId, query) {
   };
 }
 
-class ChatController {
+export class ChatController {
+  constructor({
+    conversationRepo = defaultConversationRepo,
+    ragChainService = defaultRagChainService,
+  } = {}) {
+    this.conversationRepo = conversationRepo;
+    this.ragChainService = ragChainService;
+  }
+
   async _getConversationStatus(conversationId, userId) {
     if (!conversationId) {
       return { exists: false, active: false, totalCount: 0, activeCount: 0 };
     }
 
-    return conversationRepo.getConversationStatus(conversationId, userId);
+    return this.conversationRepo.getConversationStatus(conversationId, userId);
   }
 
   async _ensureReadableConversation(conversationId, userId, res) {
@@ -119,7 +127,7 @@ class ChatController {
       const writable = await this._ensureWritableConversation(conversationId, userId, res);
       if (!writable) return;
 
-      const result = await ragChainService.chat({
+      const result = await this.ragChainService.chat({
         userMessage: query,
         conversationId,
         userId,
@@ -218,7 +226,7 @@ class ChatController {
       sendStatus("routing");
 
       let streamedContext = emptyContext();
-      const result = await ragChainService.chat({
+      const result = await this.ragChainService.chat({
         userMessage: query,
         conversationId: threadId,
         userId,
@@ -256,7 +264,7 @@ class ChatController {
       const stopped = abortController.signal.aborted || error?.name === "AbortError";
 
       if (error?.partialAnswer && !stopped) {
-        await conversationRepo.saveChatConversation({
+        await this.conversationRepo.saveChatConversation({
           conversation_id: threadId,
           user_message: query,
           assistant_message: error.partialAnswer,
@@ -300,7 +308,7 @@ class ChatController {
       const readable = await this._ensureReadableConversation(conversationId, userId, res);
       if (!readable) return;
 
-      const { rows } = await conversationRepo.getConversationHistory(
+      const { rows } = await this.conversationRepo.getConversationHistory(
         conversationId,
         userId,
         limit,
@@ -328,7 +336,7 @@ class ChatController {
     const limit = parseInt(req.query.limit) || 50;
     const userId = getAuthenticatedUserId(req);
     try {
-      const rows = await conversationRepo.getConversations(limit, userId);
+      const rows = await this.conversationRepo.getConversations(limit, userId);
 
       const conversations = rows.map((row) => ({
         conversationId: row.conversation_id,
@@ -380,7 +388,7 @@ class ChatController {
     }
 
     try {
-      const deletedRows = await conversationRepo.clear(conversationId, userId);
+      const deletedRows = await this.conversationRepo.clear(conversationId, userId);
 
       if (!deletedRows) {
         logger.warn("Delete conversation not found", {

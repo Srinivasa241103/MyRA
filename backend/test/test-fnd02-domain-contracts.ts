@@ -4,10 +4,12 @@ import {
   ActionProposalSchema,
   ActionReceiptSchema,
   AgentRunSchema,
+  ApprovalInterruptStateSchema,
   ApprovalDecisionSchema,
   CitationSchema,
   EvidenceItemSchema,
   InterruptRunStateSchema,
+  JsonObjectSchema,
   MemoryCandidateSchema,
   PlanSchema,
   PlannedSubtaskSchema,
@@ -16,6 +18,7 @@ import {
   ToolResultSchema,
   VerificationResultSchema,
   assertJsonSerializable,
+  deserializeContract,
   roundTripContract,
   serializeContract,
 } from "../src/agents/contracts/domain/index.js";
@@ -72,6 +75,14 @@ function testInvalidActionRiskIsRejected(): void {
     }).success,
     false,
   );
+  assert.equal(
+    ActionProposalSchema.safeParse({
+      ...FND02_FIXTURES.actionProposal,
+      risk: "low",
+    }).success,
+    false,
+    "An approval-bound action proposal cannot be low risk",
+  );
 }
 
 function testNonSerializableInterruptPayloadIsRejected(): void {
@@ -86,12 +97,35 @@ function testNonSerializableInterruptPayloadIsRejected(): void {
   assert.equal(InterruptRunStateSchema.safeParse(invalidInterrupt).success, false);
   assert.throws(
     () => serializeContract(InterruptRunStateSchema, invalidInterrupt),
-    /invalid input|expected/i,
+    /invalid input|expected|plain JSON object/i,
   );
 
   const circular: Record<string, unknown> = {};
   circular.self = circular;
   assert.throws(() => assertJsonSerializable(circular), /circular reference/i);
+
+  let getterExecuted = false;
+  const accessorPayload: Record<string, unknown> = {};
+  Object.defineProperty(accessorPayload, "secret", {
+    enumerable: true,
+    get() {
+      getterExecuted = true;
+      return "must-not-run";
+    },
+  });
+  assert.throws(
+    () => serializeContract(JsonObjectSchema, accessorPayload),
+    /accessor property/i,
+  );
+  assert.equal(getterExecuted, false, "Serialization must reject getters before parsing");
+
+  assert.throws(
+    () => deserializeContract(
+      JsonObjectSchema,
+      '{"safe":{"__proto__":{"polluted":true}}}',
+    ),
+    /unsafe JSON key/i,
+  );
 }
 
 function testMalformedEvidenceIsRejected(): void {
@@ -134,6 +168,51 @@ function testDiscriminatedStateAndOutcomeRules(): void {
     VerificationResultSchema.safeParse({
       ...FND02_FIXTURES.verificationResult,
       status: "revise",
+    }).success,
+    false,
+  );
+
+  assert.equal(
+    AgentRunSchema.safeParse({
+      ...FND02_FIXTURES.agentRun,
+      requestId: "different-request",
+      state: FND02_FIXTURES.completedTerminalState,
+      updatedAt: FND02_FIXTURES.completedTerminalState.completedAt,
+    }).success,
+    false,
+    "A terminal result must belong to the containing request",
+  );
+
+  const approvalInterrupt = {
+    schemaVersion: "2.0.0",
+    runId: "run-fixture-1",
+    userId: 42,
+    kind: "interrupt",
+    interruptType: "approval",
+    interruptId: "interrupt-approval-1",
+    status: "waiting_for_approval",
+    payload: {
+      proposalId: "proposal-fixture-1",
+      proposalVersion: "1",
+      payloadHash: "a".repeat(64),
+      risk: "medium",
+      preview: { title: "Project X review" },
+    },
+    createdAt: "2026-08-03T10:00:00.000Z",
+    expiresAt: "2026-08-03T10:10:00.000Z",
+  };
+  assert.equal(ApprovalInterruptStateSchema.safeParse(approvalInterrupt).success, true);
+  assert.equal(
+    ApprovalInterruptStateSchema.safeParse({
+      ...approvalInterrupt,
+      payload: { ...approvalInterrupt.payload, risk: "low" },
+    }).success,
+    false,
+  );
+  assert.equal(
+    ApprovalInterruptStateSchema.safeParse({
+      ...approvalInterrupt,
+      expiresAt: approvalInterrupt.createdAt,
     }).success,
     false,
   );

@@ -8,7 +8,7 @@ import {
   SupportedFlowSchema,
 } from "../flowContracts.js";
 import {
-  ActionRiskSchema,
+  ApprovableActionRiskSchema,
   DomainSchemaVersionSchema,
   IdentifierSchema,
   IsoDateTimeSchema,
@@ -73,7 +73,18 @@ export const ClarificationInterruptStateSchema = z.object({
   }).strict(),
   createdAt: IsoDateTimeSchema,
   expiresAt: IsoDateTimeSchema.optional(),
-}).strict();
+}).strict().superRefine((state, context) => {
+  if (
+    state.expiresAt &&
+    Date.parse(state.expiresAt) <= Date.parse(state.createdAt)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["expiresAt"],
+      message: "Clarification expiry must be after creation",
+    });
+  }
+});
 
 export const ApprovalInterruptStateSchema = z.object({
   ...RunStateIdentityShape,
@@ -85,12 +96,20 @@ export const ApprovalInterruptStateSchema = z.object({
     proposalId: IdentifierSchema,
     proposalVersion: z.string().trim().min(1),
     payloadHash: Sha256Schema,
-    risk: ActionRiskSchema,
+    risk: ApprovableActionRiskSchema,
     preview: JsonObjectSchema,
   }).strict(),
   createdAt: IsoDateTimeSchema,
   expiresAt: IsoDateTimeSchema,
-}).strict();
+}).strict().superRefine((state, context) => {
+  if (Date.parse(state.expiresAt) <= Date.parse(state.createdAt)) {
+    context.addIssue({
+      code: "custom",
+      path: ["expiresAt"],
+      message: "Approval expiry must be after creation",
+    });
+  }
+});
 
 export const InterruptRunStateSchema = z.discriminatedUnion("interruptType", [
   ClarificationInterruptStateSchema,
@@ -198,6 +217,33 @@ export const AgentRunSchema = z.object({
         message: "Terminal flow result must match the run flow",
       });
     }
+    if (run.requestId !== run.state.result.requestId) {
+      context.addIssue({
+        code: "custom",
+        path: ["state", "result", "requestId"],
+        message: "Terminal flow result must match the run request",
+      });
+    }
+  }
+
+  const stateTimestamp = run.state.kind === "active"
+    ? run.state.enteredAt
+    : run.state.kind === "interrupt"
+      ? run.state.createdAt
+      : run.state.completedAt;
+  if (Date.parse(stateTimestamp) < Date.parse(run.createdAt)) {
+    context.addIssue({
+      code: "custom",
+      path: ["state"],
+      message: "Run state timestamp cannot be before run creation",
+    });
+  }
+  if (Date.parse(stateTimestamp) > Date.parse(run.updatedAt)) {
+    context.addIssue({
+      code: "custom",
+      path: ["updatedAt"],
+      message: "Run updatedAt cannot be before its current state timestamp",
+    });
   }
 });
 

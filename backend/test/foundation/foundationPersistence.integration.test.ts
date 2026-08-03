@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { Pool } from "pg";
 import { ActionRepository } from "../../src/database/foundation/actionRepository.js";
@@ -7,7 +10,10 @@ import { AgentRunRepository } from "../../src/database/foundation/agentRunReposi
 import { AuditEventRepository } from "../../src/database/foundation/auditEventRepository.js";
 import { ConnectorInstallationRepository } from "../../src/database/foundation/connectorInstallationRepository.js";
 import { EvidenceRepository } from "../../src/database/foundation/evidenceRepository.js";
-import { runMigrations } from "../../src/database/migrations/migrationRunner.js";
+import {
+  DEFAULT_MIGRATIONS_DIRECTORY,
+  runMigrations,
+} from "../../src/database/migrations/migrationRunner.js";
 
 const connectionString = process.env.FND_TEST_DATABASE_URL;
 
@@ -42,10 +48,80 @@ if (!connectionString) {
   });
 
   test("ordered migrations apply to an empty database and rerun without mutation", async () => {
-    const firstRun = await runMigrations({ pool });
-    assert.deepEqual(firstRun.applied.map((migration) => migration.name), [
-      "0001_fnd_03_foundation.sql",
+    const legacyDirectory = await mkdtemp(join(tmpdir(), "myra-fnd-legacy-"));
+    try {
+      await copyFile(
+        join(DEFAULT_MIGRATIONS_DIRECTORY, "0001_fnd_03_foundation.sql"),
+        join(legacyDirectory, "0001_fnd_03_foundation.sql"),
+      );
+      const firstRun = await runMigrations({ pool, directory: legacyDirectory });
+      assert.deepEqual(firstRun.applied.map((migration) => migration.name), [
+        "0001_fnd_03_foundation.sql",
+      ]);
+    } finally {
+      await rm(legacyDirectory, { recursive: true, force: true });
+    }
+
+    const upgradeRunId = randomUUID();
+    const upgradeProposalId = randomUUID();
+    const upgradeHash = "8".repeat(64);
+    await agentRuns.create({
+      id: upgradeRunId,
+      userId: userA,
+      conversationId: randomUUID(),
+      requestId: randomUUID(),
+      flow: "schedule_meeting",
+      schemaVersion: "2.0.0",
+      flowContractVersion: "2.0.0",
+      requestPayload: { query: "upgrade fixture" },
+      state: { kind: "active", status: "created" },
+      budgetLimits: { maxSteps: 5 },
+      budgetUsage: { steps: 0 },
+    });
+    await actions.createProposal({
+      id: upgradeProposalId,
+      actionId: randomUUID(),
+      runId: upgradeRunId,
+      userId: userA,
+      connector: "calendar",
+      actionType: "calendar.create_event",
+      toolName: "calendar_create_event",
+      risk: "medium",
+      schemaVersion: "2.0.0",
+      proposalVersion: "1",
+      normalizedPayload: { title: "Upgrade fixture" },
+      payloadHash: upgradeHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await actions.markWaitingForApproval(userA, upgradeProposalId);
+    const upgradeApproval = await actions.recordApproval({
+      id: randomUUID(),
+      userId: userA,
+      proposalId: upgradeProposalId,
+      proposalHash: upgradeHash,
+      decision: "approve",
+    });
+    await pool.query(
+      `INSERT INTO idempotency_records (
+         proposal_id, user_id, idempotency_key, request_hash, status, locked_at
+       ) VALUES ($1, $2, $3, $4, 'executing', NOW())`,
+      [upgradeProposalId, userA, `upgrade:${randomUUID()}`, upgradeHash],
+    );
+
+    const upgradeRun = await runMigrations({ pool });
+    assert.deepEqual(upgradeRun.applied.map((migration) => migration.name), [
+      "0002_fnd_03_integrity_hardening.sql",
     ]);
+    const upgradedIdempotency = await pool.query<{ approval_decision_id: string }>(
+      `SELECT approval_decision_id
+       FROM idempotency_records
+       WHERE proposal_id = $1 AND user_id = $2`,
+      [upgradeProposalId, userA],
+    );
+    assert.equal(
+      upgradedIdempotency.rows[0].approval_decision_id,
+      upgradeApproval.id,
+    );
 
     const beforeRerun = await pool.query<{ count: number }>(
       "SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE table_schema = 'public'",
@@ -56,7 +132,10 @@ if (!connectionString) {
     );
 
     assert.equal(secondRun.applied.length, 0);
-    assert.deepEqual(secondRun.skipped, ["0001_fnd_03_foundation.sql"]);
+    assert.deepEqual(secondRun.skipped, [
+      "0001_fnd_03_foundation.sql",
+      "0002_fnd_03_integrity_hardening.sql",
+    ]);
     assert.equal(afterRerun.rows[0].count, beforeRerun.rows[0].count);
   });
 
@@ -94,6 +173,87 @@ if (!connectionString) {
         stepKey: "cross-user-step",
         stepType: "research",
         sequenceNumber: 0,
+      }),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23503",
+    );
+
+    const secondRunId = randomUUID();
+    await agentRuns.create({
+      id: secondRunId,
+      userId: userA,
+      conversationId: randomUUID(),
+      requestId: randomUUID(),
+      flow: "simple_lookup",
+      schemaVersion: "2.0.0",
+      flowContractVersion: "2.0.0",
+      requestPayload: { query: "second synthetic run" },
+      state: {
+        kind: "active",
+        status: "created",
+        enteredAt: new Date().toISOString(),
+      },
+      budgetLimits: { maxSteps: 5, maxRetries: 1 },
+      budgetUsage: { steps: 0, retries: 0 },
+    });
+    const secondRunStepId = randomUUID();
+    await agentRuns.createStep({
+      id: secondRunStepId,
+      userId: userA,
+      runId: secondRunId,
+      stepKey: "second-run-step",
+      stepType: "research",
+      sequenceNumber: 0,
+    });
+    await assert.rejects(
+      agentRuns.createToolCall({
+        id: randomUUID(),
+        userId: userA,
+        runId,
+        stepId: secondRunStepId,
+        toolName: "indexed_search",
+        toolSchemaVersion: "1.0.0",
+        connector: "index",
+        capability: "search",
+        mode: "read",
+        risk: "low",
+        argumentsHash: "d".repeat(64),
+      }),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23503",
+    );
+
+    const secondRunToolCallId = randomUUID();
+    await agentRuns.createToolCall({
+      id: secondRunToolCallId,
+      userId: userA,
+      runId: secondRunId,
+      toolName: "indexed_search",
+      toolSchemaVersion: "1.0.0",
+      connector: "index",
+      capability: "search",
+      mode: "read",
+      risk: "low",
+      argumentsHash: "e".repeat(64),
+    });
+    await assert.rejects(
+      evidence.create({
+        id: randomUUID(),
+        runId,
+        toolCallId: secondRunToolCallId,
+        userId: userA,
+        source: "index",
+        sourceRecordId: "cross-run-evidence",
+        content: "Must not link across runs",
+        retrievedAt: new Date(),
+        freshness: "recent_index",
+        contentHash,
       }),
       (error: unknown) =>
         typeof error === "object" &&
@@ -241,6 +401,105 @@ if (!connectionString) {
     });
     assert.equal((await actions.findReceiptByProposal(userA, proposalId))?.id, receiptId);
     assert.equal(await actions.findReceiptByProposal(userB, proposalId), null);
+
+    await pool.query(
+      `UPDATE action_proposals
+       SET created_at = NOW() - INTERVAL '2 minutes',
+           expires_at = NOW() - INTERVAL '1 minute'
+       WHERE id = $1 AND user_id = $2`,
+      [proposalId, userA],
+    );
+    const completedReplay = await actions.claimExecution({
+      userId: userA,
+      proposalId,
+      idempotencyKey,
+      requestHash: payloadHash,
+    });
+    assert.equal(completedReplay.claimed, false);
+    assert.equal(completedReplay.idempotencyRecord.status, "succeeded");
+  });
+
+  test("execution claims require a stored, exact, non-expired approval", async () => {
+    const unapprovedProposalId = randomUUID();
+    const unapprovedHash = "f".repeat(64);
+    await actions.createProposal({
+      id: unapprovedProposalId,
+      actionId: randomUUID(),
+      runId,
+      userId: userA,
+      connector: "calendar",
+      actionType: "calendar.create_event",
+      toolName: "calendar_create_event",
+      risk: "medium",
+      schemaVersion: "2.0.0",
+      proposalVersion: "1",
+      normalizedPayload: { title: "Unapproved synthetic review" },
+      payloadHash: unapprovedHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    // Simulate an application bug attempting to advance only the proposal row.
+    await pool.query(
+      `UPDATE action_proposals
+       SET status = 'approved'
+       WHERE id = $1 AND user_id = $2`,
+      [unapprovedProposalId, userA],
+    );
+    await assert.rejects(
+      actions.claimExecution({
+        userId: userA,
+        proposalId: unapprovedProposalId,
+        idempotencyKey: `calendar:${randomUUID()}`,
+        requestHash: unapprovedHash,
+      }),
+      /matching stored approval decision/,
+    );
+
+    const expiredProposalId = randomUUID();
+    const expiredHash = "9".repeat(64);
+    await actions.createProposal({
+      id: expiredProposalId,
+      actionId: randomUUID(),
+      runId,
+      userId: userA,
+      connector: "calendar",
+      actionType: "calendar.create_event",
+      toolName: "calendar_create_event",
+      risk: "medium",
+      schemaVersion: "2.0.0",
+      proposalVersion: "1",
+      normalizedPayload: { title: "Expired synthetic review" },
+      payloadHash: expiredHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await actions.markWaitingForApproval(userA, expiredProposalId);
+    await actions.recordApproval({
+      id: randomUUID(),
+      userId: userA,
+      proposalId: expiredProposalId,
+      proposalHash: expiredHash,
+      decision: "approve",
+    });
+    await pool.query(
+      `UPDATE action_proposals
+       SET created_at = NOW() - INTERVAL '2 minutes',
+           expires_at = NOW() - INTERVAL '1 minute'
+       WHERE id = $1 AND user_id = $2`,
+      [expiredProposalId, userA],
+    );
+    await assert.rejects(
+      actions.claimExecution({
+        userId: userA,
+        proposalId: expiredProposalId,
+        idempotencyKey: `calendar:${randomUUID()}`,
+        requestHash: expiredHash,
+      }),
+      /proposal has expired/,
+    );
+    assert.equal(
+      (await actions.findProposalById(userA, expiredProposalId))?.status,
+      "expired",
+    );
   });
 
   test("database constraints reject duplicate idempotency keys and invalid states", async () => {
@@ -260,13 +519,41 @@ if (!connectionString) {
       payloadHash: "b".repeat(64),
       expiresAt: new Date(Date.now() + 60_000),
     });
+    await actions.markWaitingForApproval(userA, secondProposalId);
+    const secondApproval = await actions.recordApproval({
+      id: randomUUID(),
+      userId: userA,
+      proposalId: secondProposalId,
+      proposalHash: "b".repeat(64),
+      decision: "approve",
+    });
 
     await assert.rejects(
       pool.query(
         `INSERT INTO idempotency_records (
            proposal_id, user_id, idempotency_key, request_hash
          ) VALUES ($1, $2, $3, $4)`,
-        [secondProposalId, userA, `mismatched:${randomUUID()}`, "c".repeat(64)],
+        [secondProposalId, userA, `missing-approval:${randomUUID()}`, "b".repeat(64)],
+      ),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23502",
+    );
+
+    await assert.rejects(
+      pool.query(
+        `INSERT INTO idempotency_records (
+           proposal_id, user_id, approval_decision_id, idempotency_key, request_hash
+         ) VALUES ($1, $2, $3, $4, $5)`,
+        [
+          secondProposalId,
+          userA,
+          secondApproval.id,
+          `mismatched:${randomUUID()}`,
+          "c".repeat(64),
+        ],
       ),
       (error: unknown) =>
         typeof error === "object" &&
@@ -282,12 +569,61 @@ if (!connectionString) {
     await assert.rejects(
       pool.query(
         `INSERT INTO idempotency_records (
-           proposal_id, user_id, idempotency_key, request_hash
-         ) VALUES ($1, $2, $3, $4)`,
-        [secondProposalId, userA, existingKey.rows[0].idempotency_key, "b".repeat(64)],
+           proposal_id, user_id, approval_decision_id, idempotency_key, request_hash
+         ) VALUES ($1, $2, $3, $4, $5)`,
+        [
+          secondProposalId,
+          userA,
+          secondApproval.id,
+          existingKey.rows[0].idempotency_key,
+          "b".repeat(64),
+        ],
       ),
       (error: unknown) =>
         typeof error === "object" && error !== null && "code" in error && error.code === "23505",
+    );
+
+    await assert.rejects(
+      agentRuns.createToolCall({
+        id: randomUUID(),
+        userId: userA,
+        runId,
+        toolName: "indexed_search",
+        toolSchemaVersion: "1.0.0",
+        connector: "index",
+        capability: "search",
+        mode: "read",
+        risk: "low",
+        argumentsHash: "too-short",
+      }),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23514",
+    );
+
+    await assert.rejects(
+      actions.createProposal({
+        id: randomUUID(),
+        actionId: randomUUID(),
+        runId,
+        userId: userA,
+        connector: "calendar",
+        actionType: "calendar.create_event",
+        toolName: "calendar_create_event",
+        risk: "low",
+        schemaVersion: "2.0.0",
+        proposalVersion: "1",
+        normalizedPayload: { title: "Invalid low-risk write" },
+        payloadHash: "7".repeat(64),
+        expiresAt: new Date(Date.now() + 60_000),
+      } as any),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23514",
     );
 
     await assert.rejects(

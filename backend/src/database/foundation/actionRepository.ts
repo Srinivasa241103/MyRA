@@ -1,9 +1,8 @@
 import type { Pool, PoolClient } from "pg";
 import { getPool } from "../../config/dbConfig.js";
 import type {
-  ActionProposalStatus,
-  ActionRisk,
   ApprovalDecision,
+  ApprovableActionRisk,
 } from "../../agents/contracts/index.js";
 import { withTransaction } from "../transaction.js";
 import type { JsonObject, UserId } from "./types.js";
@@ -17,13 +16,12 @@ export interface CreateActionProposalInput {
   connector: string;
   actionType: string;
   toolName: string;
-  risk: ActionRisk;
+  risk: ApprovableActionRisk;
   schemaVersion: string;
   proposalVersion: string;
   normalizedPayload: JsonObject;
   payloadHash: string;
   evidenceIds?: string[];
-  status?: ActionProposalStatus;
   expiresAt: Date | string;
 }
 
@@ -58,6 +56,7 @@ export type CompleteExecutionInput = CompleteExecutionBase &
     | {
         status: "succeeded";
         externalId: string;
+        providerPayloadHash: string;
         providerResult: JsonObject;
         error?: never;
         reconciliationMetadata?: never;
@@ -72,6 +71,7 @@ export type CompleteExecutionInput = CompleteExecutionBase &
     | {
         status: "unknown";
         externalId?: string | null;
+        providerPayloadHash: string;
         providerResult?: never;
         error: JsonObject;
         reconciliationMetadata: JsonObject;
@@ -96,7 +96,7 @@ export class ActionRepository {
          risk, schema_version, proposal_version, normalized_payload,
          payload_hash, evidence_ids, status, expires_at
        ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'proposed', $14
        )
        RETURNING *`,
       [
@@ -113,7 +113,6 @@ export class ActionRepository {
         input.normalizedPayload,
         input.payloadHash,
         input.evidenceIds ?? [],
-        input.status ?? "proposed",
         input.expiresAt,
       ],
     );
@@ -233,12 +232,20 @@ export class ActionRepository {
   }> {
     assertUserId(input.userId);
 
-    return withTransaction(
+    const outcome = await withTransaction(
       async (client) => {
         const proposalResult = await client.query(
-          `SELECT * FROM action_proposals
-           WHERE id = $1 AND user_id = $2
-           FOR UPDATE`,
+          `SELECT
+             proposal.*,
+             approval.id AS approval_decision_id,
+             approval.proposal_hash AS approved_payload_hash
+           FROM action_proposals proposal
+           LEFT JOIN action_approvals approval
+             ON approval.proposal_id = proposal.id
+            AND approval.user_id = proposal.user_id
+            AND approval.decision = 'approve'
+           WHERE proposal.id = $1 AND proposal.user_id = $2
+           FOR UPDATE OF proposal`,
           [input.proposalId, input.userId],
         );
         const proposal = proposalResult.rows[0];
@@ -251,21 +258,66 @@ export class ActionRepository {
             `Only an approved action can execute; current status is ${proposal.status}`,
           );
         }
+        if (
+          !proposal.approval_decision_id ||
+          proposal.approved_payload_hash !== proposal.payload_hash
+        ) {
+          throw new ActionStateConflictError(
+            "Execution requires a matching stored approval decision",
+          );
+        }
         if (proposal.payload_hash !== input.requestHash) {
           throw new ActionStateConflictError(
             "Execution payload does not match the approved proposal payload",
           );
         }
 
+        // A replay of an already claimed key returns the durable record even
+        // after proposal expiry; it never grants a new execution claim.
+        const previousResult = await client.query(
+          `SELECT * FROM idempotency_records
+           WHERE user_id = $1 AND idempotency_key = $2
+           FOR UPDATE`,
+          [input.userId, input.idempotencyKey],
+        );
+        const previous = previousResult.rows[0];
+        if (previous) {
+          if (
+            previous.proposal_id !== input.proposalId ||
+            previous.request_hash !== input.requestHash ||
+            previous.approval_decision_id !== proposal.approval_decision_id
+          ) {
+            throw new ActionStateConflictError(
+              "Idempotency key is already bound to a different action payload",
+            );
+          }
+          return {
+            kind: "result" as const,
+            value: { claimed: false, proposal, idempotencyRecord: previous },
+          };
+        }
+
+        if (new Date(proposal.expires_at).getTime() <= Date.now()) {
+          await client.query(
+            `UPDATE action_proposals
+             SET status = 'expired', updated_at = NOW()
+             WHERE id = $1 AND user_id = $2`,
+            [input.proposalId, input.userId],
+          );
+          return { kind: "expired" as const };
+        }
+
         const inserted = await client.query(
           `INSERT INTO idempotency_records (
-             proposal_id, user_id, idempotency_key, request_hash, status, locked_at
-           ) VALUES ($1, $2, $3, $4, 'executing', NOW())
+             proposal_id, user_id, approval_decision_id, idempotency_key,
+             request_hash, status, locked_at
+           ) VALUES ($1, $2, $3, $4, $5, 'executing', NOW())
            ON CONFLICT (user_id, idempotency_key) DO NOTHING
            RETURNING *`,
           [
             input.proposalId,
             input.userId,
+            proposal.approval_decision_id,
             input.idempotencyKey,
             input.requestHash,
           ],
@@ -282,24 +334,36 @@ export class ActionRepository {
           if (
             !existing ||
             existing.proposal_id !== input.proposalId ||
-            existing.request_hash !== input.requestHash
+            existing.request_hash !== input.requestHash ||
+            existing.approval_decision_id !== proposal.approval_decision_id
           ) {
             throw new ActionStateConflictError(
               "Idempotency key is already bound to a different action payload",
             );
           }
-          return { claimed: false, proposal, idempotencyRecord: existing };
+          return {
+            kind: "result" as const,
+            value: { claimed: false, proposal, idempotencyRecord: existing },
+          };
         }
 
         return {
-          claimed: true,
-          proposal,
-          idempotencyRecord: inserted.rows[0],
+          kind: "result" as const,
+          value: {
+            claimed: true,
+            proposal,
+            idempotencyRecord: inserted.rows[0],
+          },
         };
       },
       { isolationLevel: "SERIALIZABLE" },
       this.pool,
     );
+
+    if (outcome.kind === "expired") {
+      throw new ActionStateConflictError("Action proposal has expired");
+    }
+    return outcome.value;
   }
 
   async completeExecution(input: CompleteExecutionInput): Promise<Record<string, unknown>> {
@@ -311,6 +375,7 @@ export class ActionRepository {
           proposal_status: string;
           idempotency_record_id: string;
           idempotency_key: string;
+          idempotency_status: string;
           request_hash: string;
           action_id: string;
           approval_decision_id: string;
@@ -324,6 +389,7 @@ export class ActionRepository {
              p.status AS proposal_status,
              i.id AS idempotency_record_id,
              i.idempotency_key,
+             i.status AS idempotency_status,
              i.request_hash,
              p.action_id,
              a.id AS approval_decision_id,
@@ -339,6 +405,7 @@ export class ActionRepository {
              ON a.proposal_id = p.id
             AND a.user_id = p.user_id
             AND a.decision = 'approve'
+            AND a.id = i.approval_decision_id
            WHERE p.id = $1 AND p.user_id = $2
            FOR UPDATE OF p, i, a`,
           [input.proposalId, input.userId],
@@ -352,9 +419,22 @@ export class ActionRepository {
             `Cannot complete an action in ${current.proposal_status} state`,
           );
         }
+        if (current.idempotency_status !== "executing") {
+          throw new ActionStateConflictError(
+            `Cannot complete an action whose execution is ${current.idempotency_status}`,
+          );
+        }
         if (current.request_hash !== current.payload_hash) {
           throw new ActionStateConflictError(
             "Stored execution payload does not match the approved proposal payload",
+          );
+        }
+        if (
+          (input.status === "succeeded" || input.status === "unknown") &&
+          !input.providerPayloadHash
+        ) {
+          throw new ActionStateConflictError(
+            "A provider payload hash is required after a write attempt",
           );
         }
         if (

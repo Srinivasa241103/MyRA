@@ -61,6 +61,9 @@ export const AgentCapabilitySchema = z.enum([
 
 export const ActionRiskSchema = z.enum(["low", "medium", "high"]);
 
+/** Only side-effecting proposals reach an approval interrupt. */
+export const ApprovableActionRiskSchema = ActionRiskSchema.exclude(["low"]);
+
 export const ToolModeSchema = z.enum([
   "read",
   "draft",
@@ -72,4 +75,5 @@ export const ToolModeSchema = z.enum([
 export type UserId = z.infer<typeof UserIdSchema>;
 export type AgentCapability = z.infer<typeof AgentCapabilitySchema>;
 export type ActionRisk = z.infer<typeof ActionRiskSchema>;
+export type ApprovableActionRisk = z.infer<typeof ApprovableActionRiskSchema>;
 export type ToolMode = z.infer<typeof ToolModeSchema>;
