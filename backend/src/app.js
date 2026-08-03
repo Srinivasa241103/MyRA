@@ -5,6 +5,8 @@ import syncRoutes from "./api/routes/syncRoutes.js";
 import chatRoutes from "./api/routes/chat.js";
 import statsRoutes from "./api/routes/stats.js";
 import apiBudgetRoutes from "./api/routes/apiBudgets.js";
+import { createHealthRouter } from "./api/routes/health.js";
+import { readinessState } from "./observability/health/readinessState.js";
 
 const app = express();
 
@@ -37,6 +39,24 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// Health endpoints are unauthenticated by design: orchestrators and load
+// balancers cannot present a token. They are mounted ahead of the application
+// routes so probes stay answerable regardless of downstream state, and they
+// expose no user data. The probe runner is registered at boot (FND-05.6), so
+// mounting here does not couple app.js to the probe implementations.
+app.use("/health", createHealthRouter());
+
+// FND-05.6 boot gate: the listener binds before dependencies connect, so until
+// startup completes only /health/* answers. Application routes would otherwise
+// surface raw driver errors from a database that is not connected yet. The
+// gate lifts permanently once startup completes — startupComplete latches, so
+// a later drain keeps serving in-flight traffic while /health/ready 503s.
+app.use((req, res, next) => {
+  if (readinessState.startupComplete) return next();
+  res.set("Retry-After", "1");
+  res.status(503).json({ error: "Service is starting", phase: readinessState.phase });
+});
 
 app.get("/", (req, res) => {
   res.send("API is running...");

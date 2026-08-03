@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { logger } from "../utils/logger.js";
+import { safeErrorMessage } from "./redaction.js";
 
 // Declared as `export let` so all importing modules get a live binding.
 // The Pool is created lazily on first call to getPool(), by which point
@@ -20,8 +21,13 @@ export function getPool(): Pool {
     });
 
     pool.on("error", (err: Error) => {
-      console.error("Unexpected error on idle client", err);
-      process.exit(-1);
+      // FND-05.6: this used to process.exit(-1), turning a transient error on
+      // an idle client into a full outage. Readiness probes — not process
+      // death — surface dependency failures now; pg driver errors can embed
+      // the connection string, so the message is redacted.
+      logger.error("Unexpected error on idle PostgreSQL client", {
+        error: safeErrorMessage(err, { dependency: "postgres" }),
+      });
     });
   }
   return pool;
@@ -33,8 +39,23 @@ export const connectToDB = async (): Promise<void> => {
     logger.info("[Database connection established successfully.]");
     client.release();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error("Database connection failed:", message);
+    logger.error("Database connection failed", {
+      error: safeErrorMessage(error, { dependency: "postgres" }),
+    });
     throw error;
   }
 };
+
+/**
+ * Close the shared pool and clear the singleton so a later getPool() starts
+ * clean. Idempotent — the FND-05.6 shutdown sequence calls it unconditionally,
+ * whether or not the pool ever connected.
+ */
+export async function closePool(): Promise<void> {
+  const current = pool;
+  if (!current) return;
+
+  pool = undefined;
+  await current.end();
+  logger.info("PostgreSQL pool closed");
+}
