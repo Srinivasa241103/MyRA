@@ -1,18 +1,25 @@
 # MyRA V2 Project Master Plan
 
-## Agentic Meeting and Communication Operations Assistant
+## Agentic RAG over Live Data and Memory
 
 | Field | Value |
 | --- | --- |
 | Document status | Approved design baseline; implementation master plan |
-| Version | 1.0 |
-| Date | 2026-08-02 |
-| Delivery target | Seven-day production-shaped MVP |
+| Version | 2.0 |
+| Date | 2026-08-03 |
+| Delivery target | Production-shaped MVP; seven-day sequence of gated stages |
 | Primary implementation language | TypeScript |
 | Primary orchestration framework | LangGraph |
-| Primary product domain | Personal work communication and meeting operations |
-| Core sources | Gmail, Google Calendar, Slack, Notion, Google Drive |
+| Primary product domain | Personal and personal-work knowledge assistance over live sources |
+| Demo vertical | Meeting and communication operations |
+| Core sources (read) | Gmail, Google Calendar, Slack, Notion, Google Drive |
+| Core write vertical | Google Calendar event creation |
+| P1 write vertical | Gmail compose, reply, and send |
 | Deferred sources | GitHub and Spotify |
+
+**Schedule rule:** day boundaries in this document are *gates, not deadlines*. The seven-day
+structure defines ordering and blocking criteria. A failed gate extends the day; it never defers
+the invariant.
 
 ---
 
@@ -22,12 +29,19 @@ These controls are placed at the front because they are release requirements thr
 
 ### Observability
 
-#### Stack and ownership
+#### Built in V2
 
 - **LangSmith:** graph/node trajectories, prompts, model/tool calls, datasets, evaluators, and experiment comparison.
-- **OpenTelemetry:** API, PostgreSQL, Redis, Chroma, queue, MCP, Google API, and distributed latency/error traces.
+- **OpenTelemetry:** API, PostgreSQL, Redis, Chroma, queue, MCP, and Google API spans following the hierarchy below.
 - **Structured logs:** operational events with trace/run correlation and redaction.
-- **Prometheus-compatible metrics:** low-cardinality service, quality, safety, connector, memory, and cost measures.
+- **A core metric set (~10):** run status, per-flow p50/p95 latency, tool error rate, connector 429 rate, citation coverage, memory commits/rejections, and token cost by flow.
+
+#### Specified, not implemented in V2
+
+Prometheus exporters, Grafana, the eight dashboards below, the alert rule set, the REL-02
+fault-injection suite, and the REL-03 load profile are designed here and delivered as P1. The
+dashboard and alert definitions remain in this document as the implementation target, not as a
+claim about what runs today. See Section 21.
 
 #### Required span hierarchy
 
@@ -56,7 +70,7 @@ Record trace/run/conversation IDs, hashed user ID, flow, graph/node/agent, conne
 
 Never record OAuth tokens, credentials, raw email/document bodies, full memory content, hidden reasoning, or unredacted tool payloads.
 
-#### Dashboards
+#### Dashboards (P1 — specified here, not built in V2)
 
 1. Service health: traffic, errors, p50/p95 latency, active runs, queue depth.
 2. Agent reliability: completion, partial/failed, loop depth, retries, verifier failures.
@@ -67,7 +81,7 @@ Never record OAuth tokens, credentials, raw email/document bodies, full memory c
 7. Cost: tokens/cost by flow, model, and node.
 8. Evaluation: score and regression trends by category/version.
 
-#### Alerts
+#### Alerts (P1 — specified here, not built in V2)
 
 Page immediately for any executed denied action, cross-user access, duplicate external action, missing write audit, or secret detection. Operational alerts cover error rate above 5%, flow p95 above budget, connector 429/timeout spikes, verification retries above 20%, max-depth runs, cost above twice baseline, trace-export failure above 5%, stuck approvals/actions, queue backlog, and open circuits.
 
@@ -189,7 +203,7 @@ Enable read-only connectors first, then Calendar write, then Gmail write. Keep e
 
 | Risk | Control |
 | --- | --- |
-| One-week scope is too broad | Protect the briefing + Calendar + Gmail vertical; apply the documented cut order |
+| Scope is too broad for the sequence | Protect freshness + memory + briefing first, then the Calendar vertical; apply the documented cut order |
 | Provider/MCP setup consumes time | Build fixture adapters first; keep connector-specific code behind internal contracts |
 | Agent loops or cost grow | Deterministic graph, explicit budgets, max two verification repairs |
 | Live and indexed data disagree | Freshness metadata, conflict records, live preference for current state |
@@ -207,9 +221,12 @@ Enable read-only connectors first, then Calendar write, then Gmail write. Keep e
 The MyRA V2 MVP is complete when:
 
 - The authenticated user can ask a cross-source work question and receive a cited answer.
+- The freshness contract deterministically selects indexed, refreshed, or live retrieval per source, and the agent can escalate but never downgrade a tier.
+- Live fetches are written back into the index so the next equivalent query is warm.
+- Every citation is hydrated against its source before synthesis; a deleted or edited source marks the evidence stale and fails verification.
 - A meeting brief uses live/indexed/memory evidence and reports unavailable sources.
+- Entities resolve across sources, so one person or project is a single identity in Gmail, Calendar, Slack, Notion, and Drive.
 - Scheduling resolves attendees/time, checks availability, shows an exact preview, obtains approval, creates one event with invitations requested, and verifies it.
-- Gmail composes or replies in context, shows exact recipients/content, obtains approval, sends once, and verifies the thread/message.
 - Working memory, STM, episodic, semantic, prospective, preference, and procedural memory have separate lifecycles.
 - Durable memories require evidence, deduplicate, supersede corrections, stay user-scoped, and can be deleted.
 - Runs checkpoint, pause, resume, cancel, fail, and terminate within budgets.
@@ -221,18 +238,32 @@ The MyRA V2 MVP is complete when:
 
 - Architecture and main-flow sequence diagrams.
 - ADRs for LangGraph, ChromaDB, Tool Gateway, evidence ledger, memory stores, and approval/idempotency design.
-- Sanitized fifty-case evaluation specification and scorecard.
+- Sanitized twenty-case evaluation specification and scorecard, with the expansion path to fifty.
 - LangSmith trace walkthrough and OpenTelemetry dashboard screenshots.
 - Threat model, permission matrix, failure-injection report, and recovery demonstration.
 - CI status, latency/cost benchmark, reproducible setup, and short end-to-end video.
 
-#### Deferred roadmap after V2
+#### P1 — begins immediately after the core gate passes
 
-1. Slack posting and Notion updates after separate approval flows mature.
-2. Incremental Slack/Notion/Drive ingestion and proactive briefing.
-3. GitHub knowledge/coding assistant using a separately scoped tool policy.
-4. Spotify/personal-life connector as an optional isolated capability.
-5. Enterprise RBAC, RLS hardening, retention administration, HA, and deployment scaling.
+1. **COM-01 … COM-09 — Gmail compose, reply, send, and verification.** The approval → hash →
+   interrupt → idempotent execute → read-back machinery is identical to Calendar, so this is
+   connector depth (MIME threading, reply-vs-reply-all safety, recipient verification) on top of
+   proven architecture. COM-09 exists to extract the connector-neutral contract.
+2. QLT-05 — expand the golden dataset from 20 cases back toward 50.
+3. REL-01 — action ledger, audit continuity, and offline replay.
+4. ING-01, ING-02 — source registry, freshness manifests, and tombstones.
+5. OBS-02 — metrics exporters, dashboards, and alerts.
+6. REL-02, REL-03 — fault injection and load/budget verification.
+7. DEV-01 — full CI and release workflows.
+
+#### Deferred roadmap after P1
+
+1. ING-03 … ING-05 — durable incremental ingestion for Slack, Notion, and Drive.
+2. Slack posting and Notion updates after separate approval flows mature.
+3. Proactive scheduled briefing.
+4. GitHub knowledge/coding assistant using a separately scoped tool policy.
+5. Spotify/personal-life connector as an optional isolated capability.
+6. Enterprise RBAC, RLS hardening, retention administration, HA, and deployment scaling.
 
 ---
 
@@ -240,13 +271,18 @@ The MyRA V2 MVP is complete when:
 
 Create short ADRs for:
 
-- LangGraph as the single orchestration runtime.
+- LangGraph as the single orchestration runtime, owning control flow only; domain services stay outside the framework.
 - Capability agents rather than one agent per connector.
+- **Deterministic freshness contract over LLM-judged freshness.**
+- **Chroma primary plus a transactional outbox, rather than pgvector in a single transaction** — record why the divergence class was accepted.
 - PostgreSQL canonical state plus Chroma vector retrieval.
 - Separate working, STM, and durable memory lifecycles.
+- **Bi-temporal memory validity: world-time separate from learned-time.**
 - Evidence ledger and stable citations.
+- **Router fast path — when the agent loop is skipped entirely.**
 - Deterministic Policy Engine outside model control.
 - Human approval, payload hashing, idempotency, and postcondition verification.
+- **One write vertical in the core gate; Gmail as the connector-neutral generalization test.**
 - Direct Google adapters plus normalized MCP gateway.
 - LangSmith plus OpenTelemetry observability.
 - Incremental V2 TypeScript boundary rather than a full rewrite.
@@ -285,6 +321,22 @@ Use the following rhythm each day:
 6. **Closeout:** Record package status, metrics, open risks, and the next day’s starting point.
 
 Do not ask one coding agent to implement an entire day. Give it one package at a time.
+
+### Package allocation at a glance
+
+| Day | Packages | Count |
+| --- | --- | ---: |
+| 1 — Foundation | FND-01 … FND-07, QLT-01 scaffold | 8 |
+| 2 — Agent runtime and gateway | AGT-01 … AGT-07, TOL-01, TOL-02 | 9 |
+| 3 — Tool policy, connectors, evidence | TOL-03, TOL-04, CON-01 … CON-05, EVD-01, EVD-02 | 9 |
+| 4 — Live data and briefing | **FRS-01 … FRS-03**, EVD-03, BRF-01, BRF-02, UI-01 … UI-03 | 9 |
+| 5 — Memory I | MEM-01 … MEM-05, **ENT-01** | 6 |
+| 6 — Memory II and write vertical | MEM-06 … MEM-09, CAL-01 … CAL-04 | 8 |
+| 7 — Approved execution and release proof | CAL-05 … CAL-08, UI-04, QLT-02, QLT-03, OBS-01, DEV-02 | 9 |
+| **Core total** | | **58** |
+
+Outside the core gate (21 packages): COM-01 … COM-09, QLT-04, QLT-05 expansion, OBS-02,
+REL-01 … REL-03, DEV-01, ING-01 … ING-05. See the P1 ordering in the quick reference.
 
 ### Day 1 — Scope, contracts, security, and runtime foundation
 
@@ -352,41 +404,79 @@ Do not ask one coding agent to implement an entire day. Give it one package at a
 #### Block 4 — Controlled tool access
 
 - Complete TOL-01 and TOL-02.
-- Complete the read-only parts of TOL-03.
-- Complete TOL-04 to expose current Retriever behavior as `indexed_search`.
 - Extend QLT-01 with graph trajectory capture.
 
 **Day 2 deliverables**
 
 - Durable Supervisor graph.
-- Planner/worker loop with bounded autonomy.
+- Planner/worker loop with bounded autonomy, including the monotonic progress check.
 - Typed Tool Gateway and deterministic policy boundary.
-- Existing RAG tool adapter.
 - Resumable run API and agent event stream.
 
 **Blocking gate**
 
-- A simple knowledge request completes through LangGraph using `indexed_search`.
 - A paused run resumes after a process restart without repeating completed nodes.
 - Invalid plan/state/tool arguments are rejected.
 - Step, retry, duration, and cost limits terminate a deliberate loop.
+- A replan iteration that produces zero new evidence IDs ends the loop regardless of remaining budget.
 - Direct current RAG behavior has no material regression.
 
-### Day 3 — Live connectors, evidence, citations, and meeting briefing
+### Day 3 — Tool policy, live connectors, and the evidence plane
 
-**Daily outcome:** MyRA produces a cited cross-source meeting briefing using at least three sources and degrades safely when one source fails.
+**Daily outcome:** Every source is reachable through one typed, policed gateway, and every result becomes a user-scoped evidence record with stable provenance.
 
-#### Block 1 — Live tool adapters
+#### Block 1 — Retry, idempotency, and indexed search
+
+- Complete TOL-03 and TOL-04.
+- Establish retryability classes, backoff, Redis locks, circuit state, and the `unknown` write outcome.
+- Expose the current Retriever as `indexed_search` without rewriting retrieval logic.
+
+#### Block 2 — Google and MCP adapters
 
 - Complete CON-01 and CON-02.
-- Configure read-only CON-03, CON-04, and CON-05 with fixture servers before personal connectors.
 - Confirm source manifests and least-privilege read permissions.
 
-#### Block 2 — Evidence plane
+#### Block 3 — Slack, Notion, and Drive reads
+
+- Complete CON-03, CON-04, and CON-05 against fixture servers before personal connectors.
+
+#### Block 4 — Evidence plane
 
 - Complete EVD-01 and EVD-02.
 - Normalize live, indexed, and memory-ready results.
 - Implement deduplication, freshness, contradiction, and stable citation behavior.
+
+**Day 3 deliverables**
+
+- Typed retry/idempotency foundation shared by every later write.
+- Google live read tools and generic MCP layer.
+- Read-only Slack, Notion, and Drive tools.
+- Persistent evidence ledger and citation service.
+
+**Blocking gate**
+
+- A simple knowledge request completes through LangGraph using `indexed_search`.
+- The same object found live and indexed appears once.
+- Every evidence record carries provenance, content hash, and freshness.
+- Retrieved prompt-injection text cannot grant a tool or cause an action.
+- Read-only transient failures retry within policy; write calls never retry blindly.
+
+### Day 4 — Live data: freshness, write-behind, hydration, and briefing
+
+**Daily outcome:** MyRA decides deterministically between indexed and live retrieval, folds live results back into the index, and cannot cite a source that no longer says what it said.
+
+#### Block 1 — Freshness contract
+
+- Complete FRS-01.
+- Implement `f(temporalIntent, sourceVolatility, indexAge)` as a pure function over the existing
+  `retrievalPlanner` temporal intent and `sync_logs.sync_completed_at`.
+- Allow agent escalation of a tier; forbid downgrade.
+
+#### Block 2 — Write-behind and hydration
+
+- Complete FRS-02 and FRS-03.
+- Route `LIVE_FETCH` results through the existing normalize → chunk → embed → index path.
+- Re-fetch every cited object by external ID before synthesis and compare content hashes.
 
 #### Block 3 — Agentic RAG flows
 
@@ -396,218 +486,173 @@ Do not ask one coding agent to implement an entire day. Give it one package at a
 
 #### Block 4 — Trust UI and fixtures
 
-- Complete UI-01, UI-02, and UI-03 foundations.
-- Extend QLT-02 with connector/read failure fixtures.
-- Add the first routing, retrieval, citation, and partial-source golden cases.
+- Complete UI-01, UI-02, and UI-03.
+- Extend QLT-02 with connector/read failure and stale-source fixtures.
+- Add the first routing, retrieval, freshness, citation, and partial-source golden cases.
 
-**Day 3 deliverables**
+**Day 4 deliverables**
 
-- Google live read tools and generic MCP layer.
-- Read-only Slack, Notion, and Drive tools.
-- Persistent evidence ledger and citation service.
+- Deterministic freshness contract with unit tests over the full rule table.
+- Write-behind ingestion of live results.
+- Citation hydration in the verification path.
 - Cross-source answer and meeting-brief flows.
 - Activity timeline, citation cards, and source-health UI.
 
 **Blocking gate**
 
+- A "latest / current state" question triggers live retrieval; a historical question serves the index.
+- A live fetch leaves the corresponding chunks queryable through `indexed_search` afterward.
+- A deleted or edited cited source marks the evidence stale and fails verification rather than answering from it.
 - One meeting briefing uses at least three source types.
 - Every material claim maps to same-user stored evidence.
-- The same object found live and indexed appears once.
 - One connector outage produces a useful, clearly labelled partial answer.
-- Retrieved prompt-injection text cannot grant a tool or cause an action.
 
-### Day 4 — Calendar scheduling and invitations
+### Day 5 — Memory I: canonical store, entities, candidates, and consolidation
 
-**Daily outcome:** A natural-language scheduling request creates one verified Calendar event with attendees and invitation updates after explicit approval.
+**Daily outcome:** Durable memory exists with provenance, bi-temporal validity, cross-source entity identity, and correct deduplication and supersession.
 
-#### Block 1 — Request and identity resolution
-
-- Complete CAL-01 and CAL-02.
-- Cover timezone, relative date, attendee ambiguity, and verified email evidence.
-
-#### Block 2 — Availability and proposal
-
-- Complete CAL-03 and CAL-04.
-- Produce deterministic candidate slots and an exact, hashed event preview.
-
-#### Block 3 — Approval and external action
-
-- Complete CAL-05 and CAL-06.
-- Finish write-specific TOL-03 behavior: lock, idempotency, unknown outcome, and reconciliation boundary.
-
-#### Block 4 — Postcondition and product flow
-
-- Complete CAL-07 and CAL-08.
-- Integrate Calendar renderer with UI-04.
-- Add Calendar mock/sandbox cases to QLT-02 and QLT-03.
-
-**Day 4 deliverables**
-
-- Scheduling extraction and identity clarification.
-- Live availability/conflict analysis.
-- Exact event preview and durable approval.
-- Idempotent event creation with attendees and invitation update request.
-- Provider read-back verification and event receipt.
-
-**Blocking gate**
-
-- No event is created before approval, and rejection creates nothing.
-- The provider payload exactly matches the approved proposal.
-- Replay/concurrent resume creates at most one event.
-- Attendee, timezone, duration, conflict, and invitation settings pass.
-- Timeout-after-success reconciles without a duplicate.
-- Audit trail connects proposal, approval, execution, external ID, and verification.
-
-### Day 5 — Gmail compose, reply, send, and verification
-
-**Daily outcome:** MyRA drafts evidence-grounded new mail and replies, sends the exact approved payload once, and verifies Gmail state.
-
-#### Block 1 — Communication context and proposal
-
-- Complete COM-01 and COM-02.
-- Retrieve exact thread plus relevant cross-source evidence.
-- Produce typed recipient, subject, body, thread, and internal-evidence metadata.
-
-#### Block 2 — Reply and safety verification
-
-- Complete COM-03 and COM-04.
-- Verify Gmail threading headers, recipient intent, factual support, sensitive content, and attachments.
-
-#### Block 3 — Approval and send
-
-- Complete COM-05 and COM-06.
-- Reuse shared interrupt, idempotency, unknown-result, and audit contracts.
-
-#### Block 4 — Postcondition and product flow
-
-- Complete COM-07 and COM-08.
-- Finish shared Gmail UI integration in UI-04.
-- Add new-message, reply, recipient-risk, and duplicate-resume cases to QLT-02/QLT-03.
-- Attempt COM-09 only after the entire Gmail gate passes.
-
-**Day 5 deliverables**
-
-- Context-aware email proposal.
-- Correct Gmail reply MIME/thread behavior.
-- Recipient/content verifier.
-- Durable edit/approval flow.
-- Idempotent send and provider read-back receipt.
-
-**Blocking gate**
-
-- No message is sent before approval.
-- Sent payload equals the approved payload version.
-- Reply threading and recipient tests pass.
-- Replay/concurrent resume creates at most one message.
-- Unsupported claims and accidental group reply are blocked.
-- Timeout-after-success reconciles without a second send.
-
-### Day 6 — Layered memory and integrated trust experience
-
-**Daily outcome:** MyRA uses working memory, STM, and evidence-backed durable memory with correct lifecycle and user controls.
-
-#### Block 1 — Canonical memory and STM
+#### Block 1 — Canonical persistence and STM
 
 - Complete MEM-01 and MEM-02.
+- Include `recordedAt`, `invalidatedAt`, and `factClass` alongside the world-time validity fields.
 - Preserve LangGraph working state and bounded conversation STM as separate lifecycles.
 
-#### Block 2 — Candidate intelligence
+#### Block 2 — Cross-source entity resolution
+
+- Complete ENT-01.
+- Generalize `personResolver` so one person or project is a single identity across Gmail, Calendar, Slack, Notion, and Drive.
+
+#### Block 3 — Candidate extraction and classification
 
 - Complete MEM-03 and MEM-04.
 - Extract only atomic, evidence-backed candidates and classify type, importance, confidence, sensitivity, and retention.
 
-#### Block 3 — Consolidation and retrieval
+#### Block 4 — Deduplication, conflict, and supersession
 
-- Complete MEM-05, MEM-06, and MEM-07.
-- Add deduplication, conflict/supersession, Chroma indexing, repair outbox, and typed Memory Gateway queries.
+- Complete MEM-05.
+- Reinforce equivalent memories, link contradictions, supersede corrections, and preserve history.
 
-#### Block 4 — Flow integration and controls
+**Day 5 deliverables**
 
-- Complete MEM-08 and the minimal release subset of MEM-09.
-- Finish UI-01 through UI-04 across all main flows.
-- Add memory fixtures and deterministic evaluators.
-
-**Day 6 deliverables**
-
-- Working memory and conversational STM.
-- Episodic, semantic, prospective, preference, and procedural durable memory.
-- PostgreSQL canonical store plus Chroma semantic retrieval.
-- Curator-only write path with provenance, deduplication, conflict, expiry, and deletion.
-- Memory indicators and basic view/delete controls.
+- Canonical typed memory with full bi-temporal metadata.
+- Cross-source entity resolver with confidence and clarification behavior.
+- Evidence-gated candidate extraction and classification.
+- Deduplication, contradiction, and supersession policy.
 
 **Blocking gate**
 
 - No durable memory exists without provenance.
-- Repeated fact does not duplicate; correction supersedes with history.
-- Scheduling creates the expected pending/scheduled prospective and successful episodic lifecycle.
+- A repeated fact does not duplicate; a user correction supersedes with retained history.
+- World-time and learned-time are independently queryable.
+- An unsupported assistant statement creates no candidate.
+- One identity resolves consistently across at least three sources.
+
+### Day 6 — Memory II: indexing, retrieval, curator, and the write vertical
+
+**Daily outcome:** Memory is semantically retrievable and curator-gated, and the Calendar scheduling vertical reaches an approved, hashed proposal.
+
+#### Block 1 — Vector indexing and consistency repair
+
+- Complete MEM-06.
+- Add the transactional outbox and reconciliation job for PostgreSQL/Chroma divergence.
+
+#### Block 2 — Memory Gateway and curator integration
+
+- Complete MEM-07, MEM-08, and the minimal release subset of MEM-09.
+- Route every durable write through the Curator; emit trace and UI events for each candidate decision.
+
+#### Block 3 — Scheduling intent and identity
+
+- Complete CAL-01 and CAL-02 on top of ENT-01.
+- Cover timezone, relative date, attendee ambiguity, and verified email evidence.
+
+#### Block 4 — Availability and proposal
+
+- Complete CAL-03 and CAL-04.
+- Produce deterministic candidate slots and an exact, hashed event preview.
+
+**Day 6 deliverables**
+
+- Chroma memory collections plus outbox-backed consistency repair.
+- Typed Memory Gateway retrieval with provenance and confidence.
+- Curator-only durable write path integrated into the graph lifecycle.
+- Live availability analysis and an immutable event proposal.
+
+**Blocking gate**
+
+- Memory is user-isolated; deletion removes it from eligible retrieval.
+- Chroma outage falls back to structured PostgreSQL and leaves repairable outbox work.
+- Superseded and deleted memory cannot ground a claim as active fact.
 - Failed or unknown actions create no false success memory.
-- Memory is user-isolated and deletion removes it from eligible retrieval.
-- Chroma outage falls back safely and leaves repairable index work.
+- Invalid, duplicate, past, unresolved, or over-limit proposals cannot reach approval.
 
-### Day 7 — Evaluation, observability, resilience, and portfolio release
+### Day 7 — Approved execution, evaluation, observability, and release proof
 
-**Daily outcome:** The project can prove its quality, safety, resilience, and engineering decisions with reproducible artifacts.
+**Daily outcome:** One approved scheduling request creates exactly one verified Calendar event, and the project can prove its quality and safety with reproducible artifacts.
 
-#### Block 1 — Evaluation harness completion
+#### Block 1 — Approval, execution, and verification
 
-- Complete QLT-01, QLT-02, QLT-03, and QLT-04.
-- Finish QLT-05 with the exact 50-case category distribution.
-- Select the ten-case PR suite and repeated critical safety cases.
+- Complete CAL-05, CAL-06, CAL-07, and CAL-08.
+- Complete UI-04 shared clarification and approval components.
 
-#### Block 2 — Observability and replay
+#### Block 2 — Evaluation harness
 
-- Complete OBS-01, OBS-02, and REL-01.
-- Verify one complete LangSmith trace, one OpenTelemetry trace, action audit continuity, and write-safe replay.
+- Complete QLT-02 and QLT-03.
+- Author the 20-case golden dataset per the Section 20 distribution.
+- Select the six-case PR suite including the permission and idempotency cases.
 
-#### Block 3 — Failure and delivery controls
+#### Block 3 — Observability
 
-- Complete REL-02, the initial REL-03 smoke profile, and DEV-01.
-- Run connector, model, storage, process-restart, stale-evidence, and ambiguous-write fault scenarios.
+- Complete OBS-01.
+- Verify one complete LangSmith trace, one OpenTelemetry span tree, and the core metric set.
 
 #### Block 4 — Release proof
 
 - Complete DEV-02.
-- Run full release gates and record actual scores, cost, latency, known failures, and limitations.
+- Run the hard gates and record actual scores, cost, latency, known failures, and limitations.
 - Capture the deterministic demonstration.
 
 **Day 7 deliverables**
 
-- Fifty-case golden evaluation dataset and reports.
-- Deterministic checks plus calibrated semantic judges.
-- LangSmith and OpenTelemetry instrumentation.
-- Metrics/dashboard/alert specifications.
-- Audit and offline replay.
-- CI, failure report, architecture/ADR/threat-model package, and demo.
+- Idempotent event creation with attendees, invitation request, and provider read-back receipt.
+- Twenty-case golden evaluation dataset and report.
+- Deterministic evaluators for every hard invariant.
+- LangSmith and OpenTelemetry instrumentation with the core metric set.
+- Architecture/ADR/threat-model package and deterministic demo.
 
 **Final blocking gate**
 
 - All hard safety gates in Section 20 pass.
-- Full end-to-end flow works from briefing through Calendar invitation or Gmail send and memory update.
-- Required citations resolve to same-run evidence.
+- No event is created before approval; rejection creates nothing.
+- The provider payload exactly matches the approved proposal.
+- Replay, concurrent resume, and timeout-after-success produce at most one event.
+- Full end-to-end flow works from briefing through Calendar invitation and memory update.
+- Required citations resolve to same-run evidence and survive hydration.
 - One connector outage does not crash the complete flow.
-- Restart/duplicate/ambiguous-timeout tests produce no duplicate external action.
 - Clean setup and deterministic fixture demo succeed.
-- Known limitations are documented honestly.
+- Section 21 accurately separates enforced invariants from specified ones.
 
 ### If the schedule slips
 
-Cut in this order:
+Day boundaries are gates, not deadlines: a failed gate extends the day. Cut scope only after
+extending has stopped working, and cut in this order:
 
-1. Slack posting.
-2. Notion writing.
-3. Proactive triggers.
-4. Advanced incremental ingestion for Slack/Notion/Drive.
-5. Rich dashboard and memory-management polish.
-6. Advanced preference/procedural consolidation.
+1. **CAL write execution** — fall back to preview-only: proposal, hash, and approval UI, with no provider call.
+2. CON-05 Drive connector.
+3. CON-04 Notion connector.
+4. UI-02 and UI-03 polish (keep functional citation rendering).
+5. MEM-09 inspection API (keep delete propagation).
+6. QLT-03 evaluator breadth.
 
 Never cut:
 
 - Authentication and user isolation.
-- Approval enforcement.
-- Exact-payload binding and idempotency.
+- FRS-01 … FRS-03 — freshness contract, write-behind, citation hydration.
+- Evidence ledger and citation validation.
+- MEM-01 … MEM-08 — canonical store, entity resolution, candidates, classification, deduplication and supersession, curator, retrieval.
+- Approval enforcement, exact-payload binding, and idempotency for whatever write survives.
 - External-action reconciliation and verification.
-- Citation validation.
-- Core evaluation cases.
+- The 20-case core golden subset.
 - Audit logging and secret redaction.
 
 ---
@@ -624,22 +669,27 @@ When implementation decisions change, update this document or record the change 
 
 ## 2. Executive Summary
 
-MyRA V2 will be a personal work communication assistant that performs live and indexed retrieval across workplace sources, coordinates bounded autonomous agents, maintains structured user memory, generates evidence-backed answers, and executes approved real-world actions.
+MyRA V2 is agentic RAG over live data and memory: bounded autonomous agents that decide *when data is fresh enough*, retrieve across live connectors and a historical index, ground every claim in verifiable evidence, and accumulate structured long-term memory about the user's world.
 
-The first complete vertical covers the meeting and communication lifecycle:
+Two properties define the system and take priority over everything else:
 
-1. Understand a user request.
-2. Search Gmail, Slack, Notion, Drive, Calendar, indexed knowledge, and memory.
+- **Live data.** A deterministic freshness contract chooses between indexed, refreshed, and live retrieval per source. Live results are written back into the index. Citations are re-verified against their sources before an answer is produced.
+- **Memory.** Working, short-term, episodic, semantic, prospective, and procedural memory have separate lifecycles, bi-temporal validity, mandatory provenance, and a single gated writer.
+
+The demo vertical is the meeting and communication lifecycle:
+
+1. Understand a user request and route it to a fast path or the agent loop.
+2. Search Gmail, Slack, Notion, Drive, Calendar, indexed knowledge, and memory — choosing live or indexed per source.
 3. Build a cited briefing or action plan.
-4. Schedule, update, reschedule, or cancel meetings.
-5. Add attendees and send Calendar invitations.
-6. Draft new emails and context-aware replies.
-7. Send approved email or Slack communications.
-8. Extract decisions, facts, events, and future commitments into appropriate memory types.
-9. Verify evidence and action results before completing the run.
-10. Record a trace and audit history for debugging, evaluation, and replay.
+4. Resolve people and projects to one identity across every source.
+5. Check availability, propose a meeting, obtain approval, create the event, and verify it.
+6. Extract decisions, facts, events, and future commitments into appropriate memory types.
+7. Verify evidence and action results before completing the run.
+8. Record a trace and audit history for debugging, evaluation, and replay.
 
-The seven-day target is a production-shaped MVP, not a claim of complete enterprise production readiness. The project should demonstrate production engineering judgment through strict scope, durable execution, security boundaries, evaluations, observability, typed contracts, failure handling, and documented tradeoffs.
+Gmail compose, reply, and send follow immediately as P1 — the approval and idempotency machinery is shared, so they add connector depth rather than new architecture.
+
+This is a production-shaped MVP, not a claim of complete enterprise production readiness. The project demonstrates production engineering judgment through strict scope, durable execution, security boundaries, evaluations, observability, typed contracts, failure handling, and documented tradeoffs. Section 21 states precisely which invariants are enforced by code and which are specified but not yet implemented.
 
 ---
 
@@ -647,11 +697,11 @@ The seven-day target is a production-shaped MVP, not a claim of complete enterpr
 
 ### 3.1 Product statement
 
-> MyRA is a personal work communication agent that combines live workplace tools, indexed knowledge, and user-controlled memory to prepare meetings, summarize discussions, manage communications, and perform approved actions with citations and verification.
+> MyRA is a personal knowledge agent that reasons over live workplace tools, indexed history, and user-controlled memory — deciding when data must be fetched fresh, grounding every claim in verified evidence, and remembering what it learns. It prepares meetings, answers cross-source questions, and performs approved actions with citations and verification.
 
 ### 3.2 Portfolio statement
 
-> A durable TypeScript multi-agent system using LangGraph, MCP tools, hybrid RAG, ChromaDB, structured long-term memory, verification loops, human approvals, offline evaluations, and end-to-end observability.
+> A durable TypeScript multi-agent system doing agentic RAG over live data and memory: a deterministic freshness contract across five connectors, write-behind live ingestion, citation hydration, cross-source entity resolution, and a six-layer memory engine with bi-temporal validity, mandatory provenance, and curator-gated writes — orchestrated with LangGraph and MCP, bounded by budgets and human approvals, and measured by offline evaluations and end-to-end observability.
 
 ### 3.3 Primary user
 
@@ -661,7 +711,9 @@ The architecture must remain user-scoped and multi-user capable, even if the fir
 
 ### 3.4 Product goals
 
-- Deliver one complete and reliable meeting-and-communication workflow.
+- Deliver a deterministic freshness contract that makes "live versus indexed" an engineering decision rather than a prompt.
+- Deliver a complete, evidence-gated memory engine with separate lifecycles and a single durable writer.
+- Deliver one complete and reliable meeting workflow end to end, including an approved external write.
 - Reuse the current MyRA ingestion, retrieval, authentication, conversation, streaming, and usage-accounting foundations.
 - Support live source access, indexed historical search, and structured memory as distinct retrieval paths.
 - Demonstrate real agent orchestration rather than a fixed prompt chain.
@@ -686,15 +738,21 @@ The architecture must remain user-scoped and multi-user capable, even if the fir
 - Fully automated memory consolidation without review and safeguards.
 - Claiming complete production readiness after one week.
 
-### 3.6 Deferred expansion
+### 3.6 P1 and deferred expansion
 
-After the core vertical is stable:
+Immediately after the core gate (see the P1 list in the quick reference):
+
+1. Gmail compose, reply, and send — journeys 5.4 and 5.5, packages COM-01 … COM-09.
+2. Golden dataset expansion from 20 to 50 cases.
+3. Audit ledger and offline replay.
+
+Later:
 
 1. Add GitHub as the engineering knowledge and coding-action plugin.
 2. Add Spotify as a personal-context and focus-personalization plugin.
 3. Add proactive scheduled briefings.
 4. Expand approved action support for Slack and Notion.
-5. Add user-facing memory review, correction, export, and deletion.
+5. Add user-facing memory review, correction, export, and deletion beyond the MEM-09 subset.
 
 ---
 
@@ -703,30 +761,35 @@ After the core vertical is stable:
 ### 4.1 Must-have release capabilities
 
 - Authenticated, user-scoped chat and sync APIs.
-- Durable LangGraph run with Supervisor routing.
+- Durable LangGraph run with Supervisor routing and a router fast path.
 - Shared typed agent state.
 - Tool Gateway with permissions, timeouts, normalization, and audit records.
 - Existing MyRA hybrid RAG exposed as an indexed-search tool.
+- **Deterministic freshness contract across all five sources.**
+- **Write-behind ingestion of live fetch results.**
+- **Citation hydration before synthesis.**
 - Live Calendar availability and event operations.
+- **Cross-source entity resolution.**
 - Calendar attendee resolution, preview, approval, event creation, and invitations.
-- Gmail thread retrieval, drafting, replying, approval, and sending.
+- Gmail thread and message read access.
 - Read-only Slack, Notion, and Drive access through connector adapters.
 - Cross-source meeting briefing with citations.
 - Evidence ledger and citation validation.
-- STM, episodic, semantic, and prospective memory foundations.
-- Verification and bounded retry loop.
+- **Full memory engine: working, STM, episodic, semantic, prospective, and procedural, with bi-temporal validity, provenance, deduplication, supersession, and curator-gated writes.**
+- Verification and bounded retry loop with a monotonic progress check.
 - SSE agent activity, approval, citation, and completion events.
-- Evaluation harness structure and fifty-case golden dataset specification.
-- Agent and backend observability.
-- Integration tests for the two write flows.
+- Evaluation harness and the twenty-case golden dataset.
+- Agent and backend tracing plus the core metric set.
+- Integration tests for the Calendar write flow.
 
 ### 4.2 Should-have capabilities
 
+- Gmail drafting, replying, approval, and sending (P1, COM stream).
 - Slack message posting after approval.
 - Notion page update after approval.
 - Meeting follow-up flow from supplied notes.
 - Daily briefing flow triggered manually.
-- Memory inspection API.
+- Memory inspection API beyond the MEM-09 subset.
 - Replay of a completed agent run from stored fixtures.
 
 ### 4.3 Stretch capabilities
@@ -795,7 +858,7 @@ Should-have and stretch work must not delay the must-have flow. If schedule pres
 
 Google Calendar supports invitations by adding attendee email addresses and using `sendUpdates: "all"` when inserting the event. See the [Google Calendar create-events guide](https://developers.google.com/workspace/calendar/api/guides/create-events).
 
-### 5.4 Draft and send a new email
+### 5.4 Draft and send a new email — **P1, not in the core gate**
 
 **Example:** “Email Rahul the Project X meeting summary.”
 
@@ -811,7 +874,7 @@ Google Calendar supports invitations by adding attendee email addresses and usin
 8. Verify the sent-message identifier.
 9. Record the action and related memory.
 
-### 5.5 Reply to an existing email
+### 5.5 Reply to an existing email — **P1, not in the core gate**
 
 **Example:** “Reply to Rahul’s latest Project X email and tell him Tuesday works.”
 
@@ -827,7 +890,7 @@ Google Calendar supports invitations by adding attendee email addresses and usin
 
 See the [Gmail thread guide](https://developers.google.com/workspace/gmail/api/guides/threads) for reply-thread requirements.
 
-### 5.6 Post-meeting follow-up
+### 5.6 Post-meeting follow-up — **P1, not in the core gate**
 
 **Example:** “Use these notes to send the follow-up and update our Project X page.”
 
@@ -852,6 +915,23 @@ If one source is unavailable:
 3. Continue with other sources when the answer remains useful.
 4. Clearly identify unavailable or stale sources.
 5. Never represent partial evidence as complete.
+
+### 5.8 Freshness-sensitive question
+
+**Example:** “Has Rahul replied about the migration yet?”
+
+**Expected flow:**
+
+1. The planner marks `temporalIntent = latest`.
+2. The freshness contract returns `LIVE_FETCH` for Gmail (volatile source, latest intent) and `SERVE_INDEX` for Notion and Drive.
+3. Gmail is queried live; Notion and Drive are served from the index.
+4. Live Gmail results are normalized and written back into the index (write-behind).
+5. Each cited message is re-fetched by ID and content-hashed before synthesis.
+6. The answer states which sources were live, which were indexed, and how old the indexed ones are.
+
+**Contrast:** “What did we decide about the migration in June?” has `temporalIntent = date_range`
+in the past, so every source is served from the index and no live call is made. The difference
+between these two runs is deterministic, testable, and visible in the trace.
 
 ---
 
@@ -885,6 +965,10 @@ flowchart TD
     SUP --> COM["Communication Agent"]
     SUP --> KNO["Knowledge Agent"]
 
+    SUP --> FRS["Freshness Contract (deterministic)"]
+    FRS -.directive.-> RES
+    RES --> ENT["Entity Resolver (deterministic)"]
+
     RES --> TG["Tool Gateway"]
     SCH --> TG
     COM --> TG
@@ -900,7 +984,11 @@ flowchart TD
     RAG --> EVID
     MEM --> EVID
 
-    EVID --> SYN["Synthesis"]
+    GOOGLE -.write-behind.-> INDEX["Ingestion and index"]
+    MCP -.write-behind.-> INDEX
+
+    EVID --> HYD["Citation Hydration"]
+    HYD --> SYN["Synthesis"]
     SYN --> VER["Verification Agent"]
     VER -->|"pass"| RESP["Answer or action preview"]
     VER -->|"missing evidence"| SUP
@@ -973,28 +1061,48 @@ flowchart TD
 interface SupervisorDecision {
   mode: "answer" | "briefing" | "action";
   flow:
+    | "simple_lookup"          // router fast path — bypasses the graph
     | "cross_source_answer"
     | "meeting_brief"
     | "schedule_meeting"
-    | "email_compose"
-    | "email_reply"
-    | "post_meeting_followup";
+    | "email_compose"          // P1
+    | "email_reply"            // P1
+    | "post_meeting_followup"; // P1
   risk: "low" | "medium" | "high";
-  freshnessRequired: boolean;
+  freshness: FreshnessDirective[];
   sources: Array<"gmail" | "calendar" | "slack" | "notion" | "drive" | "memory" | "index">;
   subtasks: PlannedSubtask[];
   successCriteria: string[];
   clarification?: ClarificationRequest;
 }
+
+interface FreshnessDirective {
+  source: SourceId;
+  mode: "index" | "refresh" | "live";
+  reason: string;
+}
 ```
+
+The Supervisor does not invent `freshness`. FRS-01 computes the baseline directives
+deterministically; the Supervisor may **escalate** a source to a fresher tier when it has a
+specific reason, and may never downgrade one. Both the computed baseline and any escalation are
+recorded in the trace.
 
 ### 8.2 Context Research Agent
 
 - Perform read-only cross-source research.
-- Choose live, indexed, and memory retrieval paths.
+- Apply the freshness directive for each source; escalate a tier when it detects a gap, never downgrade.
 - Run independent searches in parallel.
 - Return normalized evidence, never an unsupported final answer.
 - Mark missing, stale, or conflicting results.
+
+### 8.2.1 Entity Resolver
+
+Deterministic service, not an LLM agent. Generalizes the existing `personResolver` so that one
+person or project is a single identity across Gmail, Calendar, Slack, Notion, and Drive: blocking,
+candidate scoring, confidence threshold, and clarification when ambiguous. Consumed by the Context
+Research Agent for filters, by the Scheduling Agent for attendees, and by the Memory Curator as
+the `subject` of every fact.
 
 ### 8.3 Scheduling Agent
 
@@ -1028,6 +1136,7 @@ The verifier checks:
 
 - Every material claim has supporting evidence.
 - Citations refer to evidence actually used.
+- **Citation hydration (FRS-03):** each cited object is re-fetched by external ID and its content hash compared. A 404 or hash mismatch marks the evidence `STALE` and fails the claim — the system cannot cite an email that was deleted or a page that was edited after retrieval.
 - Evidence satisfies requested source and freshness constraints.
 - Dates, people, recipients, and action arguments are consistent.
 - Contradictions are surfaced or resolved.
@@ -1046,7 +1155,29 @@ The verifier returns `pass`, `revise`, or `blocked`. A `revise` result must name
 - Store canonical records in PostgreSQL.
 - Index retrievable representations in ChromaDB.
 
-### 8.8 Deterministic Policy Engine
+### 8.8 Deterministic Freshness Contract
+
+Code, not an LLM agent. A pure function evaluated before retrieval:
+
+```typescript
+freshness(temporalIntent, sourceVolatility, indexAge) =>
+  "SERVE_INDEX" | "REFRESH_THEN_SERVE" | "LIVE_FETCH"
+```
+
+| Input | Source |
+| --- | --- |
+| `temporalIntent` | Existing `retrievalPlanner` output: `latest`, `date_range`, `oldest`, `none` |
+| `sourceVolatility` | Static per connector: Slack `minutes` → Gmail `hours` → Calendar `hours, future-weighted` → Notion/Drive `days` |
+| `indexAge` | Existing `sync_logs.sync_completed_at` |
+
+Baseline rules: `latest` on a volatile source → `LIVE_FETCH`; a past `date_range` → `SERVE_INDEX`;
+`indexAge` beyond the source's volatility window → `REFRESH_THEN_SERVE`.
+
+Chosen over LLM-judged freshness because the decision is expressible as a rule, costs nothing,
+is unit-testable across the full input matrix, and fails visibly rather than silently serving
+stale data. Agent judgment is reserved for escalation, where a rule cannot express the reason.
+
+### 8.9 Deterministic Policy Engine
 
 The Policy Engine is code, not an LLM agent. It controls:
 
@@ -1130,6 +1261,7 @@ cancelled
 Initial defaults:
 
 - Maximum verification retries: 2.
+- Maximum replanning iterations: 3.
 - Maximum subagent spawn depth: 1.
 - Maximum parallel research workers: 4.
 - Maximum external write actions per approval group: 3.
@@ -1138,6 +1270,11 @@ Initial defaults:
 - Cancellation: supported during model generation, research, and before action execution.
 
 These values must be configuration, not hard-coded business logic.
+
+**Monotonic progress check.** In addition to the numeric caps, a replanning iteration that
+produces zero new evidence IDs terminates the loop regardless of remaining budget. Counters alone
+do not prevent an agent from spinning productively-looking but empty cycles; requiring net new
+evidence does.
 
 ---
 
@@ -1187,23 +1324,39 @@ interface MemoryRecord {
   userId: string;
   type: "episodic" | "semantic" | "prospective" | "procedural" | "preference";
   subjectType: string;
-  subjectId?: string;
+  subjectId?: string;            // resolved EntityRef from ENT-01, not a raw string
   content: string;
   structuredValue?: Record<string, unknown>;
   status: "candidate" | "active" | "resolved" | "expired" | "superseded" | "rejected";
   confidence: number;
   importance: number;
   sensitivity: "normal" | "sensitive" | "restricted";
-  validFrom?: string;
-  validUntil?: string;
+  factClass: "stable" | "volatile" | "ephemeral";  // drives the confidence-decay curve
+
+  // Bi-temporal validity — two independent axes
+  validFrom?: string;            // when this became true in the world
+  validUntil?: string;           // when it stopped being true in the world
+  recordedAt: string;            // when MyRA learned it
+  invalidatedAt?: string;        // when MyRA learned it was no longer true
+
   createdAt: string;
   lastVerifiedAt?: string;
   expiresAt?: string;
   supersedesMemoryId?: string;
-  evidenceIds: string[];
+  evidenceIds: string[];         // never empty for an active record
   relatedEntities: EntityReference[];
 }
 ```
+
+**Why two time axes.** World-time alone cannot answer "what did MyRA believe last month" and
+mishandles late-arriving corrections — learning in June that a fact changed in March must not
+retroactively rewrite what the system reported in April. Separating world-time from learned-time
+makes both queryable and makes supersession auditable.
+
+**Why `factClass`.** Confidence decay is not uniform. `volatile` facts (current project, current
+location) decay quickly; `stable` facts (birthday, employer) do not decay at all; `ephemeral`
+facts never become durable. A single decay curve would either erase stable knowledge or preserve
+stale knowledge.
 
 ### 10.5 Memory creation pipeline
 
@@ -1251,6 +1404,13 @@ myra_prospective_memory
 
 Every Chroma record must contain `user_id`, canonical PostgreSQL record ID, memory type, status, and relevant time metadata. PostgreSQL remains the source of truth.
 
+**Consequence of choosing Chroma over pgvector.** Canonical records and their embeddings commit to
+two different systems, so they can diverge. MEM-06's transactional outbox and reconciliation job
+are therefore **release-blocking, not optional** — without them a failed vector upsert silently
+produces a memory that exists but can never be retrieved. Keeping memory vectors in pgvector would
+have removed this failure class entirely by committing both in one transaction; Chroma was chosen
+instead for retrieval-side consistency with the document index. Record the tradeoff as an ADR.
+
 ### 10.8 Memory retrieval
 
 Memory retrieval combines:
@@ -1283,7 +1443,10 @@ Do not persist:
 
 ### 11.1 Retrieval paths
 
-#### Live retrieval
+Path selection is not left to the model. FRS-01 (Section 8.8) computes a directive per source
+before retrieval begins; the descriptions below are the intent behind each tier.
+
+#### Live retrieval — `LIVE_FETCH`
 
 Use when the request asks for current state, including:
 
@@ -1293,7 +1456,16 @@ Use when the request asks for current state, including:
 - Latest Notion page.
 - Current Drive document metadata.
 
-#### Indexed retrieval
+Live results are never discarded: FRS-02 routes them through the existing normalize → chunk →
+embed → index pipeline so the next equivalent query is served warm. Live fetch is a read-through
+cache fill, not a one-off bypass of the index.
+
+#### Refreshed retrieval — `REFRESH_THEN_SERVE`
+
+Use when the index is the right shape for the query but older than the source's volatility window.
+Run a delta sync using the provider's native change token, then serve from the index.
+
+#### Indexed retrieval — `SERVE_INDEX`
 
 Use for:
 
@@ -1502,8 +1674,10 @@ Do not combine LangGraph, OpenAI Agents SDK, and Claude Agent SDK as nested orch
 
 ### 14.2 Refactor
 
-- Replace the fixed RAG-only chat path with an agent-run service while preserving a simple RAG fast path.
+- Replace the fixed RAG-only chat path with an agent-run service while preserving the `simple_lookup` RAG fast path.
 - Wrap the current Retriever as a Tool Gateway tool.
+- Reuse `retrievalPlanner.ts`'s `temporalIntent` as an input to the freshness contract rather than duplicating temporal parsing.
+- Generalize `retrieval/personResolver.ts` into the cross-source `EntityResolver` (ENT-01); CAL-02 consumes it instead of reimplementing attendee matching.
 - Replace hard-coded source detection over time with a connector/source registry.
 - Replace the current conversation-only `MemoryService` with a Memory Gateway and separate STM service.
 - Extend source metadata to include canonical URLs, freshness, and stable citations.
@@ -1523,6 +1697,15 @@ backend/src/
     nodes/
     subagents/
     policies/
+  freshness/
+    contracts.ts
+    volatilityManifest.ts
+    freshnessContract.ts      FRS-01 — pure function, no I/O
+    writeBehind.ts            FRS-02
+    citationHydrator.ts       FRS-03
+  entities/
+    contracts.ts
+    entityResolver.ts         ENT-01 — generalizes personResolver
   tools/
     contracts.ts
     registry.ts
@@ -1710,22 +1893,28 @@ flowchart LR
     AGT --> CON["CON: Live connectors"]
     TOL --> CON
     CON --> EVD["EVD: Evidence and citations"]
-    EVD --> BRF["BRF: Cross-source briefing"]
-    AGT --> CAL["CAL: Calendar action vertical"]
+    EVD --> FRS["FRS: Freshness, write-behind, hydration"]
+    CON --> FRS
+    FRS --> BRF["BRF: Cross-source briefing"]
+    EVD --> ENT["ENT: Cross-source entity resolution"]
+    ENT --> MEM["MEM: Structured memory"]
+    EVD --> MEM
+    FRS --> MEM
+    ENT --> CAL["CAL: Calendar action vertical"]
+    AGT --> CAL
     CON --> CAL
     EVD --> CAL
-    AGT --> COM["COM: Communication action vertical"]
-    CON --> COM
-    EVD --> COM
-    CAL --> MEM["MEM: Structured memory"]
-    COM --> MEM
     FND --> QLT["QLT: Quality infrastructure"]
     AGT --> QLT
     BRF --> QLT
+    FRS --> QLT
     CAL --> QLT
-    COM --> QLT
     MEM --> QLT
+    CAL -.P1.-> COM["COM: Gmail action vertical"]
 ```
+
+`COM` is P1: it depends on `CAL` having proven the proposal → approval → idempotent execution →
+verification contract, and adds no new architecture of its own.
 
 Packages are listed in recommended implementation order. Packages at the same dependency level may run in parallel only when they do not change the same contracts or migrations.
 
@@ -1849,7 +2038,7 @@ Packages are listed in recommended implementation order. Packages at the same de
 
 **Implement**
 
-- Create `agents`, `tools`, `evidence`, `actions`, `memory`, `connectors`, `evaluation`, and `observability` module boundaries.
+- Create `agents`, `freshness`, `entities`, `tools`, `evidence`, `actions`, `memory`, `connectors`, `evaluation`, and `observability` module boundaries.
 - Define allowed dependency direction and keep provider adapters below the Tool Gateway.
 - Enable strict checking for new V2 modules through a dedicated configuration or incremental strictness strategy.
 - Add a circular-dependency check or equivalent architectural test.
@@ -2215,7 +2404,92 @@ Packages are listed in recommended implementation order. Packages at the same de
 - A historical question can use indexed search.
 - One connector outage produces partial evidence and a labelled warning.
 
-**Depends on:** AGT-04, TOL-04, EVD-02.
+**Depends on:** AGT-04, TOL-04, EVD-02, FRS-01.
+
+### 17.5b Freshness, hydration, and entity-resolution stream
+
+#### FRS-01 — Implement the deterministic freshness contract
+
+**Outcome:** Every retrieval decides indexed, refreshed, or live per source through a pure,
+testable function rather than a prompt.
+
+**Implement**
+
+- Add a source volatility manifest: Slack `minutes`, Gmail `hours`, Calendar `hours` with future-event weighting, Notion and Drive `days`.
+- Read `temporalIntent` from the existing `backend/src/RAG/retrieval/retrievalPlanner.ts` output and index age from `sync_logs.sync_completed_at`.
+- Implement `freshness(temporalIntent, sourceVolatility, indexAge) → SERVE_INDEX | REFRESH_THEN_SERVE | LIVE_FETCH` as a pure function with no I/O and no model call.
+- Emit `FreshnessDirective[]` into `SupervisorDecision` as the baseline; allow agent escalation to a fresher tier with a recorded reason, and reject any downgrade.
+- Record both the computed baseline and any escalation in the trace.
+
+**Validate**
+
+- Unit tests cover the full input matrix: every `temporalIntent` × every volatility class × fresh/stale index.
+- A `latest` intent on a volatile source yields `LIVE_FETCH`; a past `date_range` yields `SERVE_INDEX`.
+- An attempted downgrade from `live` to `index` is rejected and logged.
+- The function performs no I/O and no LLM call.
+
+**Depends on:** FND-02, ING-01 manifests if present, otherwise a local manifest constant.
+
+#### FRS-02 — Implement write-behind ingestion of live results
+
+**Outcome:** A live fetch fills the index, so the next equivalent query is served warm.
+
+**Implement**
+
+- Route `LIVE_FETCH` results through the existing normalize → chunk → embed → index path in `backend/src/RAG/ingestion/`.
+- Deduplicate against existing canonical documents by stable external ID before insert, reusing the current `documentsMatch` comparison.
+- Perform the write-behind asynchronously so it never blocks the answer.
+- Record ingestion outcome on the evidence item so a failed write-behind is visible, not silent.
+
+**Validate**
+
+- After a live fetch, the same objects are retrievable through `indexed_search` without a scheduled sync.
+- A repeated live fetch does not create duplicate canonical documents or chunks.
+- A write-behind failure degrades to a logged warning and never fails the user's run.
+
+**Depends on:** FRS-01, EVD-01, existing ingestion pipeline.
+
+#### FRS-03 — Implement citation hydration
+
+**Outcome:** MyRA cannot cite a source that has been deleted or edited since retrieval.
+
+**Implement**
+
+- Before synthesis, re-fetch every cited object by external ID through its read tool.
+- Compare the stored `contentHash` with the freshly fetched content.
+- Mark 404 as `STALE` and hash mismatch as `STALE` with the changed field noted.
+- Fail any claim whose only supporting evidence is stale, and route it into the bounded repair loop.
+- Bound the cost: hydrate cited evidence only, in parallel, under the run's tool budget.
+
+**Validate**
+
+- A fixture that deletes a cited message between retrieval and synthesis fails verification instead of answering.
+- A fixture that edits a cited page produces a stale verdict naming the change.
+- Hydration adds at most one read call per cited object and respects the tool budget.
+
+**Depends on:** EVD-02, CON-01 through CON-05.
+
+#### ENT-01 — Implement cross-source entity resolution
+
+**Outcome:** One person or project is a single identity across Gmail, Calendar, Slack, Notion, and
+Drive, rather than five unlinked strings.
+
+**Implement**
+
+- Generalize `backend/src/RAG/retrieval/personResolver.ts` into an `EntityResolver` covering people, projects, and documents.
+- Add blocking, candidate scoring, and a confidence threshold; surface ambiguity as clarification rather than guessing.
+- Map source-native identifiers — Slack user ID, Gmail address, Notion person, Calendar attendee, Drive owner — onto one canonical `EntityRef`.
+- Store resolution evidence so an identity choice is auditable.
+- Expose the resolver to retrieval filters, CAL-02 attendee resolution, and the Memory Curator's fact subjects.
+
+**Validate**
+
+- Exact, ambiguous, missing, duplicate, alias, and self cases behave predictably.
+- One identity resolves consistently across at least three sources in fixtures.
+- An identity from one user's data cannot resolve for another user.
+- CAL-02 consumes the resolver rather than reimplementing attendee matching.
+
+**Depends on:** EVD-01, CON-01 through CON-05.
 
 #### BRF-01 — Complete cross-source answer flow
 
@@ -2224,18 +2498,19 @@ Packages are listed in recommended implementation order. Packages at the same de
 **Implement**
 
 - Add synthesis over the normalized evidence bundle.
-- Add the Verification Agent for coverage, contradictions, entities, dates, freshness, and citation validity.
+- Add the Verification Agent for coverage, contradictions, entities, dates, freshness, citation validity, and FRS-03 hydration.
 - Retry research only for a named evidence gap.
-- Return answer, citation cards, source warnings, and trace/run ID.
+- Return answer, citation cards, per-source freshness labels, source warnings, and trace/run ID.
 
 **Validate**
 
 - One scenario combines at least three sources.
 - Every material factual claim resolves to evidence.
+- The answer states which sources were live, which were indexed, and how stale the indexed ones were.
 - Missing source access is disclosed.
-- Verification stops after the configured retry limit.
+- Verification stops after the configured retry limit or when a replan yields no new evidence.
 
-**Depends on:** AGT-05, EVD-03.
+**Depends on:** AGT-05, EVD-03, FRS-03.
 
 #### BRF-02 — Complete meeting-brief flow
 
@@ -2284,8 +2559,8 @@ Packages are listed in recommended implementation order. Packages at the same de
 
 **Implement**
 
-- Search trusted contacts, recent Gmail correspondents, Calendar attendees, and explicit user input.
-- Rank exact email, exact name, and contextual matches.
+- Consume `ENT-01` for candidate identities; do not reimplement matching inside the Scheduling Agent.
+- Constrain resolution to attendee-eligible identities with a verified email address.
 - Store source evidence for the selected identity.
 - Require user confirmation for multiple plausible matches or unverified addresses.
 
@@ -2293,8 +2568,9 @@ Packages are listed in recommended implementation order. Packages at the same de
 
 - Exact, ambiguous, missing, duplicate, group-alias, and self-attendee cases behave predictably.
 - An identity from one user’s data cannot resolve for another user.
+- Attendee matching logic exists only in `ENT-01`; CAL-02 contains no duplicate scoring code.
 
-**Depends on:** CAL-01, CON-01, EVD-01.
+**Depends on:** CAL-01, ENT-01, CON-01, EVD-01.
 
 #### CAL-03 — Analyze availability and generate slots
 
@@ -2407,7 +2683,13 @@ Packages are listed in recommended implementation order. Packages at the same de
 
 **Depends on:** AGT-07, CAL-07.
 
-### 17.7 Gmail communication stream
+### 17.7 Gmail communication stream — **P1, outside the core gate**
+
+These packages begin immediately after the core release gate passes. They are excluded from the
+core gate because the proposal → hash → interrupt → idempotent execution → read-back verification
+machinery is already proven by the CAL stream; COM adds connector depth (MIME threading,
+reply-versus-reply-all safety, recipient verification) rather than new architecture. No core
+package may depend on a COM package.
 
 #### COM-01 — Build communication context bundle
 
@@ -2626,7 +2908,7 @@ Packages are listed in recommended implementation order. Packages at the same de
 - An unsupported assistant statement creates no candidate.
 - A failed or unknown external action cannot create a completed-event memory.
 
-**Depends on:** MEM-01, EVD-02, CAL-07, COM-07.
+**Depends on:** MEM-01, ENT-01, EVD-02, CAL-07. (COM-07 becomes an additional receipt source when the P1 Gmail stream lands.)
 
 #### MEM-04 — Classify type, importance, sensitivity, and retention
 
@@ -2812,7 +3094,7 @@ Packages are listed in recommended implementation order. Packages at the same de
 
 **Depends on:** QLT-01, EVD-02.
 
-#### QLT-05 — Author and version the 50-case golden dataset
+#### QLT-05 — Author and version the golden dataset (20 core, expanding to 50 as P1)
 
 **Outcome:** MyRA has reproducible quality coverage across routing, retrieval, citations, actions, memory, failures, and security.
 
@@ -2821,15 +3103,18 @@ Packages are listed in recommended implementation order. Packages at the same de
 - Create anonymized synthetic source snapshots and expected constraints.
 - Assign one primary category and optional cross-cutting tags per case.
 - Include normal, ambiguous, conflicting, stale, adversarial, partial-source, and replay scenarios.
-- Select ten representative cases for the fast PR suite.
+- Author the 20 core cases first, matching the Section 20.1 distribution exactly.
+- Select six representative cases for the fast PR suite, including the permission and idempotency cases.
+- As P1, expand toward 50 using the same proportions and restore the communication-action category with the COM stream.
 
 **Validate**
 
-- Counts total exactly 50 according to Section 20.
+- The core set counts exactly 20 according to Section 20.1.
+- Both freshness cases exercise a live-versus-indexed decision and a stale or deleted cited source.
 - Every case defines expected flow, evidence/approval/side-effect constraints, budgets, and evaluator configuration.
 - Dataset changes include version and rationale.
 
-**Depends on:** QLT-03, QLT-04; author incrementally as flows land.
+**Depends on:** QLT-03; QLT-04 for the semantic-judge cases (P1). Author incrementally as flows land.
 
 #### OBS-01 — Add structured trace and log context
 
@@ -3017,14 +3302,15 @@ Packages are listed in recommended implementation order. Packages at the same de
 
 - Add generic candidate selection, free-text clarification, approval, rejection, edit request, expiry, pending, and receipt states.
 - Submit proposal ID and hash rather than client-created execution arguments.
-- Compose Calendar and Gmail renderers on top of the shared state machine.
+- Compose the Calendar renderer on top of the shared state machine; keep the state machine connector-neutral so the P1 Gmail renderer is additive.
 
 **Validate**
 
 - Stale proposal and duplicate-decision responses render correctly.
 - Client-side manipulation cannot change the server-approved payload.
+- Adding a second action type requires a new renderer only, not changes to the shared state machine.
 
-**Depends on:** UI-01, CAL-08, COM-08.
+**Depends on:** UI-01, CAL-08.
 
 ### 17.11 Live-data maintenance stream
 
@@ -3368,8 +3654,8 @@ Judge controls:
 ### 19.7 Regression and improvement loop
 
 1. Establish a versioned baseline before prompt/model/graph optimization.
-2. Run the ten-case fast suite on pull requests.
-3. Run all fifty cases nightly and before release.
+2. Run the six-case fast suite on pull requests.
+3. Run all twenty core cases nightly and before release; run the expanded set once QLT-05 grows it.
 4. Compare category scores, safety, cost, latency, and trajectory efficiency with the baseline.
 5. Manually inspect changed and failed traces.
 6. Sanitize and promote real failure patterns into new or revised golden cases.
@@ -3379,21 +3665,28 @@ Judge controls:
 
 ## 20. Golden Dataset, Metrics, and Release Gates
 
-### 20.1 Fifty-case distribution
+### 20.1 Twenty-case core distribution
 
 | Primary category | Count | Main property measured |
 | --- | ---: | --- |
-| Flow routing and planning | 6 | Correct flow, risk, plan, and clarification |
-| Cross-source retrieval | 8 | Source choice, recall, freshness, deduplication |
-| Citation and groundedness | 6 | Support, precision, coverage, contradictions |
-| Meeting scheduling and invitations | 8 | Time/identity correctness, approval, idempotency, verification |
-| Gmail and Slack communication actions | 8 | Thread/target correctness, approval, exact payload, verification |
-| Memory extraction and classification | 6 | Type, provenance, deduplication, lifecycle |
-| Failures and recovery | 4 | Partial output, bounded retry, restart, reconciliation |
-| Security and permissions | 4 | Isolation, prompt injection, scopes, forbidden actions |
-| **Total** | **50** | |
+| Flow routing and planning | 3 | Correct flow, risk, plan, clarification, and fast-path versus agent-loop routing |
+| Cross-source retrieval | 4 | Source choice, recall, deduplication |
+| Citation and groundedness | 3 | Support, precision, coverage, contradictions |
+| **Freshness: live, refreshed, stale** | **2** | **Correct tier per source, write-behind, hydration of an edited or deleted source** |
+| Meeting scheduling and invitations | 3 | Time/identity correctness, approval, idempotency, verification |
+| Memory extraction and classification | 3 | Type, provenance, bi-temporal validity, deduplication, lifecycle |
+| Failures and recovery | 1 | Partial output, bounded retry, restart, reconciliation |
+| Security and permissions | 1 | Isolation, prompt injection, scopes, forbidden actions |
+| **Total** | **20** | |
 
-A case may have multiple tags but one primary category. This document intentionally specifies the dataset strategy rather than enumerating the final test cases.
+Twenty cases is the core release gate. QLT-05 expands the set toward fifty as a P1 activity using
+the same proportions; the Gmail and Slack communication-action category (8 cases) returns with the
+COM stream. A case may have multiple tags but one primary category. This document intentionally
+specifies the dataset strategy rather than enumerating the final test cases.
+
+The freshness category is not optional padding — it is the only direct measurement of the
+system's headline property, and without it a regression that silently serves stale data would
+pass every other category.
 
 ### 20.2 Dataset governance
 
@@ -3403,7 +3696,7 @@ A case may have multiple tags but one primary category. This document intentiona
 - Declare required, optional, and forbidden tools.
 - Version every expected constraint and record why it changed.
 - Do not weaken a constraint to make a regression pass.
-- Maintain ten representative fast cases and keep all critical permission/idempotency cases in that tier.
+- Maintain six representative fast cases and keep all critical permission/idempotency cases in that tier. Grow to ten when QLT-05 expands the dataset.
 
 ### 20.3 Hard release gates
 
@@ -3424,17 +3717,21 @@ Any hard-gate failure blocks release regardless of aggregate score.
 
 | Measure | Initial target |
 | --- | ---: |
-| Overall golden task success | At least 45/50 |
+| Overall golden task success | At least 18/20 |
 | Flow-routing accuracy | At least 90% |
 | Read-tool argument correctness | At least 95% |
 | Retrieval recall@10 | At least 90% |
+| **Freshness-tier selection accuracy** | **100% — it is a deterministic function** |
+| **Stale-citation escape rate** | **0** |
 | Claim-level citation precision | At least 95% |
 | Important-claim citation coverage | At least 90% |
 | Groundedness | At least 95% |
 | Memory classification macro-F1 | At least 90% |
+| **Cross-source entity resolution accuracy** | **At least 95%** |
 | Unsupported durable memory writes | 0 |
 | Runs within configured step/retry budget | At least 95% |
 | Maximum verification retries | 2 |
+| Maximum replanning iterations | 3 |
 
 ### 20.5 Initial latency and cost budgets
 
@@ -3458,5 +3755,60 @@ Every full report should contain:
 - Regressions versus accepted baseline.
 - Links to sanitized traces for failures.
 - Known limitations and manual-review notes.
+
+---
+
+## 21. Enforced vs. Specified
+
+This section states precisely which invariants the code enforces and which are designed here but
+not yet implemented. It is a first-class deliverable, not an appendix: a reviewer should be able
+to distinguish the two without reading source.
+
+### 21.1 Enforced by code at the core gate
+
+| Invariant | Enforced by |
+| --- | --- |
+| User isolation across every store and namespace | FND-03, FND-04 repositories and route guards |
+| Approval precedes every external write | AGT-06 interrupt, CAL-05 |
+| Executed payload equals the approved payload | Normalized proposal hash, CAL-04 / CAL-06 |
+| At most one external side effect per approval | Redis lock, database idempotency record, CAL-06 |
+| Ambiguous write outcomes reconcile, never blind-retry | TOL-03 `unknown` state, CAL-07 |
+| Completion requires provider read-back | CAL-07 |
+| Freshness tier is deterministic and non-downgradable | FRS-01 |
+| Live results reach the index | FRS-02 |
+| Citations survive re-verification against the source | FRS-03 |
+| Every citation resolves to same-run, same-user evidence | EVD-02 |
+| No durable memory without provenance | MEM-01 constraint, MEM-03 |
+| Only the Curator writes durable memory | MEM-08 |
+| Corrections supersede rather than overwrite | MEM-05 |
+| Deletion propagates to canonical, vector, and cache stores | MEM-06, MEM-09 |
+| Loops terminate on budget or on absence of new evidence | AGT-05 |
+| Retrieved content cannot grant tools or trigger actions | TOL-02 |
+
+### 21.2 Specified in this document, not implemented at the core gate
+
+- Gmail compose, reply, and send (COM-01 … COM-09) — P1.
+- Golden dataset beyond 20 cases (QLT-05) — P1.
+- Audit ledger completeness and offline replay (REL-01) — P1.
+- Prometheus exporters, Grafana, the eight dashboards, and the alert rule set (OBS-02) — P1.
+- Fault-injection suite (REL-02) and load/budget profile (REL-03) — P1.
+- Source registry manifests and tombstone handling (ING-01, ING-02) — P1.
+- Durable incremental ingestion for Slack, Notion, and Drive (ING-03 … ING-05) — deferred.
+- Full CI and release workflow (DEV-01) — P1.
+
+### 21.3 Deliberately out of scope
+
+- Destructive connector actions, bulk writes, and permission changes.
+- Slack posting and Notion writing.
+- Enterprise RBAC, row-level security hardening, retention administration, HA, and deployment scaling.
+- A separate graph database or a complete knowledge graph.
+- Fully automated memory consolidation without policy gating.
+
+### 21.4 Honest characterization
+
+- The architecture is user-scoped and multi-user capable; the demonstration uses a single user.
+- Evaluation uses synthetic golden cases with frozen fixtures, not production traffic.
+- Sandbox end-to-end coverage exercises dedicated test accounts only.
+- Latency and cost figures in Section 20.5 are engineering targets measured on fixtures, not production SLOs.
 
 ---
