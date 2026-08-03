@@ -24,21 +24,26 @@ export class GoogleAuthService {
     );
   }
 
-  async getAuthorizationUrl(userId, scopes) {
+  async getAuthorizationUrl(scopes, { state, codeChallenge }) {
+    if (!state || !codeChallenge) {
+      throw new Error("OAuth state and PKCE challenge are required");
+    }
     const authUrl = this.oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: scopes,
-      state: userId,
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
       prompt: "consent",
     });
-    logger.info(`Generated Google OAuth2 authorization URL for user ${userId}`);
+    logger.info("Generated Google OAuth2 authorization URL");
     return authUrl;
   }
 
-  async exchangeCodeForTokens(code, source, userId) {
+  async exchangeCodeForTokens(code, source, userId, codeVerifier) {
     try {
-      const { tokens } = await this.oauth2Client.getToken(code);
-      logger.info(`Exchanged code for tokens for user ${userId}`);
+      const { tokens } = await this.oauth2Client.getToken({ code, codeVerifier });
+      logger.info("Exchanged Google authorization code for tokens");
 
       const expiryDate = tokens.expiry_date
         ? new Date(tokens.expiry_date)
@@ -128,7 +133,7 @@ export class GoogleAuthService {
         ? new Date(credentials.expiry_date)
         : new Date(Date.now() + (credentials.expires_in ?? 3600) * 1000);
 
-      await this.credentialsRepo.update(credential.id, {
+      await this.credentialsRepo.update(userId, credential.id, {
         accessToken: this.encrypt(credentials.access_token),
         tokenExpiry: newExpiryDate,
       });
@@ -166,7 +171,7 @@ export class GoogleAuthService {
       await this.oauth2Client.revokeToken(accessToken);
 
       // Delete from database
-      await this.credentialsRepo.delete(credential.id);
+      await this.credentialsRepo.delete(userId, credential.id);
 
       logger.info(`Revoked and deleted credentials for ${source}`);
     } catch (error) {

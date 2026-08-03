@@ -1,7 +1,18 @@
-import { pool } from "../config/dbConfig.js";
+import { getPool } from "../config/dbConfig.js";
+
+function requireUserId(userId) {
+  if (userId === undefined || userId === null || String(userId).trim() === "") {
+    throw new Error("userId is required for conversation operations");
+  }
+}
 
 export default class ConversationRepository {
+  constructor(db = getPool()) {
+    this.db = db;
+  }
+
   async getConversationHistory(conversationId, userId, limit = 20) {
+    requireUserId(userId);
     const query = `
       SELECT user_message, assistant_message, metadata, created_at
       FROM (
@@ -14,10 +25,11 @@ export default class ConversationRepository {
       ) recent_messages
       ORDER BY created_at ASC;`;
 
-    return await pool.query(query, [conversationId, userId, limit]);
+    return await this.db.query(query, [conversationId, userId, limit]);
   }
 
   async getConversationStatus(conversationId, userId) {
+    requireUserId(userId);
     const query = `
       SELECT
         COUNT(*)::int AS total_count,
@@ -26,7 +38,7 @@ export default class ConversationRepository {
       WHERE user_id = $1 AND conversation_id = $2;
     `;
 
-    const { rows } = await pool.query(query, [userId, conversationId]);
+    const { rows } = await this.db.query(query, [userId, conversationId]);
     const row = rows[0] ?? { total_count: 0, active_count: 0 };
 
     return {
@@ -44,12 +56,13 @@ export default class ConversationRepository {
     metadata = {},
     userId,
   }) {
+    requireUserId(userId);
     const query = `
       INSERT INTO conversations (conversation_id, user_message, assistant_message, metadata, user_id)
       VALUES ($1, $2, $3, $4, $5);`;
 
     const values = [conversation_id, user_message, assistant_message, JSON.stringify(metadata), userId];
-    await pool.query(query, values);
+    await this.db.query(query, values);
   }
 
   /**
@@ -57,6 +70,7 @@ export default class ConversationRepository {
    * Each entry has conversation_id, the first user message as title, and timestamps.
    */
   async getConversations(limit = 50, userId) {
+    requireUserId(userId);
     const query = `
       WITH first_messages AS (
         SELECT DISTINCT ON (conversation_id)
@@ -83,18 +97,19 @@ export default class ConversationRepository {
       ORDER BY la.last_message_at DESC
       LIMIT $1;`;
 
-    const { rows } = await pool.query(query, [limit, userId]);
+    const { rows } = await this.db.query(query, [limit, userId]);
     return rows;
   }
 
   async clear(conversationId, userId) {
+    requireUserId(userId);
     const query = `
       UPDATE conversations
       SET is_deleted = true
       WHERE user_id = $1 AND conversation_id = $2
         AND is_deleted IS NULL;
     `;
-    const result = await pool.query(query, [userId, conversationId]);
+    const result = await this.db.query(query, [userId, conversationId]);
     return result.rowCount;
   }
 }

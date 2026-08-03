@@ -4,6 +4,7 @@ import { resolveLLMSelection } from "../../RAG/query/llmService.js";
 import ConversationRepository from "../../database/conversationsRepo.js";
 import { createSseWriter } from "../../utils/sseWriter.js";
 import { logger } from "../../utils/logger.js";
+import { getAuthenticatedUserId } from "../middleware/requireAuth.js";
 
 const conversationRepo = new ConversationRepository();
 const ragChainService = new RagChain();
@@ -97,7 +98,7 @@ class ChatController {
       model,
       modelName,
     } = req.body;
-    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+    const userId = getAuthenticatedUserId(req);
     const query = typeof message === "string" ? message.trim() : "";
 
     if (!query) {
@@ -153,7 +154,7 @@ class ChatController {
       model,
       modelName,
     } = req.body;
-    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+    const userId = getAuthenticatedUserId(req);
     const query = typeof message === "string" ? message.trim() : "";
 
     if (!query) {
@@ -286,7 +287,7 @@ class ChatController {
   async getHistory(req, res) {
     const { conversationId } = req.params;
     const limit = parseInt(req.query.limit) || 10;
-    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+    const userId = getAuthenticatedUserId(req);
 
     if (!conversationId) {
       return res.status(400).json({
@@ -325,7 +326,7 @@ class ChatController {
 
   async getConversations(req, res) {
     const limit = parseInt(req.query.limit) || 50;
-    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+    const userId = getAuthenticatedUserId(req);
     try {
       const rows = await conversationRepo.getConversations(limit, userId);
 
@@ -369,7 +370,7 @@ class ChatController {
 
   async deleteConversation(req, res) {
     const { conversationId } = req.params;
-    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+    const userId = getAuthenticatedUserId(req);
 
     if (!conversationId) {
       return res.status(400).json({

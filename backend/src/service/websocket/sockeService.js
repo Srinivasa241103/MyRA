@@ -1,7 +1,16 @@
 import { Server } from "socket.io";
 import { logger } from "../../utils/logger.js";
+import {
+  extractBearerToken,
+  getDevelopmentPrincipal,
+  verifyAccessToken,
+} from "../../api/middleware/requireAuth.js";
 
-class SocketServer {
+function userRoom(userId) {
+  return `user:${String(userId)}`;
+}
+
+export class SocketServer {
   constructor() {
     this.io = null;
     this.connectedClients = new Map();
@@ -17,26 +26,46 @@ class SocketServer {
       pingTimeout: 60000,
       pingInterval: 25000,
     });
+    this.setupAuthentication();
     this.setupEventHandlers();
     logger.info("WebSocket server initialized");
     return this;
   }
 
+  setupAuthentication() {
+    this.io.use((socket, next) => {
+      const suppliedToken = socket.handshake.auth?.token;
+      const headerToken = extractBearerToken(
+        socket.handshake.headers.authorization,
+      );
+
+      try {
+        const principal = suppliedToken
+          ? verifyAccessToken(suppliedToken)
+          : headerToken
+            ? verifyAccessToken(headerToken)
+            : getDevelopmentPrincipal();
+
+        if (!principal) {
+          return next(new Error("Authentication required"));
+        }
+
+        socket.data.user = principal;
+        return next();
+      } catch {
+        return next(new Error("Authentication required"));
+      }
+    });
+  }
+
   setupEventHandlers() {
     this.io.on("connection", (socket) => {
       logger.info(`Client connected: ${socket.id}`);
+      const userId = socket.data.user.userId;
+      socket.join(userRoom(userId));
       this.connectedClients.set(socket.id, {
         connectedAt: new Date(),
-        userId: socket.handshake.query.userId || "anonymous",
-      });
-
-      socket.on("identify", (data) => {
-        const clientInfo = this.connectedClients.get(socket.id);
-        if (clientInfo && data) {
-          clientInfo.userId = data.userId;
-          this.connectedClients.set(socket.id, clientInfo);
-          logger.info(`Client ${socket.id} identified as user ${data.userId}`);
-        }
+        userId,
       });
 
       socket.on("ping", () => {
@@ -61,14 +90,14 @@ class SocketServer {
     });
   }
 
-  emitSyncProgress(source, update) {
+  emitSyncProgress(userId, source, update) {
     if (!this.io) {
       logger.warn("Socket.IO not initialized");
       return;
     }
 
     const event = `sync:${source}:progress`;
-    this.io.emit(event, {
+    this.io.to(userRoom(userId)).emit(event, {
       source,
       ...update,
       timestamp: new Date().toISOString(),
@@ -77,11 +106,11 @@ class SocketServer {
     logger.debug(`Emitted ${event}:`, update);
   }
 
-  emitSyncComplete(source, result) {
+  emitSyncComplete(userId, source, result) {
     if (!this.io) return;
 
     const event = `sync:${source}:complete`;
-    this.io.emit(event, {
+    this.io.to(userRoom(userId)).emit(event, {
       source,
       ...result,
       timestamp: new Date().toISOString(),
@@ -90,11 +119,11 @@ class SocketServer {
     logger.info(`Sync completed for ${source}:`, result);
   }
 
-  emitSyncError(source, error) {
+  emitSyncError(userId, source, error) {
     if (!this.io) return;
 
     const event = `sync:${source}:error`;
-    this.io.emit(event, {
+    this.io.to(userRoom(userId)).emit(event, {
       source,
       error: {
         message: error.message,
@@ -107,19 +136,19 @@ class SocketServer {
     logger.error(`Sync error for ${source}:`, error);
   }
 
-  emitEmbeddingProgress(progress) {
+  emitEmbeddingProgress(userId, progress) {
     if (!this.io) return;
 
-    this.io.emit("embeddings:progress", {
+    this.io.to(userRoom(userId)).emit("embeddings:progress", {
       ...progress,
       timestamp: new Date().toISOString(),
     });
   }
 
-  emitQueryProgress(queryId, update) {
+  emitQueryProgress(userId, queryId, update) {
     if (!this.io) return;
 
-    this.io.emit("query:progress", {
+    this.io.to(userRoom(userId)).emit("query:progress", {
       queryId,
       ...update,
       timestamp: new Date().toISOString(),
@@ -131,10 +160,10 @@ class SocketServer {
    * @param {string} queryId - Unique query identifier
    * @param {Object} update - Progress update details
    */
-  emitRAGProgress(queryId, update) {
+  emitRAGProgress(userId, queryId, update) {
     if (!this.io) return;
 
-    this.io.emit("rag:progress", {
+    this.io.to(userRoom(userId)).emit("rag:progress", {
       queryId,
       ...update,
       timestamp: new Date().toISOString(),
@@ -146,10 +175,10 @@ class SocketServer {
   /**
    * Emit RAG pipeline completion
    */
-  emitRAGComplete(queryId, result) {
+  emitRAGComplete(userId, queryId, result) {
     if (!this.io) return;
 
-    this.io.emit("rag:complete", {
+    this.io.to(userRoom(userId)).emit("rag:complete", {
       queryId,
       ...result,
       timestamp: new Date().toISOString(),
@@ -161,10 +190,10 @@ class SocketServer {
   /**
    * Emit RAG pipeline error
    */
-  emitRAGError(queryId, error) {
+  emitRAGError(userId, queryId, error) {
     if (!this.io) return;
 
-    this.io.emit("rag:error", {
+    this.io.to(userRoom(userId)).emit("rag:error", {
       queryId,
       error: {
         message: error.message || error,

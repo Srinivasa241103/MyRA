@@ -4,6 +4,7 @@ import EmbeddingPipeline from "../../RAG/ingestion/embeddingPipeline.js";
 import IngestionPipeline from "../../RAG/ingestion/ingestionPipeline.js";
 import socketServer from "../../service/websocket/sockeService.js";
 import { SYNC_SOURCE } from "../../utils/constants.js";
+import { getAuthenticatedUserId } from "../middleware/requireAuth.js";
 
 // sync_logs/websocket source names ("gmail"/"google_calendar") differ from
 // IngestionPipeline's source keys ("gmail"/"calendar")
@@ -13,23 +14,20 @@ const INGESTION_SOURCE_BY_SYNC_SOURCE = {
 };
 
 export default class SyncController {
-  constructor() {
-    this.syncLogRepo = new SyncLogRepository();
-    this.embeddingPipeline = new EmbeddingPipeline();
-    this.ingestionPipeline = new IngestionPipeline();
+  constructor({
+    syncLogRepo = new SyncLogRepository(),
+    embeddingPipeline = new EmbeddingPipeline(),
+    ingestionPipeline = new IngestionPipeline(),
+  } = {}) {
+    this.syncLogRepo = syncLogRepo;
+    this.embeddingPipeline = embeddingPipeline;
+    this.ingestionPipeline = ingestionPipeline;
   }
 
   async syncGmail(req, res) {
     try {
-      const { userId, syncType = "incremental", sinceDate = null, untilDate = null } = req.body;
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          message: "userId is required",
-          sinceDate: null,
-          untilDate: null
-        });
-      }
+      const userId = getAuthenticatedUserId(req);
+      const { syncType = "incremental" } = req.body;
       logger.info(`Starting ${syncType} Gmail sync for user ${userId}`);
 
       const syncLog = await this.syncLogRepo.create("gmail", userId);
@@ -56,16 +54,8 @@ export default class SyncController {
 
   async syncCalendar(req, res) {
     try {
-      const {
-        userId,
-        syncType = "incremental",
-        sinceDate = null,
-        untilDate = null,
-      } = req.body;
-
-      if (!userId) {
-        return res.status(400).json({ success: false, message: "userId is required" });
-      }
+      const userId = getAuthenticatedUserId(req);
+      const { syncType = "incremental" } = req.body;
 
       logger.info(`Starting ${syncType} Calendar sync for user ${userId}`);
 
@@ -92,7 +82,7 @@ export default class SyncController {
 
   async performDocumentsSync(userId, syncType, syncLogId, source) {
     try {
-      socketServer.emitSyncProgress(`${source}`, {
+      socketServer.emitSyncProgress(userId, `${source}`, {
         syncId: syncLogId,
         status: "in_progress",
         phase: "ingesting",
@@ -114,7 +104,7 @@ export default class SyncController {
       );
 
       if (ingestionResponse.failed > 0) {
-        await this.syncLogRepo.complete(syncLogId, {
+        await this.syncLogRepo.complete(syncLogId, userId, {
           status: "failed",
           documentsFetched: ingestionResponse.fetched,
           documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
@@ -123,7 +113,7 @@ export default class SyncController {
         return;
       }
 
-      socketServer.emitSyncProgress(`${source}`, {
+      socketServer.emitSyncProgress(userId, `${source}`, {
         syncId: syncLogId,
         status: "in_progress",
         phase: "embedding_start",
@@ -152,7 +142,7 @@ export default class SyncController {
         const errorMessage = embeddingResponse.pending > 0
           ? `${embeddingResponse.pending} document(s) remain pending for retrieval indexing`
           : `${embeddingResponse.failed} document(s) failed during retrieval indexing`;
-        await this.syncLogRepo.complete(syncLogId, {
+        await this.syncLogRepo.complete(syncLogId, userId, {
           status: "failed",
           documentsFetched: ingestionResponse.fetched,
           documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
@@ -160,7 +150,7 @@ export default class SyncController {
           error: errorMessage,
         });
 
-        socketServer.emitSyncError(`${source}`, {
+        socketServer.emitSyncError(userId, `${source}`, {
           syncId: syncLogId,
           message: errorMessage,
           code: "RETRIEVAL_INDEXING_FAILED",
@@ -168,14 +158,14 @@ export default class SyncController {
         return;
       }
 
-      await this.syncLogRepo.complete(syncLogId, {
+      await this.syncLogRepo.complete(syncLogId, userId, {
         status: "success",
         documentsFetched: ingestionResponse.fetched,
         documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
         lastSyncTimestamp: new Date(),
       });
 
-      socketServer.emitSyncComplete(`${source}`, {
+      socketServer.emitSyncComplete(userId, `${source}`, {
         syncId: syncLogId,
         status: "success",
         message: `${source} sync and embeddings completed successfully`,
@@ -195,9 +185,9 @@ export default class SyncController {
       });
     } catch (syncError) {
       logger.error(`${source} sync error for user ${userId}: ${syncError.message}`);
-      await this.syncLogRepo.fail(syncLogId, syncError.message);
+      await this.syncLogRepo.fail(syncLogId, userId, syncError.message);
 
-      socketServer.emitSyncError(`${source}`, {
+      socketServer.emitSyncError(userId, `${source}`, {
         syncId: syncLogId,
         message: syncError.message,
         code: "SYNC_FAILED",
@@ -208,7 +198,8 @@ export default class SyncController {
   async getSyncStatus(req, res) {
     try {
       const { syncId } = req.params;
-      const syncLog = await this.syncLogRepo.findById(syncId);
+      const userId = getAuthenticatedUserId(req);
+      const syncLog = await this.syncLogRepo.findById(syncId, userId);
       if (!syncLog) {
         return res.status(404).json({
           success: false,
@@ -231,15 +222,22 @@ export default class SyncController {
 
   async getSyncHistory(req, res) {
     try {
-      const { userId, source = SYNC_SOURCE.GMAIL, limit = 10 } = req.query;
-      if (!userId) {
+      const userId = getAuthenticatedUserId(req);
+      const { source = SYNC_SOURCE.GMAIL, limit = 10 } = req.query;
+
+      if (!Object.values(SYNC_SOURCE).includes(source)) {
         return res.status(400).json({
           success: false,
-          message: "userId is required",
+          error: "Unsupported sync source",
         });
       }
 
-      const history = await this.syncLogRepo.findBySource(source, userId, parseInt(limit, 10));
+      const parsedLimit = Number.parseInt(limit, 10);
+      const safeLimit = Number.isInteger(parsedLimit)
+        ? Math.min(100, Math.max(1, parsedLimit))
+        : 10;
+
+      const history = await this.syncLogRepo.findBySource(source, userId, safeLimit);
       res.json({
         success: true,
         data: { history },

@@ -248,7 +248,7 @@ export default class GoogleWorkspaceSyncCronJob {
       );
 
       if (ingestionResponse.failed > 0) {
-        await this.syncLogRepo.complete(syncLog.id, {
+        await this.syncLogRepo.complete(syncLog.id, userId, {
           status: "failed",
           documentsFetched: ingestionResponse.fetched,
           documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
@@ -289,7 +289,7 @@ export default class GoogleWorkspaceSyncCronJob {
         const errorMessage = embeddingResponse.pending > 0
           ? `${embeddingResponse.pending} document(s) remain pending for retrieval indexing`
           : `${embeddingResponse.failed} document(s) failed during retrieval indexing`;
-        await this.syncLogRepo.complete(syncLog.id, {
+        await this.syncLogRepo.complete(syncLog.id, userId, {
           status: "failed",
           documentsFetched: ingestionResponse.fetched,
           documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
@@ -309,7 +309,7 @@ export default class GoogleWorkspaceSyncCronJob {
         };
       }
 
-      await this.syncLogRepo.complete(syncLog.id, {
+      await this.syncLogRepo.complete(syncLog.id, userId, {
         status: "success",
         documentsFetched: ingestionResponse.fetched,
         documentsStored: ingestionResponse.inserted + ingestionResponse.updated,
@@ -343,7 +343,7 @@ export default class GoogleWorkspaceSyncCronJob {
         syncId: syncLog.id,
         error: error.message,
       });
-      await this.syncLogRepo.fail(syncLog.id, error.message);
+      await this.syncLogRepo.fail(syncLog.id, userId, error.message);
       return {
         status: "failed",
         fetched: 0,

@@ -86,6 +86,21 @@ if (!connectionString) {
       null,
     );
     assert.equal((await agentRuns.findById(userA, runId))?.status, "created");
+    await assert.rejects(
+      agentRuns.createStep({
+        id: randomUUID(),
+        userId: userB,
+        runId,
+        stepKey: "cross-user-step",
+        stepType: "research",
+        sequenceNumber: 0,
+      }),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23503",
+    );
 
     const evidenceId = randomUUID();
     await evidence.create({
@@ -102,6 +117,24 @@ if (!connectionString) {
     assert.equal((await evidence.findById(userA, evidenceId))?.id, evidenceId);
     assert.equal(await evidence.findById(userB, evidenceId), null);
     assert.deepEqual(await evidence.listForRun(userB, runId), []);
+    await assert.rejects(
+      evidence.create({
+        id: randomUUID(),
+        runId,
+        userId: userB,
+        source: "gmail",
+        sourceRecordId: "cross-user-fixture",
+        content: "Must not be stored",
+        retrievedAt: new Date(),
+        freshness: "live",
+        contentHash,
+      }),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23503",
+    );
 
     await connectors.save({
       id: randomUUID(),
@@ -145,7 +178,21 @@ if (!connectionString) {
     });
 
     assert.equal(await actions.findProposalById(userB, proposalId), null);
-    assert.equal((await actions.markWaitingForApproval(userA, proposalId))?.status, "waiting_for_approval");
+    assert.equal(await actions.markWaitingForApproval(userB, proposalId), null);
+    assert.equal(
+      (await actions.markWaitingForApproval(userA, proposalId))?.status,
+      "waiting_for_approval",
+    );
+    await assert.rejects(
+      actions.recordApproval({
+        id: randomUUID(),
+        userId: userB,
+        proposalId,
+        proposalHash: payloadHash,
+        decision: "approve",
+      }),
+      /not found for this user/,
+    );
     await actions.recordApproval({
       id: randomUUID(),
       userId: userA,
@@ -153,6 +200,15 @@ if (!connectionString) {
       proposalHash: payloadHash,
       decision: "approve",
     });
+    await assert.rejects(
+      actions.claimExecution({
+        userId: userB,
+        proposalId,
+        idempotencyKey: `calendar:${randomUUID()}`,
+        requestHash: payloadHash,
+      }),
+      /not found for this user/,
+    );
 
     const idempotencyKey = `calendar:${randomUUID()}`;
     const claimed = await actions.claimExecution({
@@ -204,6 +260,20 @@ if (!connectionString) {
       payloadHash: "b".repeat(64),
       expiresAt: new Date(Date.now() + 60_000),
     });
+
+    await assert.rejects(
+      pool.query(
+        `INSERT INTO idempotency_records (
+           proposal_id, user_id, idempotency_key, request_hash
+         ) VALUES ($1, $2, $3, $4)`,
+        [secondProposalId, userA, `mismatched:${randomUUID()}`, "c".repeat(64)],
+      ),
+      (error: unknown) =>
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23503",
+    );
 
     const existingKey = await pool.query<{ idempotency_key: string }>(
       "SELECT idempotency_key FROM idempotency_records WHERE user_id = $1 LIMIT 1",

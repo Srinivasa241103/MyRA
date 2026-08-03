@@ -232,7 +232,26 @@ CREATE TABLE action_proposals (
   CONSTRAINT action_proposals_approval_check CHECK (requires_approval = TRUE),
   CONSTRAINT action_proposals_payload_hash_check CHECK (LENGTH(payload_hash) >= 32),
   CONSTRAINT action_proposals_expiry_check CHECK (expires_at > created_at),
-  CONSTRAINT action_proposals_user_identity UNIQUE (id, user_id)
+  CONSTRAINT action_proposals_user_identity UNIQUE (id, user_id),
+  CONSTRAINT action_proposals_payload_identity UNIQUE (id, user_id, payload_hash),
+  CONSTRAINT action_proposals_approval_identity UNIQUE (
+    id,
+    user_id,
+    action_id,
+    run_id,
+    proposal_version,
+    payload_hash
+  ),
+  CONSTRAINT action_proposals_receipt_identity UNIQUE (
+    id,
+    user_id,
+    action_id,
+    run_id,
+    connector,
+    action_type,
+    proposal_version,
+    payload_hash
+  )
 );
 
 CREATE INDEX action_proposals_user_run_created_idx
@@ -253,8 +272,22 @@ CREATE TABLE action_approvals (
   decided_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT action_approvals_proposal_fk
-    FOREIGN KEY (proposal_id, user_id)
-    REFERENCES action_proposals (id, user_id)
+    FOREIGN KEY (
+      proposal_id,
+      user_id,
+      action_id,
+      run_id,
+      proposal_version,
+      proposal_hash
+    )
+    REFERENCES action_proposals (
+      id,
+      user_id,
+      action_id,
+      run_id,
+      proposal_version,
+      payload_hash
+    )
     ON DELETE CASCADE,
   CONSTRAINT action_approvals_run_fk
     FOREIGN KEY (run_id, user_id)
@@ -263,7 +296,16 @@ CREATE TABLE action_approvals (
   CONSTRAINT action_approvals_decision_check CHECK (decision IN ('approve', 'reject')),
   CONSTRAINT action_approvals_hash_check CHECK (LENGTH(proposal_hash) >= 32),
   CONSTRAINT action_approvals_one_decision_per_proposal UNIQUE (proposal_id),
-  CONSTRAINT action_approvals_user_identity UNIQUE (id, user_id)
+  CONSTRAINT action_approvals_user_identity UNIQUE (id, user_id),
+  CONSTRAINT action_approvals_receipt_identity UNIQUE (
+    id,
+    user_id,
+    proposal_id,
+    action_id,
+    run_id,
+    proposal_version,
+    proposal_hash
+  )
 );
 
 CREATE INDEX action_approvals_user_decided_idx
@@ -281,8 +323,8 @@ CREATE TABLE idempotency_records (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT idempotency_records_proposal_fk
-    FOREIGN KEY (proposal_id, user_id)
-    REFERENCES action_proposals (id, user_id)
+    FOREIGN KEY (proposal_id, user_id, request_hash)
+    REFERENCES action_proposals (id, user_id, payload_hash)
     ON DELETE RESTRICT,
   CONSTRAINT idempotency_records_status_check CHECK (
     status IN ('reserved', 'executing', 'succeeded', 'failed', 'unknown')
@@ -324,12 +366,46 @@ CREATE TABLE action_receipts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT action_receipts_proposal_fk
-    FOREIGN KEY (proposal_id, user_id)
-    REFERENCES action_proposals (id, user_id)
+    FOREIGN KEY (
+      proposal_id,
+      user_id,
+      action_id,
+      run_id,
+      connector,
+      action_type,
+      proposal_version,
+      payload_hash
+    )
+    REFERENCES action_proposals (
+      id,
+      user_id,
+      action_id,
+      run_id,
+      connector,
+      action_type,
+      proposal_version,
+      payload_hash
+    )
     ON DELETE RESTRICT,
   CONSTRAINT action_receipts_approval_fk
-    FOREIGN KEY (approval_decision_id, user_id)
-    REFERENCES action_approvals (id, user_id)
+    FOREIGN KEY (
+      approval_decision_id,
+      user_id,
+      proposal_id,
+      action_id,
+      run_id,
+      proposal_version,
+      payload_hash
+    )
+    REFERENCES action_approvals (
+      id,
+      user_id,
+      proposal_id,
+      action_id,
+      run_id,
+      proposal_version,
+      proposal_hash
+    )
     ON DELETE RESTRICT,
   CONSTRAINT action_receipts_idempotency_fk
     FOREIGN KEY (idempotency_record_id, user_id)

@@ -199,7 +199,7 @@ export class AuthController {
         emailVerified: googleUserInfo.verified_email,
         locale: googleUserInfo.locale,
       });
-      logger.info(`Updated existing user: ${user.id}`);
+      logger.info("Updated existing user account");
     } else {
       // Create new user
       user = await this.userRepo.create({
@@ -210,7 +210,7 @@ export class AuthController {
         emailVerified: googleUserInfo.verified_email,
         locale: googleUserInfo.locale || "en",
       });
-      logger.info(`Created new user: ${user.id}`);
+      logger.info("Created new user account");
     }
 
     // Store OAuth tokens for Gmail
@@ -248,7 +248,7 @@ export class AuthController {
       scopes: scopes,
     });
 
-    logger.info(`Stored Gmail and Google Calendar credentials for user ${userId}`);
+    logger.info("Stored Gmail and Google Calendar credentials");
   }
 
   /**

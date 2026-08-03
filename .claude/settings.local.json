@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(pdftoppm -f 74 -l 74 -r 100 -png MyRA_V2_Project_Master_Plan.pdf tbl)",
+      "Bash(pdftoppm -f 76 -l 76 -r 100 -png MyRA_V2_Project_Master_Plan.pdf t2)"
+    ]
+  }
+}

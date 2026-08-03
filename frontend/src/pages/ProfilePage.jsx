@@ -17,6 +17,14 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:2020";
 
+const authenticatedHeaders = () => {
+  const token = authApi.getToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
 const GMAIL_PHASE_LABELS = {
   starting: "Starting…",
   fetching: "Fetching emails…",
@@ -120,10 +128,9 @@ function ProfilePage({ onNavigate }) {
     if (!user) return;
     setIsLoadingHistory(true);
     try {
-      const userId = user?.id || user?.sub || user?.email;
-      const response = await fetch(`${API_BASE_URL}/sync/history?userId=${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/sync/history`, {
         method: "GET", credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: authenticatedHeaders(),
       });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
@@ -137,9 +144,8 @@ function ProfilePage({ onNavigate }) {
 
   // WebSocket listeners
   useEffect(() => {
-    const userId = user?.id || user?.sub || user?.email;
-    if (!userId) return;
-    const socket = socketService.connect(userId);
+    if (!user) return;
+    const socket = socketService.connect();
 
     const onGmailProgress = (data) => {
       if (gmailSyncIdRef.current && data.syncId !== String(gmailSyncIdRef.current)) return;
@@ -201,11 +207,10 @@ function ProfilePage({ onNavigate }) {
   const handleGmailSync = async () => {
     setSyncStarted("gmail");
     try {
-      const userId = user?.id || user?.sub || user?.email;
       const res = await fetch(`${API_BASE_URL}/sync/gmail`, {
         method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, syncType: "incremental" }),
+        headers: authenticatedHeaders(),
+        body: JSON.stringify({ syncType: "incremental" }),
       });
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
@@ -222,11 +227,10 @@ function ProfilePage({ onNavigate }) {
   const handleCalendarSync = async () => {
     setSyncStarted("calendar");
     try {
-      const userId = user?.id || user?.sub || user?.email;
       const res = await fetch(`${API_BASE_URL}/sync/calendar`, {
         method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, syncType: "incremental" }),
+        headers: authenticatedHeaders(),
+        body: JSON.stringify({ syncType: "incremental" }),
       });
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();

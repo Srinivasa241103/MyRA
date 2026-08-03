@@ -1,19 +1,30 @@
 // services/database/SyncLogRepository.js
-import { pool } from "../config/dbConfig.js";
+import { getPool } from "../config/dbConfig.js";
+
+function requireUserId(userId) {
+  if (userId === undefined || userId === null || String(userId).trim() === "") {
+    throw new Error("userId is required for sync log operations");
+  }
+}
 
 export class SyncLogRepository {
+  constructor(db = getPool()) {
+    this.db = db;
+  }
+
   /**
    * Find sync log by ID
    * @param {number} id
    * @returns {Promise<Object|null>}
    */
-  async findById(id) {
+  async findById(id, userId) {
+    requireUserId(userId);
     const query = `
             SELECT * FROM sync_logs
-            WHERE id = $1;`;
+            WHERE id = $1 AND user_id = $2;`;
 
-    const values = [id];
-    const { rows } = await pool.query(query, values);
+    const values = [id, userId];
+    const { rows } = await this.db.query(query, values);
 
     return rows.length > 0 ? rows[0] : null;
   }
@@ -25,6 +36,7 @@ export class SyncLogRepository {
    * @returns {Promise<Object>}
    */
   async create(source, userId) {
+    requireUserId(userId);
     const query = `
             INSERT INTO sync_logs
             (source, status, user_id)
@@ -32,7 +44,7 @@ export class SyncLogRepository {
             RETURNING *;`;
 
     const values = [source, "in_progress", userId];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     if (rows.length === 0) {
       throw new Error("Failed to create sync log");
@@ -47,7 +59,8 @@ export class SyncLogRepository {
    * @param {Object} updates
    * @returns {Promise<Object>}
    */
-  async complete(id, updates) {
+  async complete(id, userId, updates) {
+    requireUserId(userId);
     const query = `
             UPDATE sync_logs
             SET 
@@ -57,7 +70,7 @@ export class SyncLogRepository {
                 documents_stored = $3,
                 last_sync_timestamp = $4,
                 error_message = $5
-            WHERE id = $6
+            WHERE id = $6 AND user_id = $7
             RETURNING *;`;
 
     const values = [
@@ -67,9 +80,10 @@ export class SyncLogRepository {
       updates.lastSyncTimestamp || null,
       updates.error || null,
       id,
+      userId,
     ];
 
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     if (rows.length === 0) {
       throw new Error(`Sync log with ID ${id} not found`);
@@ -84,8 +98,8 @@ export class SyncLogRepository {
    * @param {string} errorMessage
    * @returns {Promise<Object>}
    */
-  async fail(id, errorMessage) {
-    return this.complete(id, {
+  async fail(id, userId, errorMessage) {
+    return this.complete(id, userId, {
       status: "failed",
       error: errorMessage,
       documentsFetched: 0,
@@ -107,7 +121,7 @@ export class SyncLogRepository {
             LIMIT 1;`;
 
     const values = [source, userId];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     return rows.length > 0 ? rows[0] : null;
   }
@@ -126,7 +140,7 @@ export class SyncLogRepository {
             LIMIT 1;`;
 
     const values = [source, userId];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     return rows.length > 0 ? rows[0] : null;
   }
@@ -146,7 +160,7 @@ export class SyncLogRepository {
             LIMIT $3;`;
 
     const values = [source, userId, limit];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     return rows;
   }
@@ -165,7 +179,7 @@ export class SyncLogRepository {
             LIMIT $2;`;
 
     const values = [userId, limit];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     return rows;
   }
@@ -190,7 +204,7 @@ export class SyncLogRepository {
             WHERE source = $1 AND user_id = $2;`;
 
     const values = [source, userId];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     return rows[0];
   }
@@ -208,7 +222,7 @@ export class SyncLogRepository {
             LIMIT 1;`;
 
     const values = [source, userId];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     return rows.length > 0;
   }
@@ -231,7 +245,7 @@ export class SyncLogRepository {
             RETURNING *;`;
 
     const values = [safeDaysToKeep];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     return rows.length;
   }
@@ -251,7 +265,7 @@ export class SyncLogRepository {
             LIMIT $3;`;
 
     const values = [status, userId, limit];
-    const { rows } = await pool.query(query, values);
+    const { rows } = await this.db.query(query, values);
 
     return rows;
   }

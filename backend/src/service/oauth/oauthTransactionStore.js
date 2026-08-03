@@ -45,11 +45,12 @@ export class OAuthTransactionStore {
       .createHash("sha256")
       .update(codeVerifier)
       .digest("base64url");
+    const expiresAt = this.now() + this.ttlMs;
 
     this.transactions.set(state, {
       codeVerifier,
       browserBindingHash: hashBinding(browserBinding),
-      expiresAt: this.now() + this.ttlMs,
+      expiresAt,
     });
 
     return {
@@ -57,7 +58,7 @@ export class OAuthTransactionStore {
       codeVerifier,
       codeChallenge,
       browserBinding,
-      expiresAt: this.now() + this.ttlMs,
+      expiresAt,
     };
   }
 

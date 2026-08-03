@@ -7,12 +7,12 @@ const authHeaders = () => {
 };
 
 export const syncApi = {
-  syncCalendar: async (userId, syncType = "incremental") => {
+  syncCalendar: async (syncType = "incremental") => {
     const response = await fetch(`${API_BASE_URL}/sync/calendar`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       credentials: "include",
-      body: JSON.stringify({ userId, syncType }),
+      body: JSON.stringify({ syncType }),
     });
 
     if (!response.ok) {
@@ -22,12 +22,12 @@ export const syncApi = {
     return response.json();
   },
 
-  syncGmail: async (userId, syncType = "incremental") => {
+  syncGmail: async (syncType = "incremental") => {
     const response = await fetch(`${API_BASE_URL}/sync/gmail`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       credentials: "include",
-      body: JSON.stringify({ userId, syncType }),
+      body: JSON.stringify({ syncType }),
     });
 
     if (!response.ok) {

@@ -8,18 +8,14 @@ class SocketService {
     this.socket = null;
   }
 
-  connect(userId) {
+  connect() {
     if (this.socket?.connected) return this.socket;
+
+    const token = localStorage.getItem("myra_auth_token");
 
     this.socket = io(SOCKET_URL, {
       withCredentials: true,
-      query: { userId: userId || "anonymous" },
-    });
-
-    this.socket.on("connect", () => {
-      if (userId) {
-        this.socket.emit("identify", { userId });
-      }
+      auth: token ? { token } : {},
     });
 
     this.socket.on("disconnect", (reason) => {

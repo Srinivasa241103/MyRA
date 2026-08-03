@@ -69,7 +69,7 @@ export const chatApi = {
   createConversation: async () => {
     const response = await fetch(`${API_BASE_URL}/chat/conversation`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       credentials: "include",
     });
 

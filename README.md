@@ -219,7 +219,7 @@ MAIL_FROM_ADDRESS=<sender-address>
 Additional variables are only needed for the related optional behavior:
 
 - **Model settings:** `OPENAI_MODEL_TEMP`, `OPENAI_MAX_TOKENS`, `ANTHROPIC_MODEL_TEMP`, and `ANTHROPIC_MAX_TOKENS`
-- **Runtime and retrieval:** `SYNC_USER_ID` for unauthenticated development fallbacks, `DEFAULT_USER_TIMEZONE`, `LOG_LEVEL`, and `VECTOR_STORE`
+- **Runtime and retrieval:** `DEFAULT_USER_TIMEZONE`, `LOG_LEVEL`, and `VECTOR_STORE`. Local authentication bypass is disabled by default; enable it only with both `ENABLE_AUTH_DEV_BYPASS=true` and `SYNC_USER_ID=<local-user-id>`. The bypass is ignored when `NODE_ENV=production`.
 - **Chroma:** `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_SSL`, `CHROMA_COLLECTION`, `CHROMA_API_KEY`, `CHROMA_TENANT`, and `CHROMA_DATABASE`
 - **Scheduled Google sync:** `ENABLE_GOOGLE_WORKSPACE_SYNC_CRON`, `ENABLE_GMAIL_SYNC_CRON`, `ENABLE_CALENDAR_SYNC_CRON`, `GOOGLE_WORKSPACE_SYNC_CRON_SCHEDULE`, `CRON_TIMEZONE`, `GOOGLE_WORKSPACE_SYNC_STALE_MINUTES`, `GOOGLE_WORKSPACE_SYNC_EMBEDDING_BATCH_SIZE`, and `GOOGLE_WORKSPACE_SYNC_EMBEDDING_MAX_BATCHES`
 - **API budget alerts:** `ENABLE_API_BUDGET_ALERT_CRON`, `API_BUDGET_ALERT_CRON_SCHEDULE`, `MAIL_USER`, `MAIL_APP_PASSWORD`, `MAIL_SMTP_HOST`, `MAIL_SMTP_PORT`, `MAIL_FROM_NAME`, and `MAIL_FROM_ADDRESS`; the older `ENABLE_CREDS_ALERT_CRON` and `CREDS_ALERT_CRON_SCHEDULE` names remain accepted as aliases. Budgets and thresholds are saved per user in PostgreSQL rather than environment variables.

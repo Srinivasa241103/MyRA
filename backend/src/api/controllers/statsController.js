@@ -1,5 +1,6 @@
 import { StatsRepository } from "../../database/statsRepository.js";
 import { logger } from "../../utils/logger.js";
+import { getAuthenticatedUserId } from "../middleware/requireAuth.js";
 
 const RANGE_TO_DAYS = { "7d": 7, "14d": 14, "30d": 30, "90d": 90 };
 
@@ -25,7 +26,7 @@ export default class StatsController {
   async getAllStats(req, res) {
     const rangeParam = req.query.range || "14d";
     const days = RANGE_TO_DAYS[rangeParam] ?? 14;
-    const userId = req.user?.userId ?? parseInt(process.env.SYNC_USER_ID, 10);
+    const userId = getAuthenticatedUserId(req);
 
     try {
       const [tokensData, sessionData, emailsData, calData] = await Promise.all([

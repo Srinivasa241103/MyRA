@@ -16,6 +16,7 @@
     "reconcile:indexes": "tsx scripts/reconcileRetrievalIndexes.ts",
     "reconcile:indexes:dry-run": "tsx scripts/reconcileRetrievalIndexes.ts --dry-run",
     "test:fnd-01": "node --import tsx test/test-fnd01-flow-contracts.ts",
+    "test:fnd-04": "node --import tsx --test test/foundation/authTenantIsolation.test.ts",
     "test:fnd-02": "node --import tsx test/test-fnd02-domain-contracts.ts",
     "test:hybrid": "tsx test/test-hybrid-search.ts",
     "test:stream": "node --import tsx test/test-chat-streaming.ts",
