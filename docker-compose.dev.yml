@@ -1,0 +1,98 @@
+# MyRA V2 — local development services (FND-05.2).
+#
+# One command brings up every backing service the backend needs:
+#
+#     cd backend && npm run services:up
+#     # equivalent: docker compose -f docker-compose.dev.yml up -d --wait
+#
+# `--wait` blocks until every healthcheck below reports healthy, so when the
+# command returns the services are actually usable, not merely started.
+#
+# Host ports are deliberately non-default so nothing here collides with a
+# Postgres, Chroma, or Redis you already run natively:
+#
+#     postgres   localhost:55432   (container 5432)
+#     chroma     localhost:58000   (container 8000)
+#     redis      localhost:56379   (container 6379)
+#
+# `backend/.env.example` ships with defaults pointing at exactly these ports.
+#
+# Volumes carry explicit `myra_v2_*` names (instead of the compose project
+# prefix) so they cannot collide with any pre-existing volume and their
+# ownership is obvious in `docker volume ls`. `npm run services:reset`
+# destroys them for a from-scratch state; plain `services:down` keeps data.
+
+name: myra-v2
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: myra_v2_postgres
+    environment:
+      # Overridable from the shell (or a repo-root .env) for anyone who wants
+      # different credentials; the defaults match backend/.env.example.
+      POSTGRES_USER: ${MYRA_V2_PG_USER:-myra}
+      POSTGRES_PASSWORD: ${MYRA_V2_PG_PASSWORD:-myra_v2_local_dev}
+      POSTGRES_DB: ${MYRA_V2_PG_DB:-myra_v2}
+    ports:
+      # Loopback-only: a dev database must not be reachable from the LAN.
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - myra_v2_pg:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapes compose interpolation; the container shell resolves the env.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  chroma:
+    image: chromadb/chroma
+    container_name: myra_v2_chroma
+    environment:
+      # Current (1.x) images persist to /data by default; the two variables
+      # below make older 0.x images persist to the same mounted path.
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /data
+      ANONYMIZED_TELEMETRY: "FALSE"
+    ports:
+      - "127.0.0.1:58000:8000"
+    volumes:
+      - myra_v2_chroma:/data
+    healthcheck:
+      # The image ships neither curl nor wget; bash's /dev/tcp redirection is
+      # the healthcheck pattern Chroma's own compose file uses.
+      test: ["CMD", "/bin/bash", "-c", "cat < /dev/null > /dev/tcp/localhost/8000"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: myra_v2_redis
+    # AOF persistence so future queue/lock state (TOL-03, ING-03) survives a
+    # container restart instead of silently vanishing.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:56379:6379"
+    volumes:
+      - myra_v2_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  myra_v2_pg:
+    name: myra_v2_pg
+  myra_v2_chroma:
+    name: myra_v2_chroma
+  myra_v2_redis:
+    name: myra_v2_redis

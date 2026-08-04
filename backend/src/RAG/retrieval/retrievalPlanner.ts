@@ -20,7 +20,7 @@ import type {
 } from "./retrievalPlan.js";
 import {
   personResolver,
-  type PersonResolver,
+  type PersonResolverLike,
 } from "./personResolver.js";
 
 export const DEFAULT_RETRIEVAL_PLANNER_OPTIONS: RetrievalPlannerOptions = {
@@ -33,7 +33,7 @@ export const DEFAULT_RETRIEVAL_PLANNER_OPTIONS: RetrievalPlannerOptions = {
 };
 
 export interface ResolvedRetrievalPlanInput extends RetrievalPlanInput {
-  resolver?: PersonResolver;
+  resolver?: PersonResolverLike;
 }
 
 const DEFAULT_TIMEZONE = process.env.DEFAULT_USER_TIMEZONE || "UTC";

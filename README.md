@@ -114,6 +114,59 @@ If upgrading a database that previously ran the calendar or email workflows, rev
 psql "<postgres-connection-string>" -f backend/REMOVE_AGENT_DATABASE_OBJECTS.sql
 ```
 
+### Quick start — V2 dev stack (recommended)
+
+The V2 foundation (FND-05) provides a layered startup: one command per layer,
+each verified before the next. Requires Docker Desktop; everything else is
+provisioned for you on non-default ports (55432/58000/56379), so nothing
+collides with services you already run.
+
+```bash
+git clone https://github.com/Srinivasa241103/personal-ai-assistant.git
+cd personal-ai-assistant/backend
+npm install
+
+# 1. Backing services: PostgreSQL (pgvector), ChromaDB, Redis.
+#    --wait blocks until every container healthcheck passes.
+npm run services:up
+
+# 2. Configuration: copy the template, then fill in the two blank secrets
+#    (JWT_SECRET, TOKEN_ENCRYPTION_KEY — `openssl rand -hex 32` each).
+#    Defaults already point at the services from step 1.
+cp .env.example .env
+
+# 3. Backend. Boot order: validate config → bind listener → connect Postgres
+#    → apply migrations (development only) → probe dependencies → ready.
+npm run dev
+
+# 4. Frontend, in another terminal.
+cd ../frontend && npm install && npm run dev
+```
+
+Startup validates every environment variable at once and reports all problems
+together, never printing a secret. The backend binds its listener immediately
+and reports its own state on unauthenticated health endpoints:
+
+| Endpoint | Question it answers |
+| --- | --- |
+| `GET /health/live` | Should this process be restarted? (never touches dependencies) |
+| `GET /health/ready` | Should this process receive traffic? 503 lists each dependency's status |
+| `GET /health/startup` | Has boot (including migrations) completed? |
+
+If a required dependency (PostgreSQL, migrations, Chroma when
+`VECTOR_STORE=chroma`) is unavailable, the backend stays up and unready,
+retrying with capped backoff — it becomes ready on its own once the dependency
+returns. `SIGTERM`/`SIGINT` drain gracefully: readiness flips to 503, cron
+stops, in-flight requests get `SHUTDOWN_DRAIN_TIMEOUT_MS` to finish, then
+Redis and the PostgreSQL pool close (exit 0; exit 1 if the drain was forced).
+
+Service management: `npm run services:status`, `services:logs`,
+`services:down` (keeps data), `services:reset` (wipes the `myra_v2_*` volumes).
+To populate a fresh local Chroma from PostgreSQL without re-embedding:
+`npm run migrate:chroma`.
+
+### Manual setup (V1 path)
+
 ### 1. Clone the repository
 
 ```bash
@@ -160,6 +213,28 @@ npm run preview
 ```
 
 The backend typecheck/build and frontend lint/build pass in the current repository state.
+
+### Regression baseline
+
+The V2 foundation keeps a behavioural safety net (FND-06) around the existing
+RAG, ingestion, Chroma, Google sync, chat persistence, and SSE paths. It runs
+entirely on fixtures and injected collaborators, so no database, vector store,
+Google account, or model key is needed:
+
+```bash
+cd backend
+npm run test:fnd-06
+```
+
+```bash
+cd backend
+npm run typecheck:baseline
+```
+
+The suite includes mutation guards that deliberately remove user filtering and
+source metadata and assert the baseline rejects the result — a net that has been
+shown to catch the regressions it claims to catch. Foundation package suites run
+with `npm run test:foundation`.
 
 ## Environment variables
 

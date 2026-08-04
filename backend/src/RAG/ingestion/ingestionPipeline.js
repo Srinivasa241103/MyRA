@@ -60,9 +60,19 @@ function documentsMatch(existing, normalized) {
 }
 
 export default class IngestionPipeline {
-    constructor() {
-        this.syncRepo = new SyncLogRepository();
-        this.documentRepo = documentRepository;
+    /**
+     * Collaborators are injectable so the FND-06 sync-boundary baseline can run
+     * the fetch → normalize → persist accounting without Google or PostgreSQL.
+     * The defaults are exactly what production has always used.
+     */
+    constructor({
+        syncRepo = new SyncLogRepository(),
+        documentRepo = documentRepository,
+        sources = SOURCES,
+    } = {}) {
+        this.syncRepo = syncRepo;
+        this.documentRepo = documentRepo;
+        this.sources = sources;
     }
 
     async runIngestion(sourceName, isFullSync, userId) {
@@ -70,11 +80,11 @@ export default class IngestionPipeline {
             throw new Error('User ID is required for ingestion');
         }
 
-        if (!sourceName || !SOURCES[sourceName]) {
-            throw new Error(`Invalid source: ${sourceName}. Valid sources are ${Object.keys(SOURCES).join(', ')}`);
+        if (!sourceName || !this.sources[sourceName]) {
+            throw new Error(`Invalid source: ${sourceName}. Valid sources are ${Object.keys(this.sources).join(', ')}`);
         }
 
-        const { source: SourceClass, normalizer: NormalizerClass } = SOURCES[sourceName];
+        const { source: SourceClass, normalizer: NormalizerClass } = this.sources[sourceName];
         const source = new SourceClass(userId);
         const normalizer = new NormalizerClass();
         const response = {};

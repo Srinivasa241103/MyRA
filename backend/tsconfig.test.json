@@ -1,0 +1,20 @@
+{
+  // FND-06: the root tsconfig deliberately excludes `test/` so the build output
+  // stays production-only. The baseline suite is still TypeScript and still has
+  // to compile, so it gets its own no-emit project reusing the exact same
+  // compiler options — nothing here may loosen them.
+  //
+  // Scoped to the FND-06 suite on purpose: `test/test-chat-streaming.ts` and one
+  // line of `test/foundation/authTenantIsolation.test.ts` carry pre-existing
+  // type errors that predate this package. Widen the include once those are
+  // fixed; do not widen it by relaxing options.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*",
+    "test/baseline/**/*.ts",
+    "test/fixtures/fnd06-baseline-fixtures.ts"
+  ]
+}

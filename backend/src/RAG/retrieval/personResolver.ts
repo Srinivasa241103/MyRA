@@ -11,6 +11,20 @@ import type {
   RetrievalSourceScope,
 } from "./retrievalPlan.js";
 
+/**
+ * Structural view of the resolver used by the planner and the Retriever.
+ * `PersonResolver` itself has a private field, so a nominal reference would
+ * make the collaborator un-substitutable; this interface keeps the seam open
+ * for callers that supply their own resolution (FND-06 baselines).
+ */
+export interface PersonResolverLike {
+  resolvePeople(input: {
+    people: PersonFilter[];
+    userId: OwnerId;
+    source: RetrievalSourceScope;
+  }): Promise<PersonFilter[]>;
+}
+
 const MIN_RESOLUTION_SCORE = 0.72;
 const MIN_AMBIGUOUS_SCORE = 0.55;
 const MIN_CLEAR_SCORE_GAP = 0.08;

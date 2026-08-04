@@ -17,6 +17,7 @@ import {
   type RerankDiagnostics,
 } from "./reranker.js";
 import { buildResolvedRetrievalPlan } from "./retrievalPlanner.js";
+import type { PersonResolverLike } from "./personResolver.js";
 import type {
   PersonFilter,
   PersonResolutionCandidate,
@@ -85,6 +86,12 @@ interface RetrieverDependencies {
   embedder?: Embedding;
   hybridSearchExecutor?: HybridSearchExecutor;
   reranker?: Reranker;
+  /**
+   * Left undefined in production so the planner falls back to its own
+   * database-backed `personResolver`; supplied by the FND-06 baselines so the
+   * clarification path can be exercised without PostgreSQL.
+   */
+  personResolver?: PersonResolverLike;
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -204,18 +211,21 @@ export default class Retriever {
   private readonly embed: Embedding;
   private readonly hybridSearchExecutor: HybridSearchExecutor;
   private readonly reranker: Reranker;
+  private readonly personResolver: PersonResolverLike | undefined;
 
   constructor({
     vectorStore = getVectorStore(),
     embedder = new Embedding(),
     hybridSearchExecutor,
     reranker = new Reranker(),
+    personResolver,
   }: RetrieverDependencies = {}) {
     this.vectorStore = vectorStore;
     this.embed = embedder;
     this.hybridSearchExecutor = hybridSearchExecutor ??
       new HybridSearchExecutor({ vectorStore: this.vectorStore });
     this.reranker = reranker;
+    this.personResolver = personResolver;
   }
 
   async retrieve(
@@ -246,6 +256,7 @@ export default class Retriever {
       const resolvedPlan = await buildResolvedRetrievalPlan({
         query: normalizedQuery,
         userId,
+        resolver: this.personResolver,
         now: options.now,
         timezone: options.timezone,
         options: {
