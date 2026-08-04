@@ -4,7 +4,7 @@ import socketServer from "./src/service/websocket/sockeService.js";
 
 import app from "./src/app.js";
 import CronManager from "./src/service/cron/cronManager.js";
-import { shutdown, startup } from "./src/observability/health/lifecycle.js";
+import { shutdown, startup } from "./src/observability/index.js";
 
 const cronManager = new CronManager();
 

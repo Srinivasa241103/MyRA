@@ -6,7 +6,7 @@ import chatRoutes from "./api/routes/chat.js";
 import statsRoutes from "./api/routes/stats.js";
 import apiBudgetRoutes from "./api/routes/apiBudgets.js";
 import { createHealthRouter } from "./api/routes/health.js";
-import { readinessState } from "./observability/health/readinessState.js";
+import { readinessState } from "./observability/index.js";
 
 const app = express();
 

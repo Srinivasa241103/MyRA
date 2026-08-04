@@ -11,6 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:baseline": "tsc -p tsconfig.test.json",
+    "typecheck:v2": "tsc -p tsconfig.v2.json",
     "services:up": "docker compose -f ../docker-compose.dev.yml up -d --wait",
     "services:down": "docker compose -f ../docker-compose.dev.yml down",
     "services:reset": "docker compose -f ../docker-compose.dev.yml down --volumes --remove-orphans && docker compose -f ../docker-compose.dev.yml up -d --wait",
@@ -31,6 +32,8 @@
     "test:fnd-02": "node --import tsx test/test-fnd02-domain-contracts.ts",
     "test:fnd-06": "node --import tsx --test test/baseline/*.test.ts",
     "test:baseline": "node --import tsx --test test/baseline/*.test.ts",
+    "test:fnd-07": "node --import tsx --test test/architecture/*.test.ts",
+    "check:architecture": "node --import tsx --test test/architecture/*.test.ts",
     "test:hybrid": "tsx test/test-hybrid-search.ts",
     "test:stream": "node --import tsx test/test-chat-streaming.ts",
     "start": "node dist/index.js",
@@ -69,6 +72,7 @@
     "@types/node": "^26.1.0",
     "@types/nodemailer": "^8.0.1",
     "@types/passport": "^1.0.17",
+    "@types/pg": "^8.20.3",
     "tsx": "^4.23.0",
     "typescript": "^6.0.3"
   }

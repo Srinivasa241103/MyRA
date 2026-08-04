@@ -1,0 +1,46 @@
+{
+  // FND-07 — strict checking for the V2 modules, while the legacy mixed JS/TS
+  // application keeps building under the loose root config.
+  //
+  // This is the "incremental strictness strategy" the package calls for: the
+  // root tsconfig.json still compiles and emits the whole backend with
+  // `strict: false`, so existing chat is untouched. This project emits nothing
+  // and exists only to reject unsound code in the modules the agent runtime is
+  // being built in. New code therefore starts strict, instead of being migrated
+  // to strict later — which never happens.
+  //
+  // Not enabled yet, deliberately: `exactOptionalPropertyTypes` and
+  // `noUncheckedIndexedAccess`. Both are worth having and both currently fail
+  // inside shipped FND-05 health code and the legacy migration runner that is
+  // pulled in transitively. Turning them on is a follow-up with real edits
+  // behind it, not a config flip; flipping them without those edits would mean
+  // dropping observability out of strict checking, which is the worse trade.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  // The ten module boundaries, plus the architecture rules that police them.
+  // Legacy dependencies (src/config, src/database, src/utils) come in
+  // transitively and are held to the same strictness — they are clean today and
+  // must stay clean, because every V2 module stands on them.
+  "include": [
+    "architecture/**/*.ts",
+    "src/actions/**/*.ts",
+    "src/agents/**/*.ts",
+    "src/connectors/**/*.ts",
+    "src/entities/**/*.ts",
+    "src/evaluation/**/*.ts",
+    "src/evidence/**/*.ts",
+    "src/freshness/**/*.ts",
+    "src/memory/**/*.ts",
+    "src/observability/**/*.ts",
+    "src/tools/**/*.ts",
+    "test/architecture/**/*.ts"
+  ]
+}

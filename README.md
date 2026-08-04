@@ -236,6 +236,31 @@ source metadata and assert the baseline rejects the result — a net that has be
 shown to catch the regressions it claims to catch. Foundation package suites run
 with `npm run test:foundation`.
 
+### V2 module boundary
+
+The agentic V2 code is built in ten strict, layered TypeScript modules under
+`backend/src/` — `agents`, `freshness`, `entities`, `tools`, `evidence`,
+`actions`, `memory`, `connectors`, `evaluation`, `observability` — while the
+existing mixed JS/TS application keeps building under the loose root config
+(FND-07). The layering, allowed dependency edges, and the credential and legacy
+rules are declared in `backend/architecture/moduleBoundaries.ts` and enforced:
+
+```bash
+cd backend
+npm run check:architecture
+```
+
+```bash
+cd backend
+npm run typecheck:v2
+```
+
+The check walks every import in `src/`, rejects import cycles, undeclared or
+upward dependencies, reaching past a module's public surface, and any path from
+the agent, evidence, or memory layers to a credential. Provider adapters sit
+below the Tool Gateway and are unreachable from outside it. Each rule ships with
+a guard proving it rejects the violation it exists to catch.
+
 ## Environment variables
 
 Create `backend/.env` with placeholder values like these:

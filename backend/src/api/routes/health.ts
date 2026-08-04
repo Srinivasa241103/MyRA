@@ -24,24 +24,20 @@
 import { Router, type Request, type Response, type Router as ExpressRouter } from "express";
 import {
   aggregateProbeStatus,
+  getProbeRunner,
   isReadyFromProbes,
+  MISSING_REQUIRED_PROBES_DETAIL,
   missingRequiredProbes,
+  PROBE_DEADLINE_DETAIL,
+  PROBE_RUNNER_UNREGISTERED_DETAIL,
+  readinessState,
+  unavailableProbeResult,
   type AggregateStatus,
+  type ReadinessState,
   type ProbeResult,
   type ProbeRunResult,
   type ProbeRunner,
-} from "../../observability/health/probeContract.js";
-import {
-  getProbeRunner,
-  MISSING_REQUIRED_PROBES_DETAIL,
-  PROBE_DEADLINE_DETAIL,
-  PROBE_RUNNER_UNREGISTERED_DETAIL,
-  unavailableProbeResult,
-} from "../../observability/health/probeRegistration.js";
-import {
-  readinessState,
-  type ReadinessState,
-} from "../../observability/health/readinessState.js";
+} from "../../observability/index.js";
 import { safeErrorMessage } from "../../config/redaction.js";
 import { getRuntimeConfig } from "../../config/runtimeConfig.js";
 
