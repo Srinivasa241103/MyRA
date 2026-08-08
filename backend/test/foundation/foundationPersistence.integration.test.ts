@@ -12,6 +12,7 @@ import { ConnectorInstallationRepository } from "../../src/database/foundation/c
 import { EvidenceRepository } from "../../src/database/foundation/evidenceRepository.js";
 import {
   DEFAULT_MIGRATIONS_DIRECTORY,
+  discoverMigrations,
   runMigrations,
 } from "../../src/database/migrations/migrationRunner.js";
 
@@ -108,10 +109,21 @@ if (!connectionString) {
       [upgradeProposalId, userA, `upgrade:${randomUUID()}`, upgradeHash],
     );
 
+    // Every migration except the one already applied above, in repository
+    // order. Derived rather than hard-coded: the assertion is "the runner
+    // applies exactly the pending migrations, in order", which is the property
+    // worth protecting. A frozen literal would instead make this test fail once
+    // per new migration, teaching everyone to edit it without reading it.
+    const expectedPending = (await discoverMigrations())
+      .map((migration) => migration.name)
+      .filter((name) => name !== "0001_fnd_03_foundation.sql");
+
     const upgradeRun = await runMigrations({ pool });
-    assert.deepEqual(upgradeRun.applied.map((migration) => migration.name), [
-      "0002_fnd_03_integrity_hardening.sql",
-    ]);
+    assert.deepEqual(upgradeRun.applied.map((migration) => migration.name), expectedPending);
+    assert.ok(
+      expectedPending.includes("0002_fnd_03_integrity_hardening.sql"),
+      "the integrity-hardening upgrade path must still be exercised here",
+    );
     const upgradedIdempotency = await pool.query<{ approval_decision_id: string }>(
       `SELECT approval_decision_id
        FROM idempotency_records
@@ -132,10 +144,11 @@ if (!connectionString) {
     );
 
     assert.equal(secondRun.applied.length, 0);
-    assert.deepEqual(secondRun.skipped, [
-      "0001_fnd_03_foundation.sql",
-      "0002_fnd_03_integrity_hardening.sql",
-    ]);
+    assert.deepEqual(
+      secondRun.skipped,
+      (await discoverMigrations()).map((migration) => migration.name),
+      "a rerun must skip every migration in the repository, in order",
+    );
     assert.equal(afterRerun.rows[0].count, beforeRerun.rows[0].count);
   });
 

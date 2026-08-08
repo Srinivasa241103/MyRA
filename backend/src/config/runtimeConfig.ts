@@ -41,6 +41,26 @@ const PositiveInt = (label: string) =>
     .int(`${label} must be an integer`)
     .positive(`${label} must be greater than zero`);
 
+const NonNegativeInt = (label: string) =>
+  z.coerce
+    .number({ error: `${label} must be a number` })
+    .int(`${label} must be an integer`)
+    .nonnegative(`${label} must not be negative`);
+
+const NonNegativeMoney = (label: string) =>
+  z.coerce
+    .number({ error: `${label} must be a number` })
+    .nonnegative(`${label} must not be negative`)
+    .finite(`${label} must be a finite amount`);
+
+/**
+ * A positive integer with a ceiling the operator cannot raise. Used only where
+ * the master plan states a bound as a rule rather than a starting value — the
+ * verification and replanning loops (§8.6, §9.4). Everything else is a default.
+ */
+const BoundedPositiveInt = (label: string, max: number, why: string) =>
+  PositiveInt(label).max(max, `${label} must not exceed ${max}: ${why}`);
+
 /** Accepts the shell-ish truthy spellings people actually put in .env files. */
 const BooleanFlag = z
   .string()
@@ -49,11 +69,13 @@ const BooleanFlag = z
 export const NodeEnvSchema = z.enum(["development", "test", "production"]);
 export const VectorStoreSchema = z.enum(["pgvector", "chroma"]);
 export const MigrationModeSchema = z.enum(["auto", "verify"]);
+export const AgentModelProviderSchema = z.enum(["anthropic", "openai"]);
 
 export type NodeEnvName = z.infer<typeof NodeEnvSchema>;
 export type VectorStoreName = z.infer<typeof VectorStoreSchema>;
 /** `auto` applies pending migrations on boot; `verify` only reports drift. */
 export type MigrationMode = z.infer<typeof MigrationModeSchema>;
+export type AgentModelProvider = z.infer<typeof AgentModelProviderSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* error                                                                       */
@@ -101,6 +123,28 @@ const DEFAULTS = {
   DB_MAX_CONNECTIONS: "10",
   READINESS_PROBE_TIMEOUT_MS: "2000",
   SHUTDOWN_DRAIN_TIMEOUT_MS: "10000",
+
+  // AGT/TOL runtime limits. Master plan §9.4: "These values must be
+  // configuration, not hard-coded business logic."
+  LANGGRAPH_CHECKPOINT_SCHEMA: "langgraph",
+  AGENT_MAX_CHECKPOINT_BYTES: "262144",
+  AGENT_MAX_STEPS: "40",
+  AGENT_MAX_RETRIES: "2",
+  AGENT_MAX_DURATION_MS: "90000",
+  AGENT_MAX_TOKENS: "120000",
+  AGENT_MAX_COST_USD: "1",
+  AGENT_MAX_PARALLEL_WORKERS: "4",
+  AGENT_MAX_EXTERNAL_ACTIONS: "3",
+  AGENT_MAX_REPLAN_ITERATIONS: "3",
+  AGENT_MAX_VERIFICATION_RETRIES: "2",
+  AGENT_CLARIFICATION_TTL_MS: "900000",
+  AGENT_APPROVAL_TTL_MS: "900000",
+  AGENT_MODEL_PROVIDER: "anthropic",
+  AGENT_MODEL_CHEAP: "claude-haiku-4-5-20251001",
+  AGENT_MODEL_MID: "claude-sonnet-5",
+  AGENT_MODEL_STRONG: "claude-opus-5",
+  TOOL_DEFAULT_TIMEOUT_MS: "15000",
+  TOOL_MAX_RESULT_BYTES: "131072",
 } as const;
 
 const RawEnvSchema = z.object({
@@ -148,6 +192,79 @@ const RawEnvSchema = z.object({
     Number(DEFAULTS.SHUTDOWN_DRAIN_TIMEOUT_MS),
   ),
   ENABLE_CRON_JOBS: BooleanFlag.default(true),
+
+  // agent runtime — off by default, so AGT-07's endpoints stay unmounted and
+  // the V1 chat path is the only behaviour a deploy gets until it is chosen.
+  AGENT_RUNTIME_ENABLED: BooleanFlag.default(false),
+
+  // LangGraph checkpointing. The schema name is configuration because two
+  // places must agree on it: migration 0003, which creates the tables, and the
+  // checkpointer that queries them. A literal in both is a literal that drifts.
+  LANGGRAPH_CHECKPOINT_SCHEMA: z.string().trim().min(1).default(
+    DEFAULTS.LANGGRAPH_CHECKPOINT_SCHEMA,
+  ),
+  AGENT_MAX_CHECKPOINT_BYTES: PositiveInt("AGENT_MAX_CHECKPOINT_BYTES").default(
+    Number(DEFAULTS.AGENT_MAX_CHECKPOINT_BYTES),
+  ),
+
+  // run budgets — mirrors RunBudgetLimitsSchema (FND-02) field for field, by
+  // hand rather than by import: src/config is shared infrastructure and must
+  // not take a dependency on a V2 module boundary.
+  AGENT_MAX_STEPS: PositiveInt("AGENT_MAX_STEPS").default(Number(DEFAULTS.AGENT_MAX_STEPS)),
+  AGENT_MAX_RETRIES: NonNegativeInt("AGENT_MAX_RETRIES").default(
+    Number(DEFAULTS.AGENT_MAX_RETRIES),
+  ),
+  AGENT_MAX_DURATION_MS: PositiveInt("AGENT_MAX_DURATION_MS").default(
+    Number(DEFAULTS.AGENT_MAX_DURATION_MS),
+  ),
+  AGENT_MAX_TOKENS: PositiveInt("AGENT_MAX_TOKENS").default(Number(DEFAULTS.AGENT_MAX_TOKENS)),
+  AGENT_MAX_COST_USD: NonNegativeMoney("AGENT_MAX_COST_USD").default(
+    Number(DEFAULTS.AGENT_MAX_COST_USD),
+  ),
+  AGENT_MAX_PARALLEL_WORKERS: PositiveInt("AGENT_MAX_PARALLEL_WORKERS").default(
+    Number(DEFAULTS.AGENT_MAX_PARALLEL_WORKERS),
+  ),
+  AGENT_MAX_EXTERNAL_ACTIONS: NonNegativeInt("AGENT_MAX_EXTERNAL_ACTIONS").default(
+    Number(DEFAULTS.AGENT_MAX_EXTERNAL_ACTIONS),
+  ),
+
+  // loop bounds — ceilings, not starting values. §8.6 permits "at most two
+  // verification-driven research retries"; diagram 01 caps the replan loop at
+  // three. Configuration may lower either; nothing may raise them.
+  AGENT_MAX_REPLAN_ITERATIONS: BoundedPositiveInt(
+    "AGENT_MAX_REPLAN_ITERATIONS",
+    3,
+    "the replan loop is capped at three iterations",
+  ).default(Number(DEFAULTS.AGENT_MAX_REPLAN_ITERATIONS)),
+  AGENT_MAX_VERIFICATION_RETRIES: BoundedPositiveInt(
+    "AGENT_MAX_VERIFICATION_RETRIES",
+    2,
+    "the graph permits at most two verification-driven retries",
+  ).default(Number(DEFAULTS.AGENT_MAX_VERIFICATION_RETRIES)),
+
+  // interrupt expiry — an approval that never expires is an approval that can
+  // be executed against a stale world.
+  AGENT_CLARIFICATION_TTL_MS: PositiveInt("AGENT_CLARIFICATION_TTL_MS").default(
+    Number(DEFAULTS.AGENT_CLARIFICATION_TTL_MS),
+  ),
+  AGENT_APPROVAL_TTL_MS: PositiveInt("AGENT_APPROVAL_TTL_MS").default(
+    Number(DEFAULTS.AGENT_APPROVAL_TTL_MS),
+  ),
+
+  // model tiers — "cheap, mid, strong" (diagram 01). Pinned per run in traces
+  // and evaluation records, so they are configuration rather than call sites.
+  AGENT_MODEL_PROVIDER: AgentModelProviderSchema.default(DEFAULTS.AGENT_MODEL_PROVIDER),
+  AGENT_MODEL_CHEAP: z.string().trim().min(1).default(DEFAULTS.AGENT_MODEL_CHEAP),
+  AGENT_MODEL_MID: z.string().trim().min(1).default(DEFAULTS.AGENT_MODEL_MID),
+  AGENT_MODEL_STRONG: z.string().trim().min(1).default(DEFAULTS.AGENT_MODEL_STRONG),
+
+  // tool gateway
+  TOOL_DEFAULT_TIMEOUT_MS: PositiveInt("TOOL_DEFAULT_TIMEOUT_MS").default(
+    Number(DEFAULTS.TOOL_DEFAULT_TIMEOUT_MS),
+  ),
+  TOOL_MAX_RESULT_BYTES: PositiveInt("TOOL_MAX_RESULT_BYTES").default(
+    Number(DEFAULTS.TOOL_MAX_RESULT_BYTES),
+  ),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -199,6 +316,43 @@ export interface RuntimeConfig {
     readonly readinessProbeTimeoutMs: number;
     readonly shutdownDrainTimeoutMs: number;
     readonly cronEnabled: boolean;
+  };
+  readonly agents: {
+    /** Off by default: AGT-07's endpoints stay unmounted until this is chosen. */
+    readonly enabled: boolean;
+    readonly checkpointing: {
+      /** Must match the schema created by migration 0003. */
+      readonly schema: string;
+      readonly maxStateBytes: number;
+    };
+    /** Field-for-field mirror of the FND-02 RunBudgetLimits shape. */
+    readonly budgets: {
+      readonly maxSteps: number;
+      readonly maxRetries: number;
+      readonly maxDurationMs: number;
+      readonly maxTokens: number;
+      readonly maxCostUsd: number;
+      readonly maxParallelWorkers: number;
+      readonly maxExternalActions: number;
+    };
+    readonly loops: {
+      readonly maxReplanIterations: number;
+      readonly maxVerificationRetries: number;
+    };
+    readonly interrupts: {
+      readonly clarificationTtlMs: number;
+      readonly approvalTtlMs: number;
+    };
+    readonly models: {
+      readonly provider: AgentModelProvider;
+      readonly cheap: string;
+      readonly mid: string;
+      readonly strong: string;
+    };
+  };
+  readonly tools: {
+    readonly defaultTimeoutMs: number;
+    readonly maxResultBytes: number;
   };
 }
 
@@ -328,6 +482,40 @@ export function loadRuntimeConfig(
       shutdownDrainTimeoutMs: raw.SHUTDOWN_DRAIN_TIMEOUT_MS,
       cronEnabled: raw.ENABLE_CRON_JOBS,
     }),
+    agents: Object.freeze({
+      enabled: raw.AGENT_RUNTIME_ENABLED,
+      checkpointing: Object.freeze({
+        schema: raw.LANGGRAPH_CHECKPOINT_SCHEMA,
+        maxStateBytes: raw.AGENT_MAX_CHECKPOINT_BYTES,
+      }),
+      budgets: Object.freeze({
+        maxSteps: raw.AGENT_MAX_STEPS,
+        maxRetries: raw.AGENT_MAX_RETRIES,
+        maxDurationMs: raw.AGENT_MAX_DURATION_MS,
+        maxTokens: raw.AGENT_MAX_TOKENS,
+        maxCostUsd: raw.AGENT_MAX_COST_USD,
+        maxParallelWorkers: raw.AGENT_MAX_PARALLEL_WORKERS,
+        maxExternalActions: raw.AGENT_MAX_EXTERNAL_ACTIONS,
+      }),
+      loops: Object.freeze({
+        maxReplanIterations: raw.AGENT_MAX_REPLAN_ITERATIONS,
+        maxVerificationRetries: raw.AGENT_MAX_VERIFICATION_RETRIES,
+      }),
+      interrupts: Object.freeze({
+        clarificationTtlMs: raw.AGENT_CLARIFICATION_TTL_MS,
+        approvalTtlMs: raw.AGENT_APPROVAL_TTL_MS,
+      }),
+      models: Object.freeze({
+        provider: raw.AGENT_MODEL_PROVIDER,
+        cheap: raw.AGENT_MODEL_CHEAP,
+        mid: raw.AGENT_MODEL_MID,
+        strong: raw.AGENT_MODEL_STRONG,
+      }),
+    }),
+    tools: Object.freeze({
+      defaultTimeoutMs: raw.TOOL_DEFAULT_TIMEOUT_MS,
+      maxResultBytes: raw.TOOL_MAX_RESULT_BYTES,
+    }),
   }) as RuntimeConfig;
 }
 
@@ -344,6 +532,15 @@ export interface RuntimeConfigSummary {
   redis: { host: string; required: boolean };
   secrets: Record<string, "set" | "unset">;
   runtime: { migrationsOnBoot: MigrationMode; cronEnabled: boolean };
+  agents: {
+    enabled: boolean;
+    checkpointSchema: string;
+    modelProvider: AgentModelProvider;
+    models: { cheap: string; mid: string; strong: string };
+    budgets: RuntimeConfig["agents"]["budgets"];
+    loops: RuntimeConfig["agents"]["loops"];
+  };
+  tools: { defaultTimeoutMs: number; maxResultBytes: number };
 }
 
 /**
@@ -387,6 +584,24 @@ export function describeRuntimeConfig(config: RuntimeConfig): RuntimeConfigSumma
     runtime: {
       migrationsOnBoot: config.runtime.migrationsOnBoot,
       cronEnabled: config.runtime.cronEnabled,
+    },
+    // Model names and budget ceilings are not secrets, and they are the first
+    // thing anyone reading a boot log wants when a run behaves unexpectedly.
+    agents: {
+      enabled: config.agents.enabled,
+      checkpointSchema: config.agents.checkpointing.schema,
+      modelProvider: config.agents.models.provider,
+      models: {
+        cheap: config.agents.models.cheap,
+        mid: config.agents.models.mid,
+        strong: config.agents.models.strong,
+      },
+      budgets: config.agents.budgets,
+      loops: config.agents.loops,
+    },
+    tools: {
+      defaultTimeoutMs: config.tools.defaultTimeoutMs,
+      maxResultBytes: config.tools.maxResultBytes,
     },
   };
 }

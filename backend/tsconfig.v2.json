@@ -29,10 +29,18 @@
   // Legacy dependencies (src/config, src/database, src/utils) come in
   // transitively and are held to the same strictness — they are clean today and
   // must stay clean, because every V2 module stands on them.
+  //
+  // `src/api/**/*.ts` is here for AGT-07. The Express layer is not a V2 module
+  // and most of it is untyped JavaScript, but the run API is the seam where a
+  // request principal becomes a `userId` that every downstream tenant check
+  // depends on — that file is the last place to accept an implicit `any`. The
+  // glob only matches TypeScript, so the legacy `.js` controllers and routes
+  // are untouched; `health.ts`, the one file it matches today, already passes.
   "include": [
     "architecture/**/*.ts",
     "src/actions/**/*.ts",
     "src/agents/**/*.ts",
+    "src/api/**/*.ts",
     "src/connectors/**/*.ts",
     "src/entities/**/*.ts",
     "src/evaluation/**/*.ts",

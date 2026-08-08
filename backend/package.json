@@ -33,18 +33,22 @@
     "test:fnd-06": "node --import tsx --test test/baseline/*.test.ts",
     "test:baseline": "node --import tsx --test test/baseline/*.test.ts",
     "test:fnd-07": "node --import tsx --test test/architecture/*.test.ts",
+    "test:agt-p0": "node --import tsx --test test/foundation/langgraphCheckpointSchema.unit.test.ts test/foundation/runtimeConfig.unit.test.ts",
+    "test:agt-p0:db": "node --import tsx --test test/foundation/langgraphCheckpointSchema.integration.test.ts",
     "check:architecture": "node --import tsx --test test/architecture/*.test.ts",
     "test:hybrid": "tsx test/test-hybrid-search.ts",
     "test:stream": "node --import tsx test/test-chat-streaming.ts",
     "start": "node dist/index.js",
     "start:legacy": "nodemon index.js",
     "test": "tsx test/test-setup.js",
-    "test:foundation": "node --import tsx --test test/foundation/*.test.ts"
+    "test:foundation": "node --import tsx --test --test-concurrency=1 test/foundation/*.test.ts"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
     "@langchain/anthropic": "^1.3.26",
     "@langchain/core": "^1.1.48",
+    "@langchain/langgraph": "1.4.9",
+    "@langchain/langgraph-checkpoint-postgres": "1.0.4",
     "@langchain/openai": "^1.4.7",
     "@langchain/textsplitters": "^1.0.1",
     "axios": "^1.16.1",

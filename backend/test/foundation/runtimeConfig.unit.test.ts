@@ -177,6 +177,109 @@ test("production can never be configured to auto-apply migrations", () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* agent runtime (AGT/TOL pre-flight)                                          */
+/* -------------------------------------------------------------------------- */
+
+test("the agent runtime is off unless a deployment opts in", () => {
+  // The V1 chat path is the only behaviour a deploy gets by default. AGT-07
+  // mounts its endpoints behind this flag; a default of true would ship an
+  // unreviewed runtime to anyone who upgrades without reading a changelog.
+  assert.equal(loadRuntimeConfig(baseEnv()).agents.enabled, false);
+  assert.equal(
+    loadRuntimeConfig(baseEnv({ AGENT_RUNTIME_ENABLED: "true" })).agents.enabled,
+    true,
+  );
+});
+
+test("run budgets are configuration with documented defaults", () => {
+  const { budgets, interrupts, checkpointing } = loadRuntimeConfig(baseEnv()).agents;
+
+  assert.deepEqual(budgets, {
+    maxSteps: 40,
+    maxRetries: 2,
+    maxDurationMs: 90_000,
+    maxTokens: 120_000,
+    maxCostUsd: 1,
+    maxParallelWorkers: 4,
+    maxExternalActions: 3,
+  });
+  assert.equal(interrupts.approvalTtlMs, 900_000);
+  assert.equal(checkpointing.maxStateBytes, 262_144);
+
+  const overridden = loadRuntimeConfig(baseEnv({ AGENT_MAX_STEPS: "7" })).agents.budgets;
+  assert.equal(overridden.maxSteps, 7, "every limit must be overridable from the environment");
+});
+
+test("loop bounds are ceilings the environment cannot raise", () => {
+  // §8.6 permits at most two verification-driven retries and diagram 01 caps
+  // the replan loop at three. Those are rules, not starting values — an
+  // operator raising them would defeat AGT-05's termination guarantee.
+  const replan = captureConfigError(() =>
+    loadRuntimeConfig(baseEnv({ AGENT_MAX_REPLAN_ITERATIONS: "4" })),
+  );
+  assert.deepEqual(replan.variables, ["AGENT_MAX_REPLAN_ITERATIONS"]);
+
+  const verify = captureConfigError(() =>
+    loadRuntimeConfig(baseEnv({ AGENT_MAX_VERIFICATION_RETRIES: "3" })),
+  );
+  assert.deepEqual(verify.variables, ["AGENT_MAX_VERIFICATION_RETRIES"]);
+
+  // Lowering them stays legal.
+  assert.equal(
+    loadRuntimeConfig(baseEnv({ AGENT_MAX_VERIFICATION_RETRIES: "1" })).agents.loops
+      .maxVerificationRetries,
+    1,
+  );
+});
+
+test("nonsensical budgets are rejected by name", () => {
+  for (const [variable, value] of [
+    ["AGENT_MAX_STEPS", "0"],
+    ["AGENT_MAX_RETRIES", "-1"],
+    ["AGENT_MAX_COST_USD", "-0.5"],
+    ["AGENT_MAX_PARALLEL_WORKERS", "0"],
+    ["AGENT_MAX_CHECKPOINT_BYTES", "0"],
+    ["TOOL_DEFAULT_TIMEOUT_MS", "-1"],
+  ] as const) {
+    const error = captureConfigError(() => loadRuntimeConfig(baseEnv({ [variable]: value })));
+    assert.deepEqual(error.variables, [variable], `${variable}=${value} must be rejected`);
+  }
+});
+
+test("the checkpoint schema is configuration shared with migration 0003", () => {
+  // Two places must agree on this name: the migration that creates the tables
+  // and the checkpointer that queries them.
+  assert.equal(loadRuntimeConfig(baseEnv()).agents.checkpointing.schema, "langgraph");
+  assert.equal(
+    loadRuntimeConfig(baseEnv({ LANGGRAPH_CHECKPOINT_SCHEMA: "lg_test" })).agents.checkpointing
+      .schema,
+    "lg_test",
+  );
+});
+
+test("model tiers resolve and an unknown provider is rejected", () => {
+  const models = loadRuntimeConfig(baseEnv()).agents.models;
+
+  assert.equal(models.provider, "anthropic");
+  for (const tier of ["cheap", "mid", "strong"] as const) {
+    assert.ok(models[tier].length > 0, `the ${tier} tier must resolve to a model name`);
+  }
+
+  const error = captureConfigError(() =>
+    loadRuntimeConfig(baseEnv({ AGENT_MODEL_PROVIDER: "gemini" })),
+  );
+  assert.deepEqual(error.variables, ["AGENT_MODEL_PROVIDER"]);
+});
+
+test("agent configuration is frozen alongside the rest", () => {
+  const config = loadRuntimeConfig(baseEnv());
+
+  assert.equal(Object.isFrozen(config.agents), true);
+  assert.equal(Object.isFrozen(config.agents.budgets), true);
+  assert.equal(Object.isFrozen(config.tools), true);
+});
+
+/* -------------------------------------------------------------------------- */
 /* secret containment                                                          */
 /* -------------------------------------------------------------------------- */
 
@@ -208,6 +311,20 @@ test("the safe summary reports secrets only as set or unset", () => {
   assert.equal(summary.secrets.CHROMA_API_KEY, "set");
   assert.equal(summary.vector.mode, "cloud");
   assert.equal(summary.postgres.database, "myra", "non-secret values stay visible");
+});
+
+test("the boot summary reports the agent runtime without leaking a secret", () => {
+  const summary = describeRuntimeConfig(loadRuntimeConfig(baseEnv({ AGENT_RUNTIME_ENABLED: "true" })));
+  const serialized = JSON.stringify(summary);
+
+  for (const secret of ALL_SECRETS) {
+    assert.equal(serialized.includes(secret), false, "the agent summary leaked a secret value");
+  }
+
+  assert.equal(summary.agents.enabled, true);
+  assert.equal(summary.agents.checkpointSchema, "langgraph");
+  assert.equal(summary.agents.budgets.maxSteps, 40);
+  assert.equal(summary.tools.defaultTimeoutMs, 15_000);
 });
 
 test("an unset secret is reported as unset, not omitted", () => {
@@ -265,6 +382,38 @@ test("collectSecretValues harvests only secret-shaped variables", () => {
   assert.ok(collected.includes(DB_PASSWORD));
   assert.ok(collected.includes(JWT_SECRET));
   assert.equal(collected.includes("localhost"), false, "non-secret values must not be scrubbed");
+});
+
+test("a model-token budget is not mistaken for a credential", () => {
+  // "Token" means a credential in TOKEN_ENCRYPTION_KEY and a unit of model
+  // input in AGENT_MAX_TOKENS. Classifying the budget as a secret would make
+  // redactText replace every occurrence of that number in every error message.
+  assert.equal(isSecretEnvName("AGENT_MAX_TOKENS"), false);
+  assert.equal(isSecretEnvName("ANTHROPIC_MAX_TOKENS"), false);
+  assert.equal(
+    isSecretEnvName("TOKEN_ENCRYPTION_KEY"),
+    true,
+    "the exception must stay anchored to the *_MAX_TOKENS form",
+  );
+  assert.equal(isSecretEnvName("ACCESS_TOKEN"), true);
+
+  const collected = collectSecretValues(baseEnv({ AGENT_MAX_TOKENS: "120000" }));
+  assert.equal(collected.includes("120000"), false);
+});
+
+test("numeric values are never harvested as redaction patterns", () => {
+  // Defence in depth: even a name the pattern does flag cannot corrupt a
+  // message when its value is a bare number.
+  const collected = collectSecretValues({ SOME_TOKEN_LIMIT: "5432", DB_PASSWORD });
+
+  assert.equal(collected.includes("5432"), false, "a port-shaped number survived into the patterns");
+  assert.ok(collected.includes(DB_PASSWORD), "real secrets must still be harvested");
+
+  const message = safeErrorMessage(new Error("connect ECONNREFUSED localhost:5432"), {
+    dependency: "postgres",
+    env: { SOME_TOKEN_LIMIT: "5432" },
+  });
+  assert.match(message, /localhost:5432/, "a numeric limit must not redact an unrelated port");
 });
 
 test("short values are not used as redaction patterns", () => {

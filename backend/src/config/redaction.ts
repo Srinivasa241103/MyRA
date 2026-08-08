@@ -15,12 +15,27 @@
 const SECRET_NAME_PATTERN =
   /(PASSWORD|SECRET|TOKEN|API_KEY|APIKEY|PRIVATE_KEY|CREDENTIAL|_PWD|_DSN)/i;
 
+/**
+ * The one collision the pattern above cannot resolve on its own: "token" means
+ * a credential in `TOKEN_ENCRYPTION_KEY` and a unit of model input in
+ * `AGENT_MAX_TOKENS`. Model-token budgets arrive with the agent runtime and
+ * will keep arriving, so the exception is spelled out rather than discovered
+ * again each time. Deliberately anchored to the exact `*_MAX_TOKENS` form — an
+ * exception is the dangerous direction, and a loose one would exempt a real
+ * credential.
+ */
+const NUMERIC_LIMIT_NAME_PATTERN = /(^|_)MAX_TOKENS$/i;
+
 /** Values shorter than this are too generic to search-and-replace safely. */
 const MIN_REDACTABLE_SECRET_LENGTH = 4;
+
+/** A credential is never a bare number; a limit almost always is. */
+const NUMERIC_VALUE_PATTERN = /^\d+(\.\d+)?$/;
 
 export const REDACTED = "[redacted]";
 
 export function isSecretEnvName(name: string): boolean {
+  if (NUMERIC_LIMIT_NAME_PATTERN.test(name)) return false;
   return SECRET_NAME_PATTERN.test(name);
 }
 
@@ -85,6 +100,11 @@ export function collectSecretValues(
   for (const [name, value] of Object.entries(env)) {
     if (!value || !isSecretEnvName(name)) continue;
     const trimmed = value.trim();
+    // Defence in depth behind the name exception above. Harvesting a numeric
+    // value would replace every occurrence of that number in every downstream
+    // error message — a limit misclassified as a secret does not leak anything,
+    // it corrupts the diagnostics the redaction exists to keep readable.
+    if (NUMERIC_VALUE_PATTERN.test(trimmed)) continue;
     if (trimmed.length >= MIN_REDACTABLE_SECRET_LENGTH) secrets.push(trimmed);
   }
 

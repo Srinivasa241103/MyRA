@@ -17,7 +17,20 @@ approval; and aligns database hash/risk checks with the domain contracts. It saf
 legitimate idempotency records created after `0001` and refuses to migrate execution state that
 has no matching approval.
 
-Neither migration creates or modifies the legacy `users`, conversations, documents, chunks,
+`0003_agt_02_langgraph_checkpoints.sql` creates the LangGraph checkpointer's tables in a dedicated
+`langgraph` schema. The library ships its own `setup()` that would create them at first use; that
+is incompatible with forward-only migrations and with `MIGRATIONS_ON_BOOT=verify`, so the DDL is
+owned here instead and the library's version ledger is pre-populated, which makes its `setup()` a
+no-op. The file is a faithful mirror of the pinned library's migration array — nothing added, no
+extra index — and `test/foundation/langgraphCheckpointSchema.unit.test.ts` fails the build if the
+two ever drift. When the library ships a new migration, add `0004_*` that applies it; never edit
+`0003`, which is checksummed.
+
+These tables carry no `user_id`, so tenant isolation cannot come from them. It comes from
+`agent_runs`: nothing may build a LangGraph thread config without first loading the run by
+`(id, user_id)`.
+
+None of these migrations create or modify the legacy `users`, conversations, documents, chunks,
 credentials, sync, usage, or budget tables. User isolation is carried on every V2 record and is
 enforced by repository query contracts plus composite ownership foreign keys between V2 tables.
 

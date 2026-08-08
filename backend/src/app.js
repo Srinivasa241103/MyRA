@@ -69,4 +69,10 @@ app.use("/chat", chatRoutes);
 app.use("/stats", statsRoutes);
 app.use("/budgets", apiBudgetRoutes);
 
+// AGT-07 mounts "/agent" here, below the boot gate above and behind
+// AGENT_RUNTIME_ENABLED (default false). Both placements are load-bearing: a
+// run endpoint mounted above the gate would accept work before PostgreSQL and
+// the checkpointer are connected, and an unflagged mount would ship the agent
+// runtime to every deploy that upgrades. /chat stays unconditional either way.
+
 export default app;
